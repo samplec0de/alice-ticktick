@@ -389,17 +389,16 @@ async def handle_edit_task(
             # Build update payload
             new_title: str | None = slots.new_name if has_name else None
 
-            new_due_date_str: str | None = None
+            new_due_date: datetime.datetime | None = None
             if has_date and slots.new_date:
                 try:
                     parsed_date = parse_yandex_datetime(slots.new_date)
                     if isinstance(parsed_date, datetime.datetime):
-                        new_due_date_str = parsed_date.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+                        new_due_date = parsed_date
                     else:
-                        dt = datetime.datetime.combine(
+                        new_due_date = datetime.datetime.combine(
                             parsed_date, datetime.time(), tzinfo=datetime.UTC
                         )
-                        new_due_date_str = dt.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
                 except ValueError:
                     pass
 
@@ -414,9 +413,9 @@ async def handle_edit_task(
                 projectId=matched_task.project_id,
                 title=new_title,
                 priority=new_priority_value,
-                dueDate=new_due_date_str,
+                dueDate=new_due_date,
             )
-            await client.update_task(matched_task.id, matched_task.project_id, payload)
+            await client.update_task(payload)
 
     except Exception:
         logger.exception("Failed to edit task")

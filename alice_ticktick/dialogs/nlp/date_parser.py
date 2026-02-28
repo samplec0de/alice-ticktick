@@ -4,11 +4,26 @@ from __future__ import annotations
 
 import calendar
 import datetime
-from typing import Any
+from typing import TypedDict
+
+
+class YandexDateTime(TypedDict, total=False):
+    """Typed structure for YANDEX.DATETIME NLU slot values."""
+
+    year: int
+    month: int
+    day: int
+    hour: int
+    minute: int
+    year_is_relative: bool
+    month_is_relative: bool
+    day_is_relative: bool
+    hour_is_relative: bool
+    minute_is_relative: bool
 
 
 def parse_yandex_datetime(
-    slot: dict[str, Any],
+    slot: YandexDateTime,
     *,
     now: datetime.datetime | None = None,
 ) -> datetime.date | datetime.datetime:

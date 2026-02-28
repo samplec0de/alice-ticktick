@@ -181,7 +181,7 @@ class TestUpdateTask:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
             with patch.object(client._client, "post", mock):
-                task = await client.update_task("task1", "proj1", payload)
+                task = await client.update_task(payload)
 
             assert task.id == "task1"
             assert task.title == "Updated title"
@@ -208,7 +208,7 @@ class TestUpdateTask:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
             with patch.object(client._client, "post", mock):
-                task = await client.update_task("task1", "proj1", payload)
+                task = await client.update_task(payload)
 
             assert task.priority == TaskPriority.HIGH
             mock.assert_called_once_with(

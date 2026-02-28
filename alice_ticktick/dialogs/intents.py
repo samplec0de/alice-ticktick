@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from alice_ticktick.dialogs.nlp.date_parser import YandexDateTime
 
 # Intent IDs configured in Yandex Dialogs console
 CREATE_TASK = "create_task"
@@ -24,7 +27,7 @@ class CreateTaskSlots:
     """Extracted slots for create_task intent."""
 
     task_name: str | None = None
-    date: dict[str, Any] | None = None
+    date: YandexDateTime | None = None
     priority: str | None = None
 
 
@@ -32,7 +35,7 @@ class CreateTaskSlots:
 class ListTasksSlots:
     """Extracted slots for list_tasks intent."""
 
-    date: dict[str, Any] | None = None
+    date: YandexDateTime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +57,7 @@ class EditTaskSlots:
     """Extracted slots for edit_task intent."""
 
     task_name: str | None = None
-    new_date: dict[str, Any] | None = None
+    new_date: YandexDateTime | None = None
     new_priority: str | None = None
     new_name: str | None = None
 
