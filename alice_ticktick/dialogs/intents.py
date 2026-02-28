@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from alice_ticktick.dialogs.nlp.date_parser import YandexDateTime
 
 # Intent IDs configured in Yandex Dialogs console
 CREATE_TASK = "create_task"
 LIST_TASKS = "list_tasks"
 OVERDUE_TASKS = "overdue_tasks"
 COMPLETE_TASK = "complete_task"
+SEARCH_TASK = "search_task"
+EDIT_TASK = "edit_task"
+DELETE_TASK = "delete_task"
 
-ALL_INTENTS = frozenset({CREATE_TASK, LIST_TASKS, OVERDUE_TASKS, COMPLETE_TASK})
+ALL_INTENTS = frozenset(
+    {CREATE_TASK, LIST_TASKS, OVERDUE_TASKS, COMPLETE_TASK, SEARCH_TASK, EDIT_TASK, DELETE_TASK}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,7 +27,7 @@ class CreateTaskSlots:
     """Extracted slots for create_task intent."""
 
     task_name: str | None = None
-    date: dict[str, Any] | None = None
+    date: YandexDateTime | None = None
     priority: str | None = None
 
 
@@ -27,12 +35,36 @@ class CreateTaskSlots:
 class ListTasksSlots:
     """Extracted slots for list_tasks intent."""
 
-    date: dict[str, Any] | None = None
+    date: YandexDateTime | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class CompleteTaskSlots:
     """Extracted slots for complete_task intent."""
+
+    task_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SearchTaskSlots:
+    """Extracted slots for search_task intent."""
+
+    query: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EditTaskSlots:
+    """Extracted slots for edit_task intent."""
+
+    task_name: str | None = None
+    new_date: YandexDateTime | None = None
+    new_priority: str | None = None
+    new_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DeleteTaskSlots:
+    """Extracted slots for delete_task intent."""
 
     task_name: str | None = None
 
@@ -63,5 +95,29 @@ def extract_list_tasks_slots(intent_data: dict[str, Any]) -> ListTasksSlots:
 def extract_complete_task_slots(intent_data: dict[str, Any]) -> CompleteTaskSlots:
     """Extract slots from complete_task intent."""
     return CompleteTaskSlots(
+        task_name=_get_slot_value(intent_data, "task_name"),
+    )
+
+
+def extract_search_task_slots(intent_data: dict[str, Any]) -> SearchTaskSlots:
+    """Extract slots from search_task intent."""
+    return SearchTaskSlots(
+        query=_get_slot_value(intent_data, "query"),
+    )
+
+
+def extract_edit_task_slots(intent_data: dict[str, Any]) -> EditTaskSlots:
+    """Extract slots from edit_task intent."""
+    return EditTaskSlots(
+        task_name=_get_slot_value(intent_data, "task_name"),
+        new_date=_get_slot_value(intent_data, "new_date"),
+        new_priority=_get_slot_value(intent_data, "new_priority"),
+        new_name=_get_slot_value(intent_data, "new_name"),
+    )
+
+
+def extract_delete_task_slots(intent_data: dict[str, Any]) -> DeleteTaskSlots:
+    """Extract slots from delete_task intent."""
+    return DeleteTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
     )

@@ -11,14 +11,14 @@ def find_best_match(
     candidates: list[str],
     *,
     threshold: int = 60,
-) -> str | None:
+) -> tuple[str, int] | None:
     """Find the best fuzzy match for *query* among *candidates*.
 
     Uses ``token_sort_ratio`` for resilience to word reordering in
     mixed Russian/English text.
 
-    Returns the best matching candidate string, or ``None`` if no
-    candidate scores at or above *threshold*.
+    Returns ``(candidate, index)`` of the best match, or ``None`` if
+    no candidate scores at or above *threshold*.
     """
     if not query or not candidates:
         return None
@@ -32,8 +32,8 @@ def find_best_match(
     )
     if result is None:
         return None
-    match, _score, _index = result
-    return str(match)
+    match, _score, index = result
+    return str(match), int(index)
 
 
 def find_matches(
@@ -42,10 +42,10 @@ def find_matches(
     *,
     threshold: int = 60,
     limit: int = 5,
-) -> list[tuple[str, float]]:
+) -> list[tuple[str, float, int]]:
     """Return up to *limit* matches above *threshold*.
 
-    Each element is ``(candidate, score)``.
+    Each element is ``(candidate, score, index)``.
     """
     if not query or not candidates:
         return []
@@ -58,4 +58,4 @@ def find_matches(
         score_cutoff=threshold,
         limit=limit,
     )
-    return [(str(match), float(score)) for match, score, _idx in results]
+    return [(str(match), float(score), int(idx)) for match, score, idx in results]

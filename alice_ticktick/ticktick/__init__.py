@@ -8,13 +8,14 @@ from alice_ticktick.ticktick.client import (
     TickTickServerError,
     TickTickUnauthorizedError,
 )
-from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskPriority
+from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskPriority, TaskUpdate
 
 __all__ = [
     "Project",
     "Task",
     "TaskCreate",
     "TaskPriority",
+    "TaskUpdate",
     "TickTickClient",
     "TickTickError",
     "TickTickNotFoundError",

@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from alice_ticktick.ticktick.models import Project, Task, TaskCreate
+from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskUpdate
 
 BASE_URL = "https://api.ticktick.com/open/v1"
 TIMEOUT = 3.0
@@ -111,6 +111,22 @@ class TickTickClient:
         )
         _raise_for_status(response)
         return Task.model_validate(response.json())
+
+    async def update_task(self, payload: TaskUpdate) -> Task:
+        """Update an existing task."""
+        response = await self._client.post(
+            f"/task/{payload.id}",
+            json=payload.model_dump(by_alias=True, exclude_none=True),
+        )
+        _raise_for_status(response)
+        return Task.model_validate(response.json())
+
+    async def delete_task(self, task_id: str, project_id: str) -> None:
+        """Delete a task."""
+        response = await self._client.delete(
+            f"/project/{project_id}/task/{task_id}",
+        )
+        _raise_for_status(response)
 
     async def complete_task(self, task_id: str, project_id: str) -> None:
         """Mark a task as completed."""

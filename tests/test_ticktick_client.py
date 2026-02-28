@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from alice_ticktick.ticktick.client import BASE_URL, TIMEOUT, TickTickClient
-from alice_ticktick.ticktick.models import TaskCreate, TaskPriority
+from alice_ticktick.ticktick.models import TaskCreate, TaskPriority, TaskUpdate
 
 
 def _make_response(
@@ -162,6 +162,72 @@ class TestCreateTask:
                 task = await client.create_task(payload)
 
             assert task.priority == TaskPriority.HIGH
+
+
+class TestUpdateTask:
+    """Test update_task method."""
+
+    @pytest.mark.asyncio
+    async def test_updates_task(self) -> None:
+        payload = TaskUpdate(id="task1", project_id="proj1", title="Updated title")
+        response_data = {
+            "id": "task1",
+            "projectId": "proj1",
+            "title": "Updated title",
+            "content": "",
+            "priority": 0,
+            "status": 0,
+        }
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(json_data=response_data))
+            with patch.object(client._client, "post", mock):
+                task = await client.update_task(payload)
+
+            assert task.id == "task1"
+            assert task.title == "Updated title"
+            mock.assert_called_once_with(
+                "/task/task1",
+                json={"id": "task1", "projectId": "proj1", "title": "Updated title"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_updates_task_with_partial_fields(self) -> None:
+        payload = TaskUpdate(
+            id="task1",
+            project_id="proj1",
+            priority=TaskPriority.HIGH,
+        )
+        response_data = {
+            "id": "task1",
+            "projectId": "proj1",
+            "title": "Buy milk",
+            "content": "",
+            "priority": 5,
+            "status": 0,
+        }
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(json_data=response_data))
+            with patch.object(client._client, "post", mock):
+                task = await client.update_task(payload)
+
+            assert task.priority == TaskPriority.HIGH
+            mock.assert_called_once_with(
+                "/task/task1",
+                json={"id": "task1", "projectId": "proj1", "priority": 5},
+            )
+
+
+class TestDeleteTask:
+    """Test delete_task method."""
+
+    @pytest.mark.asyncio
+    async def test_deletes_task(self) -> None:
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(json_data=None, text=""))
+            with patch.object(client._client, "delete", mock):
+                await client.delete_task("task1", "proj1")
+
+            mock.assert_called_once_with("/project/proj1/task/task1")
 
 
 class TestCompleteTask:

@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import IntEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class TaskPriority(IntEnum):
@@ -48,3 +48,23 @@ class TaskCreate(BaseModel):
     start_date: str | None = Field(default=None, alias="startDate")
 
     model_config = {"populate_by_name": True}
+
+
+class TaskUpdate(BaseModel):
+    """Payload for updating a task."""
+
+    id: str
+    project_id: str = Field(alias="projectId")
+    title: str | None = None
+    priority: TaskPriority | None = None
+    due_date: datetime | None = Field(default=None, alias="dueDate")
+
+    model_config = {"populate_by_name": True}
+
+    @field_serializer("due_date")
+    @classmethod
+    def serialize_datetime(cls, value: datetime | None) -> str | None:
+        """Format datetime to TickTick API format."""
+        if value is None:
+            return None
+        return value.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
