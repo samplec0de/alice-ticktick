@@ -278,14 +278,13 @@ async def handle_complete_task(
                 return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
             titles = [t.title for t in active_tasks]
-            best_match = find_best_match(slots.task_name, titles)
+            match_result = find_best_match(slots.task_name, titles)
 
-            if best_match is None:
+            if match_result is None:
                 return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
-            matched_task = next((t for t in active_tasks if t.title == best_match), None)
-            if matched_task is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+            best_match, match_idx = match_result
+            matched_task = active_tasks[match_idx]
 
             await client.complete_task(matched_task.id, matched_task.project_id)
 
@@ -329,14 +328,7 @@ async def handle_search_task(
     if not matches:
         return Response(text=txt.SEARCH_NO_RESULTS.format(query=slots.query))
 
-    matched_tasks = []
-    for match_title, _score in matches:
-        task = next((t for t in active_tasks if t.title == match_title), None)
-        if task is not None:
-            matched_tasks.append(task)
-
-    if not matched_tasks:
-        return Response(text=txt.SEARCH_NO_RESULTS.format(query=slots.query))
+    matched_tasks = [active_tasks[idx] for _title, _score, idx in matches]
 
     count_str = txt.pluralize_tasks(len(matched_tasks))
     lines = [_format_task_line(i + 1, t) for i, t in enumerate(matched_tasks)]
@@ -374,58 +366,61 @@ async def handle_edit_task(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for edit")
+        return Response(text=txt.API_ERROR)
 
-            active_tasks = [t for t in all_tasks if t.status == 0]
-            if not active_tasks:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+    active_tasks = [t for t in all_tasks if t.status == 0]
+    if not active_tasks:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
-            titles = [t.title for t in active_tasks]
-            best_match = find_best_match(slots.task_name, titles)
+    titles = [t.title for t in active_tasks]
+    match_result = find_best_match(slots.task_name, titles)
 
-            if best_match is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+    if match_result is None:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
-            matched_task = next((t for t in active_tasks if t.title == best_match), None)
-            if matched_task is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+    best_match, match_idx = match_result
+    matched_task = active_tasks[match_idx]
 
-            # Build update payload
-            new_title: str | None = slots.new_name if has_name else None
+    # Build update payload
+    new_title: str | None = slots.new_name if has_name else None
 
-            new_due_date: datetime.datetime | None = None
-            if has_date and slots.new_date:
-                try:
-                    parsed_date = parse_yandex_datetime(slots.new_date)
-                    if isinstance(parsed_date, datetime.datetime):
-                        new_due_date = parsed_date
-                    else:
-                        new_due_date = datetime.datetime.combine(
-                            parsed_date, datetime.time(), tzinfo=datetime.UTC
-                        )
-                except ValueError:
-                    logger.warning("Failed to parse date for edit: %s", slots.new_date)
+    new_due_date: datetime.datetime | None = None
+    if has_date and slots.new_date:
+        try:
+            parsed_date = parse_yandex_datetime(slots.new_date)
+            if isinstance(parsed_date, datetime.datetime):
+                new_due_date = parsed_date
+            else:
+                new_due_date = datetime.datetime.combine(
+                    parsed_date, datetime.time(), tzinfo=datetime.UTC
+                )
+        except ValueError:
+            logger.warning("Failed to parse date for edit: %s", slots.new_date)
 
-            new_priority_value: TaskPriority | None = None
-            if has_priority:
-                raw = parse_priority(slots.new_priority)
-                if raw is not None:
-                    new_priority_value = TaskPriority(raw)
-                else:
-                    logger.warning("Unrecognized priority value: %s", slots.new_priority)
+    new_priority_value: TaskPriority | None = None
+    if has_priority:
+        raw = parse_priority(slots.new_priority)
+        if raw is not None:
+            new_priority_value = TaskPriority(raw)
+        else:
+            logger.warning("Unrecognized priority value: %s", slots.new_priority)
 
-            # Check that at least one field was successfully parsed
-            if new_title is None and new_due_date is None and new_priority_value is None:
-                return Response(text=txt.EDIT_NO_CHANGES)
+    # Check that at least one field was successfully parsed
+    if new_title is None and new_due_date is None and new_priority_value is None:
+        return Response(text=txt.EDIT_NO_CHANGES)
 
-            payload = TaskUpdate(
-                id=matched_task.id,
-                projectId=matched_task.project_id,
-                title=new_title,
-                priority=new_priority_value,
-                dueDate=new_due_date,
-            )
+    payload = TaskUpdate(
+        id=matched_task.id,
+        projectId=matched_task.project_id,
+        title=new_title,
+        priority=new_priority_value,
+        dueDate=new_due_date,
+    )
+    try:
+        async with factory(access_token) as client:
             await client.update_task(payload)
-
     except Exception:
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
@@ -462,14 +457,13 @@ async def handle_delete_task(
         return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
     titles = [t.title for t in active_tasks]
-    best_match = find_best_match(slots.task_name, titles)
+    match_result = find_best_match(slots.task_name, titles)
 
-    if best_match is None:
+    if match_result is None:
         return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
-    matched_task = next((t for t in active_tasks if t.title == best_match), None)
-    if matched_task is None:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+    best_match, match_idx = match_result
+    matched_task = active_tasks[match_idx]
 
     await state.set_state(DeleteTaskStates.confirm)
     await state.set_data(

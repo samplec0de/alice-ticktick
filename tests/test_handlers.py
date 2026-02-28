@@ -624,7 +624,7 @@ async def test_edit_task_not_found() -> None:
     assert "не найдена" in response.text
 
 
-async def test_edit_task_api_error() -> None:
+async def test_edit_task_fetch_api_error() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {
         "slots": {
@@ -636,6 +636,22 @@ async def test_edit_task_api_error() -> None:
     mock_factory.return_value.__aenter__ = AsyncMock(
         side_effect=Exception("API error"),
     )
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert response.text == txt.API_ERROR
+
+
+async def test_edit_task_update_api_error() -> None:
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко"},
+            "new_priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.update_task = AsyncMock(side_effect=Exception("API error"))
     response = await handle_edit_task(message, intent_data, mock_factory)
     assert response.text == txt.EDIT_ERROR
 
@@ -735,6 +751,18 @@ async def test_delete_task_api_error() -> None:
     mock_factory.return_value.__aenter__ = AsyncMock(side_effect=Exception("API error"))
     response = await handle_delete_task(message, intent_data, state, mock_factory)
     assert response.text == txt.API_ERROR
+
+
+async def test_delete_other_reprompts_before_max_retries() -> None:
+    """Verify DELETE_CONFIRM_PROMPT returned and retry counter incremented when retries < max."""
+    message = _make_message()
+    state = _make_mock_state(data={"task_id": "t1", "project_id": "p1", "_confirm_retries": 0})
+    response = await on_delete_other(message, state)
+    assert response.text == txt.DELETE_CONFIRM_PROMPT
+    state.clear.assert_not_called()
+    state.set_data.assert_called_once()
+    updated_data = state.set_data.call_args[0][0]
+    assert updated_data["_confirm_retries"] == 1
 
 
 async def test_delete_other_escape_after_retries() -> None:
