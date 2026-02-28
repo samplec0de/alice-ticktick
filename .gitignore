@@ -33,4 +33,7 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
+# Yandex Cloud
+sa-key.json
+
 uv.lock

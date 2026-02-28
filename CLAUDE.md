@@ -10,6 +10,14 @@
 - `uv run ruff format .` — форматирование
 - `uv run mypy alice_ticktick/` — проверка типов
 
+## Правила разработки
+
+- Весь новый функционал должен быть покрыт тестами (pytest + pytest-asyncio)
+- Тесты пишутся одновременно с кодом, не после
+- Минимальное покрытие: каждый публичный метод/функция, каждый обработчик интента
+- Используй моки для внешних API (TickTick, Alice)
+- Запускай `uv run pytest -v` перед коммитом
+
 ## Структура
 
 - `alice_ticktick/` — основной пакет
@@ -21,6 +29,7 @@
   - `config.py` — настройки (pydantic-settings)
 - `tests/` — тесты (pytest + pytest-asyncio)
 - `docs/PRD.md` — Product Requirements Document
+- `docs/SETUP.md` — пошаговая настройка навыка и прогресс
 
 ## Стек
 
