@@ -10,8 +10,9 @@ class Settings(BaseSettings):
 
     alice_skill_id: str = ""
 
-    host: str = "0.0.0.0"
-    port: int = 8080
+    yc_folder_id: str = ""
+    yc_function_id: str = ""
+    yc_service_account_id: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

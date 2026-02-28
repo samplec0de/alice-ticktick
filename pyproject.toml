@@ -43,6 +43,9 @@ select = [
     "TCH",  # flake8-type-checking
     "RUF",  # ruff-specific
 ]
+ignore = [
+    "RUF001",  # ambiguous unicode — expected for Russian text
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
