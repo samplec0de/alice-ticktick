@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from aliceio import Router
@@ -36,6 +37,10 @@ from alice_ticktick.dialogs.states import DeleteTaskStates
 if TYPE_CHECKING:
     from aliceio.fsm.context import FSMContext
     from aliceio.types import Message
+
+logger = logging.getLogger(__name__)
+
+_MAX_CONFIRM_RETRIES = 3
 
 router = Router(name="main")
 
@@ -104,8 +109,17 @@ async def on_delete_reject(message: Message, state: FSMContext) -> Response:
 
 
 @router.message(DeleteTaskStates.confirm)
-async def on_delete_other(message: Message) -> Response:
+async def on_delete_other(message: Message, state: FSMContext) -> Response:
     """Handle unexpected input during delete confirmation."""
+    data = await state.get_data()
+    retries = data.get("_confirm_retries", 0) + 1
+    logger.debug("Unexpected input during delete confirm: %r (retry %d)", message.command, retries)
+
+    if retries >= _MAX_CONFIRM_RETRIES:
+        await state.clear()
+        return Response(text=txt.DELETE_CANCELLED)
+
+    await state.set_data({**data, "_confirm_retries": retries})
     return Response(text=txt.DELETE_CONFIRM_PROMPT)
 
 

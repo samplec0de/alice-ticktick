@@ -335,6 +335,9 @@ async def handle_search_task(
         if task is not None:
             matched_tasks.append(task)
 
+    if not matched_tasks:
+        return Response(text=txt.SEARCH_NO_RESULTS.format(query=slots.query))
+
     count_str = txt.pluralize_tasks(len(matched_tasks))
     lines = [_format_task_line(i + 1, t) for i, t in enumerate(matched_tasks)]
     task_list = "\n".join(lines)
@@ -400,13 +403,19 @@ async def handle_edit_task(
                             parsed_date, datetime.time(), tzinfo=datetime.UTC
                         )
                 except ValueError:
-                    pass
+                    logger.warning("Failed to parse date for edit: %s", slots.new_date)
 
             new_priority_value: TaskPriority | None = None
             if has_priority:
                 raw = parse_priority(slots.new_priority)
                 if raw is not None:
                     new_priority_value = TaskPriority(raw)
+                else:
+                    logger.warning("Unrecognized priority value: %s", slots.new_priority)
+
+            # Check that at least one field was successfully parsed
+            if new_title is None and new_due_date is None and new_priority_value is None:
+                return Response(text=txt.EDIT_NO_CHANGES)
 
             payload = TaskUpdate(
                 id=matched_task.id,
@@ -489,6 +498,16 @@ async def handle_delete_confirm(
     task_id = data.get("task_id", "")
     project_id = data.get("project_id", "")
     task_name = data.get("task_name", "")
+
+    if not task_id or not project_id or not task_name:
+        logger.error(
+            "Invalid FSM state data in delete confirm: task_id=%r, project_id=%r, task_name=%r",
+            task_id,
+            project_id,
+            task_name,
+        )
+        await state.clear()
+        return Response(text=txt.DELETE_ERROR)
 
     factory = ticktick_client_factory or TickTickClient
     try:
