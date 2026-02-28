@@ -41,7 +41,7 @@ class TaskCreate(BaseModel):
     """Payload for creating a task."""
 
     title: str
-    project_id: str = Field(alias="projectId")
+    project_id: str | None = Field(default=None, alias="projectId")
     content: str = ""
     priority: TaskPriority = TaskPriority.NONE
     due_date: str | None = Field(default=None, alias="dueDate")

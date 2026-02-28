@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.handlers import (
+    ALICE_RESPONSE_MAX_LENGTH,
+    _truncate_response,
     handle_complete_task,
     handle_create_task,
     handle_help,
@@ -167,6 +169,12 @@ async def test_create_task_success() -> None:
     response = await handle_create_task(message, intent_data, mock_factory)
     assert "Купить молоко" in response.text
     assert "Готово" in response.text
+
+    # Verify task goes to inbox (no projectId in payload)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_projects.assert_not_called()
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.project_id is None
 
 
 async def test_create_task_with_date() -> None:
@@ -379,3 +387,55 @@ class TestPluralizeTask:
 
     def test_twenty_two(self) -> None:
         assert txt.pluralize_tasks(22) == "22 задачи"
+
+
+# --- Truncation ---
+
+
+class TestTruncateResponse:
+    def test_short_text_unchanged(self) -> None:
+        assert _truncate_response("hello") == "hello"
+
+    def test_exact_limit_unchanged(self) -> None:
+        text = "a" * ALICE_RESPONSE_MAX_LENGTH
+        assert _truncate_response(text) == text
+
+    def test_long_text_truncated(self) -> None:
+        text = "a" * (ALICE_RESPONSE_MAX_LENGTH + 100)
+        result = _truncate_response(text)
+        assert len(result) == ALICE_RESPONSE_MAX_LENGTH
+        assert result.endswith("…")
+
+
+# --- Gather all tasks (parallel) ---
+
+
+async def test_list_tasks_parallel_fetch() -> None:
+    """Verify tasks are fetched from all projects in parallel."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    projects = [
+        _make_project(project_id="p1", name="Project 1"),
+        _make_project(project_id="p2", name="Project 2"),
+    ]
+    tasks_p1 = [_make_task(task_id="t1", title="Task A", project_id="p1", due_date=today)]
+    tasks_p2 = [_make_task(task_id="t2", title="Task B", project_id="p2", due_date=today)]
+
+    client = AsyncMock()
+    client.get_projects = AsyncMock(return_value=projects)
+    client.get_tasks = AsyncMock(side_effect=[tasks_p1, tasks_p2])
+
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(return_value=client)
+    factory.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+    response = await handle_list_tasks(message, intent_data, factory)
+
+    assert "Task A" in response.text
+    assert "Task B" in response.text
+    assert client.get_tasks.call_count == 2

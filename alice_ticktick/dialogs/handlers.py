@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import logging
 from typing import Any
@@ -19,6 +20,8 @@ from alice_ticktick.ticktick.client import TickTickClient
 from alice_ticktick.ticktick.models import Task, TaskCreate, TaskPriority
 
 logger = logging.getLogger(__name__)
+
+ALICE_RESPONSE_MAX_LENGTH = 1024
 
 
 def _format_date(d: datetime.date | datetime.datetime) -> str:
@@ -39,6 +42,24 @@ def _format_task_line(idx: int, task: Task) -> str:
     """Format a single task for listing."""
     priority_label = {5: " [!]", 3: " [~]", 1: " [.]"}.get(task.priority, "")
     return f"{idx}. {task.title}{priority_label}"
+
+
+def _truncate_response(text: str) -> str:
+    """Truncate response to Alice's 1024-char limit."""
+    if len(text) <= ALICE_RESPONSE_MAX_LENGTH:
+        return text
+    return text[: ALICE_RESPONSE_MAX_LENGTH - 1] + "…"
+
+
+async def _gather_all_tasks(client: TickTickClient) -> list[Task]:
+    """Fetch tasks from all projects in parallel."""
+    projects = await client.get_projects()
+    if not projects:
+        return []
+    task_lists = await asyncio.gather(
+        *(client.get_tasks(p.id) for p in projects),
+    )
+    return [t for tasks in task_lists for t in tasks]
 
 
 def _get_access_token(message: Message) -> str | None:
@@ -95,13 +116,8 @@ async def handle_create_task(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            # Get first project as default
-            projects = await client.get_projects()
-            project_id = projects[0].id if projects else "inbox"
-
             payload = TaskCreate(
                 title=slots.task_name,
-                projectId=project_id,
                 priority=priority_value,
                 dueDate=due_date_str,
             )
@@ -150,11 +166,7 @@ async def handle_list_tasks(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            projects = await client.get_projects()
-            all_tasks: list[Task] = []
-            for project in projects:
-                tasks = await client.get_tasks(project.id)
-                all_tasks.extend(tasks)
+            all_tasks = await _gather_all_tasks(client)
     except Exception:
         logger.exception("Failed to list tasks")
         return Response(text=txt.API_ERROR)
@@ -176,10 +188,12 @@ async def handle_list_tasks(
     task_list = "\n".join(lines)
 
     return Response(
-        text=txt.TASKS_FOR_DATE.format(
-            date=date_display,
-            count=count_str,
-            tasks=task_list,
+        text=_truncate_response(
+            txt.TASKS_FOR_DATE.format(
+                date=date_display,
+                count=count_str,
+                tasks=task_list,
+            )
         )
     )
 
@@ -198,11 +212,7 @@ async def handle_overdue_tasks(
 
     try:
         async with factory(access_token) as client:
-            projects = await client.get_projects()
-            all_tasks: list[Task] = []
-            for project in projects:
-                tasks = await client.get_tasks(project.id)
-                all_tasks.extend(tasks)
+            all_tasks = await _gather_all_tasks(client)
     except Exception:
         logger.exception("Failed to get overdue tasks")
         return Response(text=txt.API_ERROR)
@@ -221,9 +231,11 @@ async def handle_overdue_tasks(
     task_list = "\n".join(lines)
 
     return Response(
-        text=txt.OVERDUE_TASKS_HEADER.format(
-            count=count_str,
-            tasks=task_list,
+        text=_truncate_response(
+            txt.OVERDUE_TASKS_HEADER.format(
+                count=count_str,
+                tasks=task_list,
+            )
         )
     )
 
@@ -246,11 +258,7 @@ async def handle_complete_task(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            projects = await client.get_projects()
-            all_tasks: list[Task] = []
-            for project in projects:
-                tasks = await client.get_tasks(project.id)
-                all_tasks.extend(tasks)
+            all_tasks = await _gather_all_tasks(client)
 
             # Find task by fuzzy match
             active_tasks = [t for t in all_tasks if t.status == 0]
@@ -263,7 +271,10 @@ async def handle_complete_task(
             if best_match is None:
                 return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
 
-            matched_task = next(t for t in active_tasks if t.title == best_match)
+            matched_task = next((t for t in active_tasks if t.title == best_match), None)
+            if matched_task is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
             await client.complete_task(matched_task.id, matched_task.project_id)
 
     except Exception:
