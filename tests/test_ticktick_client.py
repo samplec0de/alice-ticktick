@@ -185,9 +185,7 @@ class TestErrorHandling:
         from alice_ticktick.ticktick.client import TickTickUnauthorizedError
 
         async with TickTickClient(access_token="bad") as client:
-            mock = AsyncMock(
-                return_value=_make_response(status_code=401, text="Unauthorized")
-            )
+            mock = AsyncMock(return_value=_make_response(status_code=401, text="Unauthorized"))
             with (
                 patch.object(client._client, "get", mock),
                 pytest.raises(TickTickUnauthorizedError) as exc_info,
@@ -201,9 +199,7 @@ class TestErrorHandling:
         from alice_ticktick.ticktick.client import TickTickNotFoundError
 
         async with TickTickClient(access_token="t") as client:
-            mock = AsyncMock(
-                return_value=_make_response(status_code=404, text="Not Found")
-            )
+            mock = AsyncMock(return_value=_make_response(status_code=404, text="Not Found"))
             with (
                 patch.object(client._client, "get", mock),
                 pytest.raises(TickTickNotFoundError) as exc_info,
@@ -217,9 +213,7 @@ class TestErrorHandling:
         from alice_ticktick.ticktick.client import TickTickRateLimitError
 
         async with TickTickClient(access_token="t") as client:
-            mock = AsyncMock(
-                return_value=_make_response(status_code=429, text="Rate Limited")
-            )
+            mock = AsyncMock(return_value=_make_response(status_code=429, text="Rate Limited"))
             with (
                 patch.object(client._client, "get", mock),
                 pytest.raises(TickTickRateLimitError) as exc_info,
@@ -249,9 +243,7 @@ class TestErrorHandling:
         from alice_ticktick.ticktick.client import TickTickError
 
         async with TickTickClient(access_token="t") as client:
-            mock = AsyncMock(
-                return_value=_make_response(status_code=418, text="I'm a teapot")
-            )
+            mock = AsyncMock(return_value=_make_response(status_code=418, text="I'm a teapot"))
             with (
                 patch.object(client._client, "get", mock),
                 pytest.raises(TickTickError) as exc_info,
@@ -264,9 +256,7 @@ class TestErrorHandling:
     async def test_timeout(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
-            with patch.object(client._client, "get", mock), pytest.raises(
-                httpx.TimeoutException
-            ):
+            with patch.object(client._client, "get", mock), pytest.raises(httpx.TimeoutException):
                 await client.get_projects()
 
 
