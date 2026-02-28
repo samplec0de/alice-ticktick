@@ -5,19 +5,31 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aliceio.types import Message, Response
+
+if TYPE_CHECKING:
+    from aliceio.fsm.context import FSMContext
 
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.intents import (
     extract_complete_task_slots,
     extract_create_task_slots,
+    extract_delete_task_slots,
+    extract_edit_task_slots,
     extract_list_tasks_slots,
+    extract_search_task_slots,
 )
-from alice_ticktick.dialogs.nlp import find_best_match, parse_priority, parse_yandex_datetime
+from alice_ticktick.dialogs.nlp import (
+    find_best_match,
+    find_matches,
+    parse_priority,
+    parse_yandex_datetime,
+)
+from alice_ticktick.dialogs.states import DeleteTaskStates
 from alice_ticktick.ticktick.client import TickTickClient
-from alice_ticktick.ticktick.models import Task, TaskCreate, TaskPriority
+from alice_ticktick.ticktick.models import Task, TaskCreate, TaskPriority, TaskUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +294,220 @@ async def handle_complete_task(
         return Response(text=txt.COMPLETE_ERROR)
 
     return Response(text=txt.TASK_COMPLETED.format(name=best_match))
+
+
+async def handle_search_task(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle search_task intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_search_task_slots(intent_data)
+
+    if not slots.query:
+        return Response(text=txt.SEARCH_QUERY_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to search tasks")
+        return Response(text=txt.API_ERROR)
+
+    active_tasks = [t for t in all_tasks if t.status == 0]
+    if not active_tasks:
+        return Response(text=txt.SEARCH_NO_RESULTS.format(query=slots.query))
+
+    titles = [t.title for t in active_tasks]
+    matches = find_matches(slots.query, titles, limit=5)
+
+    if not matches:
+        return Response(text=txt.SEARCH_NO_RESULTS.format(query=slots.query))
+
+    matched_tasks = []
+    for match_title, _score in matches:
+        task = next((t for t in active_tasks if t.title == match_title), None)
+        if task is not None:
+            matched_tasks.append(task)
+
+    count_str = txt.pluralize_tasks(len(matched_tasks))
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(matched_tasks)]
+    task_list = "\n".join(lines)
+
+    return Response(
+        text=_truncate_response(txt.SEARCH_RESULTS.format(count=count_str, tasks=task_list))
+    )
+
+
+async def handle_edit_task(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle edit_task intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_edit_task_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.EDIT_NAME_REQUIRED)
+
+    # Check that at least one change is specified
+    has_date = slots.new_date is not None
+    has_priority = slots.new_priority is not None
+    has_name = slots.new_name is not None
+
+    if not has_date and not has_priority and not has_name:
+        return Response(text=txt.EDIT_NO_CHANGES)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            titles = [t.title for t in active_tasks]
+            best_match = find_best_match(slots.task_name, titles)
+
+            if best_match is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            matched_task = next((t for t in active_tasks if t.title == best_match), None)
+            if matched_task is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            # Build update payload
+            new_title: str | None = slots.new_name if has_name else None
+
+            new_due_date_str: str | None = None
+            if has_date and slots.new_date:
+                try:
+                    parsed_date = parse_yandex_datetime(slots.new_date)
+                    if isinstance(parsed_date, datetime.datetime):
+                        new_due_date_str = parsed_date.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+                    else:
+                        dt = datetime.datetime.combine(
+                            parsed_date, datetime.time(), tzinfo=datetime.UTC
+                        )
+                        new_due_date_str = dt.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+                except ValueError:
+                    pass
+
+            new_priority_value: TaskPriority | None = None
+            if has_priority:
+                raw = parse_priority(slots.new_priority)
+                if raw is not None:
+                    new_priority_value = TaskPriority(raw)
+
+            payload = TaskUpdate(
+                id=matched_task.id,
+                projectId=matched_task.project_id,
+                title=new_title,
+                priority=new_priority_value,
+                dueDate=new_due_date_str,
+            )
+            await client.update_task(matched_task.id, matched_task.project_id, payload)
+
+    except Exception:
+        logger.exception("Failed to edit task")
+        return Response(text=txt.EDIT_ERROR)
+
+    return Response(text=txt.EDIT_SUCCESS.format(name=best_match))
+
+
+async def handle_delete_task(
+    message: Message,
+    intent_data: dict[str, Any],
+    state: FSMContext,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle delete_task intent — start confirmation flow."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_delete_task_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.DELETE_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for deletion")
+        return Response(text=txt.API_ERROR)
+
+    active_tasks = [t for t in all_tasks if t.status == 0]
+    if not active_tasks:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    titles = [t.title for t in active_tasks]
+    best_match = find_best_match(slots.task_name, titles)
+
+    if best_match is None:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    matched_task = next((t for t in active_tasks if t.title == best_match), None)
+    if matched_task is None:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    await state.set_state(DeleteTaskStates.confirm)
+    await state.set_data(
+        {
+            "task_id": matched_task.id,
+            "project_id": matched_task.project_id,
+            "task_name": best_match,
+        }
+    )
+
+    return Response(text=txt.DELETE_CONFIRM.format(name=best_match))
+
+
+async def handle_delete_confirm(
+    message: Message,
+    state: FSMContext,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle delete confirmation (user said 'yes')."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        await state.clear()
+        return Response(text=txt.AUTH_REQUIRED)
+
+    data = await state.get_data()
+    task_id = data.get("task_id", "")
+    project_id = data.get("project_id", "")
+    task_name = data.get("task_name", "")
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            await client.delete_task(task_id, project_id)
+    except Exception:
+        logger.exception("Failed to delete task")
+        await state.clear()
+        return Response(text=txt.DELETE_ERROR)
+
+    await state.clear()
+    return Response(text=txt.DELETE_SUCCESS.format(name=task_name))
+
+
+async def handle_delete_reject(message: Message, state: FSMContext) -> Response:
+    """Handle delete rejection (user said 'no')."""
+    await state.clear()
+    return Response(text=txt.DELETE_CANCELLED)
 
 
 async def handle_unknown(message: Message) -> Response:

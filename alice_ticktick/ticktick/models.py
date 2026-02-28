@@ -48,3 +48,17 @@ class TaskCreate(BaseModel):
     start_date: str | None = Field(default=None, alias="startDate")
 
     model_config = {"populate_by_name": True}
+
+
+class TaskUpdate(BaseModel):
+    """Payload for updating a task."""
+
+    id: str
+    project_id: str = Field(alias="projectId")
+    title: str | None = None
+    content: str | None = None
+    priority: TaskPriority | None = None
+    due_date: str | None = Field(default=None, alias="dueDate")
+    start_date: str | None = Field(default=None, alias="startDate")
+
+    model_config = {"populate_by_name": True}

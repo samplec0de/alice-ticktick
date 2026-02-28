@@ -12,9 +12,14 @@ from alice_ticktick.dialogs.handlers import (
     _truncate_response,
     handle_complete_task,
     handle_create_task,
+    handle_delete_confirm,
+    handle_delete_reject,
+    handle_delete_task,
+    handle_edit_task,
     handle_help,
     handle_list_tasks,
     handle_overdue_tasks,
+    handle_search_task,
     handle_unknown,
     handle_welcome,
 )
@@ -91,6 +96,8 @@ def _make_mock_client(
     client.get_tasks = AsyncMock(return_value=tasks)
     client.create_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
     client.complete_task = AsyncMock(return_value=None)
+    client.update_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
+    client.delete_task = AsyncMock(return_value=None)
 
     factory = MagicMock()
     factory.return_value.__aenter__ = AsyncMock(return_value=client)
@@ -439,3 +446,209 @@ async def test_list_tasks_parallel_fetch() -> None:
     assert "Task A" in response.text
     assert "Task B" in response.text
     assert client.get_tasks.call_count == 2
+
+
+# --- FSM state helper ---
+
+
+def _make_mock_state(data: dict[str, Any] | None = None) -> AsyncMock:
+    """Create a mock FSMContext."""
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value=data or {})
+    state.set_data = AsyncMock()
+    state.set_state = AsyncMock()
+    state.clear = AsyncMock()
+    return state
+
+
+# --- Search task ---
+
+
+async def test_search_task_query_required() -> None:
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+    response = await handle_search_task(message, intent_data)
+    assert response.text == txt.SEARCH_QUERY_REQUIRED
+
+
+async def test_search_task_success() -> None:
+    tasks = [
+        _make_task(title="Купить молоко"),
+        _make_task(task_id="t2", title="Купить хлеб"),
+        _make_task(task_id="t3", title="Позвонить маме"),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"query": {"value": "купить"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "Купить молоко" in response.text
+    assert "Купить хлеб" in response.text
+
+
+async def test_search_task_no_results() -> None:
+    tasks = [_make_task(title="Совсем другая задача")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"query": {"value": "xxxxxx"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "ничего не найдено" in response.text
+
+
+async def test_search_task_api_error() -> None:
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"query": {"value": "тест"}},
+    }
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=Exception("API error"),
+    )
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert response.text == txt.API_ERROR
+
+
+# --- Edit task ---
+
+
+async def test_edit_task_name_required() -> None:
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+    response = await handle_edit_task(message, intent_data)
+    assert response.text == txt.EDIT_NAME_REQUIRED
+
+
+async def test_edit_task_no_changes() -> None:
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "Купить молоко"}},
+    }
+    response = await handle_edit_task(message, intent_data)
+    assert response.text == txt.EDIT_NO_CHANGES
+
+
+async def test_edit_task_reschedule() -> None:
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко"},
+            "new_date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+    assert "Купить молоко" in response.text
+
+
+async def test_edit_task_change_priority() -> None:
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко"},
+            "new_priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+
+
+async def test_edit_task_rename() -> None:
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко"},
+            "new_name": {"value": "Купить кефир"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+
+
+async def test_edit_task_not_found() -> None:
+    tasks = [_make_task(title="Совсем другая задача")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "xxxxxx"},
+            "new_priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "не найдена" in response.text
+
+
+async def test_edit_task_api_error() -> None:
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "тест"},
+            "new_priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=Exception("API error"),
+    )
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert response.text == txt.EDIT_ERROR
+
+
+# --- Delete task ---
+
+
+async def test_delete_task_name_required() -> None:
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+    state = _make_mock_state()
+    response = await handle_delete_task(message, intent_data, state)
+    assert response.text == txt.DELETE_NAME_REQUIRED
+
+
+async def test_delete_task_starts_confirmation() -> None:
+    tasks = [_make_task(title="Купить молоко", task_id="t1", project_id="p1")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "купить молоко"}},
+    }
+    state = _make_mock_state()
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_delete_task(message, intent_data, state, mock_factory)
+    assert "Удалить задачу" in response.text
+    assert "Купить молоко" in response.text
+    state.set_state.assert_called_once()
+    state.set_data.assert_called_once()
+    call_data = state.set_data.call_args[0][0]
+    assert call_data["task_id"] == "t1"
+    assert call_data["project_id"] == "p1"
+
+
+async def test_delete_confirm_success() -> None:
+    message = _make_message()
+    state = _make_mock_state(
+        data={"task_id": "t1", "project_id": "p1", "task_name": "Купить молоко"}
+    )
+    mock_factory = _make_mock_client()
+    response = await handle_delete_confirm(message, state, mock_factory)
+    assert "удалена" in response.text
+    assert "Купить молоко" in response.text
+    state.clear.assert_called_once()
+
+
+async def test_delete_reject() -> None:
+    message = _make_message()
+    state = _make_mock_state(
+        data={"task_id": "t1", "project_id": "p1", "task_name": "Купить молоко"}
+    )
+    response = await handle_delete_reject(message, state)
+    assert response.text == txt.DELETE_CANCELLED
+    state.clear.assert_called_once()
