@@ -629,6 +629,8 @@ async def handle_edit_task(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client)
+            # Pre-fetch projects if move requested (reuses same client session)
+            cached_projects = await _get_cached_projects(client) if has_project else None
     except Exception:
         logger.exception("Failed to fetch tasks for edit")
         return Response(text=txt.API_ERROR)
@@ -709,23 +711,19 @@ async def handle_edit_task(
     # Resolve target project if requested
     target_project_id: str | None = None
     target_project_name: str | None = None
-    if has_project:
-        try:
-            async with factory(access_token) as client:
-                projects = await _get_cached_projects(client)
-        except Exception:
-            logger.exception("Failed to fetch projects for move")
-            return Response(text=txt.API_ERROR)
-
-        project = _find_project_by_name(projects, slots.new_project)  # type: ignore[arg-type]
+    same_project_name: str | None = None
+    if has_project and cached_projects is not None:
+        project = _find_project_by_name(cached_projects, slots.new_project)  # type: ignore[arg-type]
         if project is None:
-            names = ", ".join(p.name for p in projects) if projects else "—"
+            names = ", ".join(p.name for p in cached_projects) if cached_projects else "—"
             return Response(
                 text=txt.PROJECT_NOT_FOUND.format(name=slots.new_project, projects=names)
             )
         if project.id != matched_task.project_id:
             target_project_id = project.id
             target_project_name = project.name
+        else:
+            same_project_name = project.name
 
     # Check that at least one field was successfully parsed
     if (
@@ -734,6 +732,10 @@ async def handle_edit_task(
         and new_priority_value is None
         and target_project_id is None
     ):
+        if same_project_name:
+            return Response(
+                text=txt.TASK_ALREADY_IN_PROJECT.format(name=best_match, project=same_project_name)
+            )
         return Response(text=txt.EDIT_NO_CHANGES)
 
     payload = TaskUpdate(

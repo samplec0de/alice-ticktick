@@ -1269,6 +1269,23 @@ async def test_edit_task_move_project_not_found() -> None:
     assert "Работа" in response.text
 
 
+async def test_edit_task_move_same_project() -> None:
+    """Moving to the same project returns 'already in project' message."""
+    projects = [_make_project(project_id="p1", name="Работа")]
+    tasks = [_make_task(title="Отчёт", project_id="p1")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_project": {"value": "Работа"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "уже в проекте" in response.text
+    assert "Работа" in response.text
+
+
 async def test_edit_task_move_and_reschedule() -> None:
     """Move to another project and change date simultaneously."""
     projects = [
