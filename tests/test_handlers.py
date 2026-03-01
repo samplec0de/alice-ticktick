@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.handlers import (
     ALICE_RESPONSE_MAX_LENGTH,
+    _auth_required_response,
     _truncate_response,
     handle_complete_task,
     handle_create_task,
@@ -138,6 +139,35 @@ async def test_handle_unknown() -> None:
     assert response.text == txt.UNKNOWN
 
 
+# --- Auth required response helper ---
+
+
+async def test_auth_required_no_linking_when_no_update() -> None:
+    """Without event_update, returns NO_LINKING text and no directives."""
+    response = _auth_required_response(None)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+    assert response.directives is None
+
+
+async def test_auth_required_no_linking_when_no_interfaces() -> None:
+    """When meta.interfaces.account_linking is None, returns NO_LINKING."""
+    mock_update = MagicMock()
+    mock_update.meta.interfaces.account_linking = None
+    response = _auth_required_response(mock_update)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+    assert response.directives is None
+
+
+async def test_auth_required_with_linking() -> None:
+    """When account_linking is supported, returns LINKING text and directive."""
+    mock_update = MagicMock()
+    mock_update.meta.interfaces.account_linking = {}
+    response = _auth_required_response(mock_update)
+    assert response.text == txt.AUTH_REQUIRED_LINKING
+    assert response.directives is not None
+    assert response.directives.start_account_linking == {}
+
+
 # --- Auth required ---
 
 
@@ -145,41 +175,41 @@ async def test_create_task_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
     response = await handle_create_task(message, intent_data)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 async def test_list_tasks_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
     response = await handle_list_tasks(message, intent_data)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 async def test_overdue_tasks_auth_required() -> None:
     message = _make_message(access_token=None)
     response = await handle_overdue_tasks(message)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 async def test_complete_task_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
     response = await handle_complete_task(message, intent_data)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 async def test_search_task_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
     response = await handle_search_task(message, intent_data)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 async def test_edit_task_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
     response = await handle_edit_task(message, intent_data)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 async def test_delete_task_auth_required() -> None:
@@ -187,7 +217,7 @@ async def test_delete_task_auth_required() -> None:
     intent_data: dict[str, Any] = {"slots": {}}
     state = _make_mock_state()
     response = await handle_delete_task(message, intent_data, state)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
 # --- Create task ---
@@ -849,7 +879,7 @@ async def test_delete_confirm_auth_required() -> None:
         data={"task_id": "t1", "project_id": "p1", "task_name": "Купить молоко"}
     )
     response = await handle_delete_confirm(message, state)
-    assert response.text == txt.AUTH_REQUIRED
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
     state.clear.assert_called_once()
 
 

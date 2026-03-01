@@ -8,7 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
-from aliceio.types import Message, Response, Update
+from aliceio.types import Directives, Message, Response, Update
 
 if TYPE_CHECKING:
     from aliceio.fsm.context import FSMContext
@@ -41,6 +41,19 @@ from alice_ticktick.ticktick.models import Task, TaskCreate, TaskPriority, TaskU
 logger = logging.getLogger(__name__)
 
 ALICE_RESPONSE_MAX_LENGTH = 1024
+
+
+def _auth_required_response(event_update: Update | None = None) -> Response:
+    """Return a response that initiates Account Linking if supported."""
+    supports_linking = False
+    if event_update and event_update.meta and event_update.meta.interfaces:
+        supports_linking = event_update.meta.interfaces.account_linking is not None
+    if supports_linking:
+        return Response(
+            text=txt.AUTH_REQUIRED_LINKING,
+            directives=Directives(start_account_linking={}),
+        )
+    return Response(text=txt.AUTH_REQUIRED_NO_LINKING)
 
 
 def _get_user_tz(event_update: Update | None) -> ZoneInfo:
@@ -123,11 +136,12 @@ async def handle_create_task(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle create_task intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_create_task_slots(intent_data)
 
@@ -185,7 +199,7 @@ async def handle_list_tasks(
     """Handle list_tasks intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     user_tz = _get_user_tz(event_update)
     slots = extract_list_tasks_slots(intent_data)
@@ -250,7 +264,7 @@ async def handle_overdue_tasks(
     """Handle overdue_tasks intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     user_tz = _get_user_tz(event_update)
     factory = ticktick_client_factory or TickTickClient
@@ -290,11 +304,12 @@ async def handle_complete_task(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle complete_task intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_complete_task_slots(intent_data)
 
@@ -333,11 +348,12 @@ async def handle_search_task(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle search_task intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_search_task_slots(intent_data)
 
@@ -377,11 +393,12 @@ async def handle_edit_task(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle edit_task intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_edit_task_slots(intent_data)
 
@@ -467,11 +484,12 @@ async def handle_delete_task(
     intent_data: dict[str, Any],
     state: FSMContext,
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle delete_task intent — start confirmation flow."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_delete_task_slots(intent_data)
 
@@ -515,12 +533,13 @@ async def handle_delete_confirm(
     message: Message,
     state: FSMContext,
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle delete confirmation (user said 'yes')."""
     access_token = _get_access_token(message)
     if access_token is None:
         await state.clear()
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     data = await state.get_data()
     task_id = data.get("task_id", "")
@@ -560,11 +579,12 @@ async def handle_add_subtask(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle add_subtask intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_add_subtask_slots(intent_data)
 
@@ -610,11 +630,12 @@ async def handle_list_subtasks(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle list_subtasks intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_list_subtasks_slots(intent_data)
 
@@ -662,11 +683,12 @@ async def handle_add_checklist_item(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle add_checklist_item intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_add_checklist_item_slots(intent_data)
 
@@ -729,11 +751,12 @@ async def handle_show_checklist(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle show_checklist intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_show_checklist_slots(intent_data)
 
@@ -779,11 +802,12 @@ async def handle_check_item(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle check_item intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_check_item_slots(intent_data)
 
@@ -855,11 +879,12 @@ async def handle_delete_checklist_item(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle delete_checklist_item intent."""
     access_token = _get_access_token(message)
     if access_token is None:
-        return Response(text=txt.AUTH_REQUIRED)
+        return _auth_required_response(event_update)
 
     slots = extract_delete_checklist_item_slots(intent_data)
 
