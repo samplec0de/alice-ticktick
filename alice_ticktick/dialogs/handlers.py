@@ -70,11 +70,10 @@ def _truncate_response(text: str) -> str:
 
 
 async def _gather_all_tasks(client: TickTickClient) -> list[Task]:
-    """Fetch tasks from all projects in parallel."""
+    """Fetch tasks from all projects and inbox in parallel."""
     projects = await client.get_projects()
-    if not projects:
-        return []
     task_lists = await asyncio.gather(
+        client.get_inbox_tasks(),
         *(client.get_tasks(p.id) for p in projects),
     )
     return [t for tasks in task_lists for t in tasks]

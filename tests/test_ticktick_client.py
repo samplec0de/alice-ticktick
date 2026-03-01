@@ -74,6 +74,31 @@ class TestGetProjects:
             assert projects == []
 
 
+class TestGetInboxTasks:
+    """Test get_inbox_tasks method."""
+
+    @pytest.mark.asyncio
+    async def test_returns_inbox_tasks(self) -> None:
+        data = {"tasks": [SAMPLE_TASK]}
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(json_data=data))
+            with patch.object(client._client, "get", mock):
+                tasks = await client.get_inbox_tasks()
+
+            assert len(tasks) == 1
+            assert tasks[0].id == "task1"
+            mock.assert_called_once_with("/project/inbox/data")
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_inbox_tasks(self) -> None:
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(json_data={}))
+            with patch.object(client._client, "get", mock):
+                tasks = await client.get_inbox_tasks()
+
+            assert tasks == []
+
+
 class TestGetTasks:
     """Test get_tasks method."""
 
