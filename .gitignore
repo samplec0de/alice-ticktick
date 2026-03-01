@@ -39,3 +39,6 @@ deploy.zip
 .build/
 
 uv.lock
+
+# Worktrees
+.worktrees/
