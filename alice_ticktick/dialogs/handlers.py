@@ -34,6 +34,7 @@ from alice_ticktick.dialogs.nlp import (
     parse_priority,
     parse_yandex_datetime,
 )
+from alice_ticktick.dialogs.nlp.date_parser import ExtractedDates, extract_dates_from_nlu
 from alice_ticktick.dialogs.states import DeleteTaskStates
 from alice_ticktick.ticktick.client import TickTickClient
 from alice_ticktick.ticktick.models import Task, TaskCreate, TaskPriority, TaskUpdate
@@ -117,6 +118,24 @@ def _get_access_token(message: Message) -> str | None:
     return message.user.access_token
 
 
+def _extract_nlu_dates(message: Message) -> ExtractedDates | None:
+    """Try to extract dates from NLU entities (hybrid approach)."""
+    if not message.nlu:
+        return None
+    # Count command tokens: "создай задачу" = 2, "создай" = 1, etc.
+    # The grammar starts matching at token 0 (command word) and optional token 1 ("задачу")
+    # We check token 1 to decide command_token_count
+    tokens = message.nlu.tokens
+    filler = {"задачу", "задачи", "напоминание", "напоминания", "встречу"}
+    cmd_count = 1
+    if len(tokens) > 1 and tokens[1] in filler:
+        cmd_count = 2
+    result = extract_dates_from_nlu(message.nlu, command_token_count=cmd_count)
+    if result.start_date is None:
+        return None
+    return result
+
+
 async def handle_welcome(message: Message) -> Response:
     """Handle new session greeting."""
     return Response(text=txt.WELCOME)
@@ -148,17 +167,50 @@ async def handle_create_task(
     if not slots.task_name:
         return Response(text=txt.TASK_NAME_REQUIRED)
 
-    # Parse optional date
+    _fmt = "%Y-%m-%dT%H:%M:%S.000+0000"
+    start_date_str: str | None = None
     due_date_str: str | None = None
     date_display: str | None = None
-    if slots.date:
+    task_name = slots.task_name
+
+    # Hybrid approach: try NLU entities first for better date extraction,
+    # fall back to grammar slots.
+    nlu_dates = _extract_nlu_dates(message)
+    if nlu_dates and nlu_dates.start_date:
+        # NLU entities found — use them and the cleaned task name
+        if nlu_dates.task_name:
+            task_name = nlu_dates.task_name
+
+        parsed_start = nlu_dates.start_date
+        date_display = _format_date(parsed_start)
+
+        if isinstance(parsed_start, datetime.datetime):
+            start_date_str = parsed_start.strftime(_fmt)
+        else:
+            dt_s = datetime.datetime.combine(parsed_start, datetime.time(), tzinfo=datetime.UTC)
+            start_date_str = dt_s.strftime(_fmt)
+
+        if nlu_dates.end_date:
+            # Time range: startDate and dueDate are different
+            parsed_end = nlu_dates.end_date
+            if isinstance(parsed_end, datetime.datetime):
+                due_date_str = parsed_end.strftime(_fmt)
+            else:
+                dt_e = datetime.datetime.combine(parsed_end, datetime.time(), tzinfo=datetime.UTC)
+                due_date_str = dt_e.strftime(_fmt)
+        else:
+            # Single date: only dueDate (no startDate for simple tasks)
+            due_date_str = start_date_str
+            start_date_str = None
+    elif slots.date:
+        # Fallback: grammar-based date extraction
         try:
             parsed_date = parse_yandex_datetime(slots.date)
             if isinstance(parsed_date, datetime.datetime):
-                due_date_str = parsed_date.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+                due_date_str = parsed_date.strftime(_fmt)
             else:
                 dt = datetime.datetime.combine(parsed_date, datetime.time(), tzinfo=datetime.UTC)
-                due_date_str = dt.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+                due_date_str = dt.strftime(_fmt)
             date_display = _format_date(parsed_date)
         except ValueError:
             pass
@@ -171,8 +223,9 @@ async def handle_create_task(
     try:
         async with factory(access_token) as client:
             payload = TaskCreate(
-                title=slots.task_name,
+                title=task_name,
                 priority=priority_value,
+                startDate=start_date_str,
                 dueDate=due_date_str,
             )
             await client.create_task(payload)
@@ -183,7 +236,7 @@ async def handle_create_task(
     if date_display:
         return Response(
             text=txt.TASK_CREATED_WITH_DATE.format(
-                name=slots.task_name,
+                name=task_name,
                 date=date_display,
             )
         )
