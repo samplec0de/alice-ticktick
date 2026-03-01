@@ -520,6 +520,80 @@ async def test_list_tasks_includes_inbox() -> None:
     client.get_inbox_tasks.assert_called_once()
 
 
+async def test_list_tasks_timezone_filter() -> None:
+    """Task due 2026-03-02 00:00 MSK (= 2026-03-01 21:00 UTC) should NOT appear for March 1."""
+    # Due date stored as UTC: midnight March 2 MSK = 21:00 March 1 UTC
+    due_utc = datetime.datetime(2026, 3, 1, 21, 0, tzinfo=datetime.UTC)
+    task = _make_task(task_id="t1", title="Tomorrow Task", due_date=due_utc)
+
+    factory = _make_mock_client(tasks=[task])
+
+    message = _make_message()
+    # Slot says "March 1" (today in MSK)
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "date": {
+                "value": {
+                    "day": 1,
+                    "day_is_relative": False,
+                    "month": 3,
+                    "month_is_relative": False,
+                    "year": 2026,
+                    "year_is_relative": False,
+                },
+            },
+        },
+    }
+
+    # Build a mock Update with Europe/Moscow timezone
+    mock_update = MagicMock()
+    mock_update.meta.timezone = "Europe/Moscow"
+
+    response = await handle_list_tasks(
+        message,
+        intent_data,
+        factory,
+        event_update=mock_update,
+    )
+    # Task is March 2 in MSK — should NOT match March 1
+    assert "Tomorrow Task" not in response.text
+
+
+async def test_list_tasks_timezone_filter_matches() -> None:
+    """Task due 2026-03-01 21:00 UTC (= March 2 MSK) should appear when querying March 2."""
+    due_utc = datetime.datetime(2026, 3, 1, 21, 0, tzinfo=datetime.UTC)
+    task = _make_task(task_id="t1", title="Tomorrow Task", due_date=due_utc)
+
+    factory = _make_mock_client(tasks=[task])
+
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "date": {
+                "value": {
+                    "day": 2,
+                    "day_is_relative": False,
+                    "month": 3,
+                    "month_is_relative": False,
+                    "year": 2026,
+                    "year_is_relative": False,
+                },
+            },
+        },
+    }
+
+    mock_update = MagicMock()
+    mock_update.meta.timezone = "Europe/Moscow"
+
+    response = await handle_list_tasks(
+        message,
+        intent_data,
+        factory,
+        event_update=mock_update,
+    )
+    assert "Tomorrow Task" in response.text
+
+
 # --- FSM state helper ---
 
 
