@@ -11,7 +11,12 @@ rm -rf "$BUILD_DIR" "$PROJECT_DIR/deploy.zip"
 mkdir -p "$BUILD_DIR"
 
 # Install production dependencies into build dir
+# Use --python-version and --only-binary to ensure linux-compatible wheels for YC Functions
 pip install --target "$BUILD_DIR" --quiet \
+    --platform manylinux2014_x86_64 \
+    --python-version 3.12 \
+    --only-binary=:all: \
+    --implementation cp \
     aliceio aiohttp httpx pydantic pydantic-settings rapidfuzz
 
 # Copy application code
