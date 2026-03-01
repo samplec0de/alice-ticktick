@@ -35,3 +35,41 @@ jobs:
         if: always()
         with:
           file: coverage.xml
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Package application
+        run: bash scripts/package.sh
+
+      - name: Install Yandex Cloud CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -n
+          echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
+
+      - name: Authenticate with Yandex Cloud
+        run: |
+          echo '${{ secrets.YC_SA_KEY_JSON }}' > sa-key.json
+          yc config set service-account-key sa-key.json
+          yc config set folder-id ${{ vars.YC_FOLDER_ID }}
+          rm sa-key.json
+
+      - name: Deploy to Yandex Cloud Functions
+        run: |
+          yc serverless function version create \
+            --function-id ${{ vars.YC_FUNCTION_ID }} \
+            --runtime python313 \
+            --entrypoint alice_ticktick.main.handler \
+            --memory 128m \
+            --execution-timeout 3s \
+            --source-path deploy.zip \
+            --environment ALICE_SKILL_ID=${{ vars.ALICE_SKILL_ID }}

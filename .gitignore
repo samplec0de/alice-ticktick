@@ -35,5 +35,7 @@ Thumbs.db
 
 # Yandex Cloud
 sa-key.json
+deploy.zip
+.build/
 
 uv.lock
