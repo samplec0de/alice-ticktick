@@ -382,7 +382,7 @@ async def handle_create_task(
                 startDate=start_date_str,
                 dueDate=due_date_str,
                 isAllDay=is_all_day,
-                repeat_flag=repeat_flag,
+                repeatFlag=repeat_flag,
                 reminders=reminders_list,
             )
             await client.create_task(payload)
@@ -402,9 +402,13 @@ async def handle_create_task(
             )
         )
     if rec_display:
-        return Response(text=txt.TASK_CREATED_RECURRING.format(name=task_name, recurrence=rec_display))
+        return Response(
+            text=txt.TASK_CREATED_RECURRING.format(name=task_name, recurrence=rec_display)
+        )
     if rem_display:
-        return Response(text=txt.TASK_CREATED_WITH_REMINDER.format(name=task_name, reminder=rem_display))
+        return Response(
+            text=txt.TASK_CREATED_WITH_REMINDER.format(name=task_name, reminder=rem_display)
+        )
 
     if project_name_display:
         if date_display:
@@ -462,7 +466,7 @@ async def handle_add_reminder(
     ticktick_client_factory: type[TickTickClient] | None = None,
     event_update: Update | None = None,
 ) -> Response:
-    """Handle add_reminder intent ('напомни о задаче X за Y')."""
+    """Handle add_reminder intent ('напомни o задаче X за Y')."""
     from alice_ticktick.dialogs.intents import extract_add_reminder_slots
 
     access_token = _get_access_token(message)
@@ -905,7 +909,7 @@ async def handle_edit_task(
         startDate=new_start_date,
         dueDate=new_due_date,
         isAllDay=new_is_all_day,
-        repeat_flag=new_repeat_flag,
+        repeatFlag=new_repeat_flag,
         reminders=new_reminders,
     )
     try:
@@ -923,7 +927,9 @@ async def handle_edit_task(
         return Response(text=txt.REMINDER_REMOVED.format(name=best_match))
     if has_recurrence and new_repeat_flag:
         rec_display = format_recurrence(new_repeat_flag)
-        return Response(text=txt.RECURRENCE_UPDATED.format(name=best_match, recurrence=rec_display))
+        return Response(
+            text=txt.RECURRENCE_UPDATED.format(name=best_match, recurrence=rec_display)
+        )
     if has_reminder and new_reminders:
         rem_display = format_reminder(new_reminders[0])
         return Response(text=txt.REMINDER_UPDATED.format(name=best_match, reminder=rem_display))

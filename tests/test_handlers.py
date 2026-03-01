@@ -1432,7 +1432,7 @@ async def test_create_with_interval() -> None:
     }
     message = _make_message(command="создай задачу полив цветов каждые 3 дня")
     mock_factory = _make_mock_client()
-    response = await handle_create_task(message, intent_data, mock_factory)
+    await handle_create_task(message, intent_data, mock_factory)
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=DAILY;INTERVAL=3"
@@ -1466,7 +1466,7 @@ async def test_create_with_recurrence_and_reminder() -> None:
     }
     message = _make_message(command="создай задачу зарядка каждый день с напоминанием за час")
     mock_factory = _make_mock_client()
-    response = await handle_create_task(message, intent_data, mock_factory)
+    await handle_create_task(message, intent_data, mock_factory)
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=DAILY"
@@ -1481,7 +1481,7 @@ async def test_create_without_recurrence_no_repeat_flag() -> None:
     }
     message = _make_message(command="создай задачу обычная задача")
     mock_factory = _make_mock_client()
-    response = await handle_create_task(message, intent_data, mock_factory)
+    await handle_create_task(message, intent_data, mock_factory)
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag is None
@@ -1644,7 +1644,7 @@ async def test_edit_add_reminder() -> None:
         },
     }
     message = _make_message(command="поставь напоминание задачи встреча за 30 минут")
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    await handle_edit_task(message, intent_data, mock_factory)
     call_args = client.update_task.call_args[0][0]
     assert call_args.reminders == ["TRIGGER:-PT30M"]
 
@@ -1663,6 +1663,6 @@ async def test_edit_remove_reminder() -> None:
         },
     }
     message = _make_message(command="убери напоминание задачи встреча")
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    await handle_edit_task(message, intent_data, mock_factory)
     call_args = client.update_task.call_args[0][0]
     assert call_args.reminders == []

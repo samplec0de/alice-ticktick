@@ -25,9 +25,7 @@ _MINUTE_FORMS = ("минуту", "минуты", "минут")  # 1, 2-4, 5+
 _HOUR_FORMS = ("час", "часа", "часов")
 _DAY_FORMS = ("день", "дня", "дней")
 
-_TRIGGER_RE = re.compile(
-    r"TRIGGER:(-?)P(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?|(\d+)D)"
-)
+_TRIGGER_RE = re.compile(r"TRIGGER:(-?)P(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?|(\d+)D)")
 
 
 def build_trigger(value: int | None, unit: str | None) -> str | None:

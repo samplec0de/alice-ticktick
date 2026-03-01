@@ -6,10 +6,12 @@ from typing import Any
 
 from alice_ticktick.dialogs.intents import (
     ADD_CHECKLIST_ITEM,
+    ADD_REMINDER,
     ADD_SUBTASK,
     ALL_INTENTS,
     CHECK_ITEM,
     COMPLETE_TASK,
+    CREATE_RECURRING_TASK,
     CREATE_TASK,
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
@@ -19,8 +21,6 @@ from alice_ticktick.dialogs.intents import (
     OVERDUE_TASKS,
     SEARCH_TASK,
     SHOW_CHECKLIST,
-    ADD_REMINDER,
-    CREATE_RECURRING_TASK,
     extract_add_checklist_item_slots,
     extract_add_subtask_slots,
     extract_check_item_slots,
