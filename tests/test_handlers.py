@@ -259,6 +259,39 @@ async def test_create_task_name_is_zadacha_variant_asks_for_name() -> None:
     assert response.text == txt.TASK_NAME_REQUIRED
 
 
+async def test_create_task_strips_reminder_suffix_from_name() -> None:
+    """task_name 'встреча с напоминанием за 30 минут' -> должно стать 'встреча'."""
+    message = _make_message(command="создай задачу встреча с напоминанием за 30 минут")
+    message.nlu = None
+    factory = _make_mock_client()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча с напоминанием за 30 минут"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        }
+    }
+    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
+    assert created_payload.title == "встреча"
+
+
+async def test_create_task_strips_reminder_suffix_without_value() -> None:
+    """'позвонить врачу с напоминанием за час' -> 'позвонить врачу'."""
+    message = _make_message(command="создай задачу позвонить врачу с напоминанием за час")
+    message.nlu = None
+    factory = _make_mock_client()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "позвонить врачу с напоминанием за час"},
+            "reminder_unit": {"value": "час"},
+        }
+    }
+    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
+    assert created_payload.title == "позвонить врачу"
+
+
 async def test_create_task_success() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {

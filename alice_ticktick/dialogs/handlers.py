@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
@@ -53,6 +54,11 @@ _TASK_NAME_STOPWORDS = frozenset({
     "задачу", "задача", "задачи", "задаче",
     "напоминание", "напоминания",
 })
+
+_REMINDER_SUFFIX_RE = re.compile(
+    r"\s+с\s+напоминанием\s+за\s+(?:\d+\s+)?(?:минуту|минуты|минут|час|часа|часов|день|дня|дней)\s*$",
+    re.IGNORECASE,
+)
 
 
 def _auth_required_response(event_update: Update | None = None) -> Response:
@@ -306,6 +312,12 @@ async def handle_create_task(
     is_all_day: bool | None = None
     date_display: str | None = None
     task_name = slots.task_name
+
+    # Обрезать суффикс "с напоминанием за N единиц" из названия задачи
+    if slots.reminder_unit is not None:
+        task_name = _REMINDER_SUFFIX_RE.sub("", task_name).strip()
+        if not task_name:
+            return Response(text=txt.TASK_NAME_REQUIRED)
 
     # Hybrid approach: try NLU entities first for better date extraction,
     # fall back to grammar slots.
