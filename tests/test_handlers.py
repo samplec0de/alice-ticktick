@@ -724,6 +724,33 @@ async def test_edit_task_reschedule() -> None:
     call_args = client.update_task.call_args[0][0]
     assert call_args.due_date is not None
     assert isinstance(call_args.due_date, datetime.datetime)
+    # Single date: startDate must equal dueDate
+    assert call_args.start_date is not None
+    assert call_args.start_date == call_args.due_date
+
+
+async def test_edit_task_reschedule_with_end_date() -> None:
+    """When both new_date and new_end_date are given, startDate != dueDate."""
+    tasks = [_make_task(title="Кино")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "кино"},
+            "new_date": {"value": {"day": 5, "month": 3}},
+            "new_end_date": {"value": {"day": 7, "month": 3}},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.start_date is not None
+    assert call_args.due_date is not None
+    assert call_args.start_date != call_args.due_date
+    assert call_args.start_date.day == 5
+    assert call_args.due_date.day == 7
 
 
 async def test_edit_task_change_priority() -> None:

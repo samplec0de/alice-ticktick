@@ -437,16 +437,29 @@ async def handle_edit_task(
     # Build update payload
     new_title: str | None = slots.new_name if has_name else None
 
+    new_start_date: datetime.datetime | None = None
     new_due_date: datetime.datetime | None = None
     if has_date and slots.new_date:
         try:
             parsed_date = parse_yandex_datetime(slots.new_date)
             if isinstance(parsed_date, datetime.datetime):
-                new_due_date = parsed_date
+                new_start_date = parsed_date
             else:
-                new_due_date = datetime.datetime.combine(
+                new_start_date = datetime.datetime.combine(
                     parsed_date, datetime.time(), tzinfo=datetime.UTC
                 )
+            # If end date is specified, use it as dueDate (duration mode).
+            # Otherwise, set dueDate = startDate (single date mode).
+            if slots.new_end_date:
+                parsed_end = parse_yandex_datetime(slots.new_end_date)
+                if isinstance(parsed_end, datetime.datetime):
+                    new_due_date = parsed_end
+                else:
+                    new_due_date = datetime.datetime.combine(
+                        parsed_end, datetime.time(), tzinfo=datetime.UTC
+                    )
+            else:
+                new_due_date = new_start_date
         except ValueError:
             logger.warning("Failed to parse date for edit: %s", slots.new_date)
 
@@ -467,6 +480,7 @@ async def handle_edit_task(
         projectId=matched_task.project_id,
         title=new_title,
         priority=new_priority_value,
+        startDate=new_start_date,
         dueDate=new_due_date,
     )
     try:

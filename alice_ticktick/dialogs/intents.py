@@ -78,6 +78,7 @@ class EditTaskSlots:
 
     task_name: str | None = None
     new_date: YandexDateTime | None = None
+    new_end_date: YandexDateTime | None = None
     new_priority: str | None = None
     new_name: str | None = None
 
@@ -131,6 +132,7 @@ def extract_edit_task_slots(intent_data: dict[str, Any]) -> EditTaskSlots:
     return EditTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
         new_date=_get_slot_value(intent_data, "new_date"),
+        new_end_date=_get_slot_value(intent_data, "new_end_date"),
         new_priority=_get_slot_value(intent_data, "new_priority"),
         new_name=_get_slot_value(intent_data, "new_name"),
     )
