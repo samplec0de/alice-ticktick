@@ -1,0 +1,23 @@
+root:
+    %lemma
+    (напомни|поставь напоминание) (о|про|на|для) (задаче|задачу|задача)? $TaskName за $ReminderValue $ReminderUnit
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+    reminder_value:
+        source: $ReminderValue
+        type: YANDEX.NUMBER
+    reminder_unit:
+        source: $ReminderUnit
+        type: YANDEX.STRING
+
+$TaskName:
+    .+
+
+$ReminderValue:
+    $YANDEX.NUMBER
+
+$ReminderUnit:
+    .+

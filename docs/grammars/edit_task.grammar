@@ -2,6 +2,10 @@ root:
     %lemma
     (перенеси | поменяй | измени | переименуй | сдвинь | обнови) (задачу)? $TaskName ($NewDate)? (в $NewName)? ((с | на | приоритет | приоритетом) (низкий | средний | высокий))?
     (перенеси|перемести|переложи|перекинь|отправь) (задачу|задача)? $TaskName в (проект|список|папку) $ProjectName
+    (убери|отмени|удали) (повторение|повтор) (у|для|задачи)? $TaskName
+    (поменяй|измени) (повторение|повтор) (у|для|задачи)? $TaskName на $Recurrence
+    (убери|отмени|удали) (напоминание) (у|для|задачи)? $TaskName
+    (поменяй|измени|поставь) (напоминание) (у|для|задачи)? $TaskName на за $ReminderValue $ReminderUnit
 
 slots:
     task_name:
@@ -16,6 +20,21 @@ slots:
     new_project:
         source: $ProjectName
         type: YANDEX.STRING
+    rec_freq:
+        source: $RecFreq
+        type: YANDEX.STRING
+    rec_interval:
+        source: $RecInterval
+        type: YANDEX.NUMBER
+    rec_monthday:
+        source: $RecMonthday
+        type: YANDEX.NUMBER
+    reminder_value:
+        source: $ReminderValue
+        type: YANDEX.NUMBER
+    reminder_unit:
+        source: $ReminderUnit
+        type: YANDEX.STRING
 
 $TaskName:
     .+
@@ -27,4 +46,28 @@ $NewName:
     .+
 
 $ProjectName:
+    .+
+
+$Recurrence:
+    (каждый|каждую|каждое) $RecFreq
+    (каждые) $RecInterval $RecFreq
+    (каждое) $RecMonthday (число)
+    ежедневно
+    еженедельно
+    ежемесячно
+    (по) $RecFreq
+
+$RecFreq:
+    .+
+
+$RecInterval:
+    $YANDEX.NUMBER
+
+$RecMonthday:
+    $YANDEX.NUMBER
+
+$ReminderValue:
+    $YANDEX.NUMBER
+
+$ReminderUnit:
     .+

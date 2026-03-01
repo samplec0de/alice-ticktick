@@ -14,6 +14,8 @@
 | `check_item.grammar` | `check_item` | Отметка пункта чеклиста |
 | `complete_task.grammar` | `complete_task` | Завершение задачи |
 | `create_task.grammar` | `create_task` | Создание задачи |
+| `create_recurring_task.grammar` | `create_recurring_task` | Создание повторяющейся задачи |
+| `add_reminder.grammar` | `add_reminder` | Добавление напоминания к задаче |
 | `delete_checklist_item.grammar` | `delete_checklist_item` | Удаление пункта чеклиста |
 | `delete_task.grammar` | `delete_task` | Удаление задачи |
 | `edit_task.grammar` | `edit_task` | Редактирование задачи |
