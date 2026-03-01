@@ -63,6 +63,13 @@ jobs:
           yc config set folder-id ${{ vars.YC_FOLDER_ID }}
           rm sa-key.json
 
+      - name: Upload to Object Storage
+        run: |
+          yc storage s3api put-object \
+            --bucket alice-ticktick-deploy \
+            --key deploy.zip \
+            --body deploy.zip
+
       - name: Deploy to Yandex Cloud Functions
         run: |
           yc serverless function version create \
@@ -71,5 +78,6 @@ jobs:
             --entrypoint alice_ticktick.main.handler \
             --memory 128m \
             --execution-timeout 3s \
-            --source-path deploy.zip \
+            --package-bucket-name alice-ticktick-deploy \
+            --package-object-name deploy.zip \
             --environment ALICE_SKILL_ID=${{ vars.ALICE_SKILL_ID }}
