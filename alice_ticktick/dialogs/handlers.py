@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
@@ -37,7 +38,7 @@ from alice_ticktick.dialogs.nlp import (
 from alice_ticktick.dialogs.nlp.date_parser import ExtractedDates, extract_dates_from_nlu
 from alice_ticktick.dialogs.states import DeleteTaskStates
 from alice_ticktick.ticktick.client import TickTickClient
-from alice_ticktick.ticktick.models import Task, TaskCreate, TaskPriority, TaskUpdate
+from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskPriority, TaskUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -101,14 +102,100 @@ def _truncate_response(text: str) -> str:
     return text[: ALICE_RESPONSE_MAX_LENGTH - 1] + "…"
 
 
+_cached_projects: list[Project] | None = None
+_cached_projects_ts: float = 0.0
+_PROJECT_CACHE_TTL = 60.0  # seconds
+
+_cached_tasks: list[Task] | None = None
+_cached_tasks_ts: float = 0.0
+_TASK_CACHE_TTL = 15.0  # seconds — short-lived cache for sequential commands
+
+
+def _reset_project_cache() -> None:
+    """Reset all caches (for testing)."""
+    global _cached_projects, _cached_projects_ts
+    global _cached_tasks, _cached_tasks_ts
+    _cached_projects = None
+    _cached_projects_ts = 0.0
+    _cached_tasks = None
+    _cached_tasks_ts = 0.0
+
+
+def _invalidate_task_cache() -> None:
+    """Invalidate task cache after mutations (complete, create, delete, etc.)."""
+    global _cached_tasks, _cached_tasks_ts
+    _cached_tasks = None
+    _cached_tasks_ts = 0.0
+
+
+_GATHER_TIMEOUT = 4.0  # seconds — total budget for fetching all tasks
+
+
 async def _gather_all_tasks(client: TickTickClient) -> list[Task]:
-    """Fetch tasks from all projects and inbox in parallel."""
-    projects = await client.get_projects()
+    """Fetch tasks from all projects and inbox in parallel.
+
+    Uses a short-lived task cache (15s) to avoid redundant API calls
+    for sequential commands (e.g., "что на сегодня" → "закрой задачу").
+    Also caches project list (60s) and applies a total time budget.
+    """
+    global _cached_tasks, _cached_tasks_ts
+
+    now = time.monotonic()
+    if _cached_tasks is not None and now - _cached_tasks_ts < _TASK_CACHE_TTL:
+        age = now - _cached_tasks_ts
+        logger.info("Using cached tasks (%d), age %.1fs", len(_cached_tasks), age)
+        return list(_cached_tasks)
+
+    all_tasks = await asyncio.wait_for(_gather_all_tasks_impl(client), timeout=_GATHER_TIMEOUT)
+    _cached_tasks = all_tasks
+    _cached_tasks_ts = time.monotonic()
+    return all_tasks
+
+
+async def _gather_all_tasks_impl(client: TickTickClient) -> list[Task]:
+    global _cached_projects, _cached_projects_ts
+
+    t0 = time.monotonic()
+
+    now = time.monotonic()
+    if _cached_projects is not None and now - _cached_projects_ts < _PROJECT_CACHE_TTL:
+        projects = _cached_projects
+        age = now - _cached_projects_ts
+        logger.info("Using cached projects (%d), age %.1fs", len(projects), age)
+    else:
+        projects_result, inbox_tasks = await asyncio.gather(
+            client.get_projects(),
+            client.get_inbox_tasks(),
+        )
+        projects = projects_result
+        _cached_projects = projects
+        _cached_projects_ts = time.monotonic()
+        elapsed = (time.monotonic() - t0) * 1000
+        logger.info("Fetched projects (%d) + inbox in %.0fms", len(projects), elapsed)
+
+        if projects:
+            project_task_lists = await asyncio.gather(
+                *(client.get_tasks(p.id) for p in projects),
+            )
+            all_tasks = list(inbox_tasks)
+            for tasks in project_task_lists:
+                all_tasks.extend(tasks)
+        else:
+            all_tasks = list(inbox_tasks)
+
+        elapsed = (time.monotonic() - t0) * 1000
+        logger.info("Total _gather_all_tasks: %.0fms, %d tasks", elapsed, len(all_tasks))
+        return all_tasks
+
+    # Warm path: projects cached, fetch inbox + project tasks all in parallel
     task_lists = await asyncio.gather(
         client.get_inbox_tasks(),
         *(client.get_tasks(p.id) for p in projects),
     )
-    return [t for tasks in task_lists for t in tasks]
+    all_tasks = [t for tasks in task_lists for t in tasks]
+    elapsed = (time.monotonic() - t0) * 1000
+    logger.info("Total _gather_all_tasks (cached): %.0fms, %d tasks", elapsed, len(all_tasks))
+    return all_tasks
 
 
 def _get_access_token(message: Message) -> str | None:
@@ -242,6 +329,7 @@ async def handle_create_task(
                 isAllDay=is_all_day,
             )
             await client.create_task(payload)
+            _invalidate_task_cache()
     except Exception:
         logger.exception("Failed to create task")
         return Response(text=txt.CREATE_ERROR)
@@ -402,6 +490,7 @@ async def handle_complete_task(
             matched_task = active_tasks[match_idx]
 
             await client.complete_task(matched_task.id, matched_task.project_id)
+            _invalidate_task_cache()
 
     except Exception:
         logger.exception("Failed to complete task")
@@ -582,6 +671,7 @@ async def handle_edit_task(
     try:
         async with factory(access_token) as client:
             await client.update_task(payload)
+            _invalidate_task_cache()
     except Exception:
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
@@ -670,6 +760,7 @@ async def handle_delete_confirm(
     try:
         async with factory(access_token) as client:
             await client.delete_task(task_id, project_id)
+            _invalidate_task_cache()
     except Exception:
         logger.exception("Failed to delete task")
         await state.clear()
@@ -728,6 +819,7 @@ async def handle_add_subtask(
                 parentId=parent_task.id,
             )
             await client.create_task(payload)
+            _invalidate_task_cache()
 
     except Exception:
         logger.exception("Failed to create subtask")
@@ -845,6 +937,7 @@ async def handle_add_checklist_item(
                 items=updated_items,
             )
             await client.update_task(payload)
+            _invalidate_task_cache()
 
     except Exception:
         logger.exception("Failed to add checklist item")
@@ -977,6 +1070,7 @@ async def handle_check_item(
                 items=updated_items,
             )
             await client.update_task(payload)
+            _invalidate_task_cache()
 
     except Exception:
         logger.exception("Failed to check item")
@@ -1055,6 +1149,7 @@ async def handle_delete_checklist_item(
                 items=updated_items,
             )
             await client.update_task(payload)
+            _invalidate_task_cache()
 
     except Exception:
         logger.exception("Failed to delete checklist item")

@@ -6,10 +6,13 @@ import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.handlers import (
     ALICE_RESPONSE_MAX_LENGTH,
     _auth_required_response,
+    _reset_project_cache,
     _truncate_response,
     handle_complete_task,
     handle_create_task,
@@ -28,6 +31,12 @@ from alice_ticktick.dialogs.handlers import (
 from alice_ticktick.dialogs.router import _MAX_CONFIRM_RETRIES, on_delete_other
 from alice_ticktick.dialogs.states import DeleteTaskStates
 from alice_ticktick.ticktick.models import Project, Task
+
+
+@pytest.fixture(autouse=True)
+def _clear_project_cache() -> None:
+    """Reset the project cache before each test."""
+    _reset_project_cache()
 
 
 def _make_message(

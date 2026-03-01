@@ -355,10 +355,9 @@ class TestContextManager:
     """Test async context manager."""
 
     @pytest.mark.asyncio
-    async def test_context_manager_closes_client(self) -> None:
+    async def test_context_manager_keeps_client_alive(self) -> None:
+        """Shared client stays open for connection reuse across invocations."""
         client = TickTickClient(access_token="t")
-        mock_close = AsyncMock()
-        with patch.object(client._client, "aclose", mock_close):
-            async with client:
-                pass
-        mock_close.assert_called_once()
+        async with client:
+            pass
+        assert not client._client.is_closed

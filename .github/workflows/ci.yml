@@ -76,8 +76,8 @@ jobs:
             --function-id ${{ vars.YC_FUNCTION_ID }} \
             --runtime python312 \
             --entrypoint alice_ticktick.main.handler \
-            --memory 128m \
-            --execution-timeout 3s \
+            --memory 256m \
+            --execution-timeout 7s \
             --package-bucket-name alice-ticktick-deploy \
             --package-object-name deploy.zip \
             --environment ALICE_SKILL_ID=${{ vars.ALICE_SKILL_ID }}

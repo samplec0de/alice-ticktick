@@ -9,6 +9,25 @@ from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskUpdate
 BASE_URL = "https://api.ticktick.com/open/v1"
 TIMEOUT = 3.0
 
+# Module-level HTTP client for connection reuse across warm invocations.
+# YC Functions reuses the event loop between calls, so async resources survive.
+_shared_http: httpx.AsyncClient | None = None
+
+
+def _get_shared_http(access_token: str) -> httpx.AsyncClient:
+    """Return a shared httpx client, creating one if needed."""
+    global _shared_http
+    if _shared_http is None or _shared_http.is_closed:
+        _shared_http = httpx.AsyncClient(
+            base_url=BASE_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=TIMEOUT,
+        )
+    else:
+        # Update auth header (token might change between invocations)
+        _shared_http.headers["Authorization"] = f"Bearer {access_token}"
+    return _shared_http
+
 
 class TickTickError(Exception):
     """Base exception for TickTick API errors."""
@@ -59,15 +78,10 @@ class TickTickClient:
     """Async client for TickTick Open API v1."""
 
     def __init__(self, access_token: str) -> None:
-        self._client = httpx.AsyncClient(
-            base_url=BASE_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=TIMEOUT,
-        )
+        self._client = _get_shared_http(access_token)
 
     async def close(self) -> None:
-        """Close underlying HTTP client."""
-        await self._client.aclose()
+        """No-op: shared client stays alive for connection reuse."""
 
     async def __aenter__(self) -> "TickTickClient":
         return self
