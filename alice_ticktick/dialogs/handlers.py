@@ -176,6 +176,7 @@ async def handle_create_task(
     user_tz = _get_user_tz(event_update)
     start_date_str: str | None = None
     due_date_str: str | None = None
+    is_all_day: bool | None = None
     date_display: str | None = None
     task_name = slots.task_name
 
@@ -192,9 +193,11 @@ async def handle_create_task(
 
         if isinstance(parsed_start, datetime.datetime):
             start_date_str = _format_ticktick_dt(parsed_start)
+            is_all_day = False
         else:
             dt_s = datetime.datetime.combine(parsed_start, datetime.time(), tzinfo=user_tz)
             start_date_str = _format_ticktick_dt(dt_s)
+            is_all_day = True
 
         if nlu_dates.end_date:
             # Time range: startDate and dueDate are different
@@ -215,9 +218,11 @@ async def handle_create_task(
             parsed_date = parse_yandex_datetime(slots.date, now=now_local)
             if isinstance(parsed_date, datetime.datetime):
                 due_date_str = _format_ticktick_dt(parsed_date)
+                is_all_day = False
             else:
                 dt = datetime.datetime.combine(parsed_date, datetime.time(), tzinfo=user_tz)
                 due_date_str = _format_ticktick_dt(dt)
+                is_all_day = True
             date_display = _format_date(parsed_date, user_tz)
         except ValueError:
             pass
@@ -234,6 +239,7 @@ async def handle_create_task(
                 priority=priority_value,
                 startDate=start_date_str,
                 dueDate=due_date_str,
+                isAllDay=is_all_day,
             )
             await client.create_task(payload)
     except Exception:
@@ -505,16 +511,19 @@ async def handle_edit_task(
 
     new_start_date: datetime.datetime | None = None
     new_due_date: datetime.datetime | None = None
+    new_is_all_day: bool | None = None
 
     # Prefer NLU entities for dates (grammar .+ often swallows date tokens)
     if nlu_dates and nlu_dates.start_date:
         parsed_start = nlu_dates.start_date
         if isinstance(parsed_start, datetime.datetime):
             new_start_date = parsed_start
+            new_is_all_day = False
         else:
             new_start_date = datetime.datetime.combine(
                 parsed_start, datetime.time(), tzinfo=user_tz
             )
+            new_is_all_day = True
         if nlu_dates.end_date:
             parsed_end = nlu_dates.end_date
             if isinstance(parsed_end, datetime.datetime):
@@ -530,10 +539,12 @@ async def handle_edit_task(
             parsed_date = parse_yandex_datetime(slots.new_date, now=now_local)
             if isinstance(parsed_date, datetime.datetime):
                 new_start_date = parsed_date
+                new_is_all_day = False
             else:
                 new_start_date = datetime.datetime.combine(
                     parsed_date, datetime.time(), tzinfo=user_tz
                 )
+                new_is_all_day = True
             if slots.new_end_date:
                 parsed_end = parse_yandex_datetime(slots.new_end_date, now=now_local)
                 if isinstance(parsed_end, datetime.datetime):
@@ -566,6 +577,7 @@ async def handle_edit_task(
         priority=new_priority_value,
         startDate=new_start_date,
         dueDate=new_due_date,
+        isAllDay=new_is_all_day,
     )
     try:
         async with factory(access_token) as client:
