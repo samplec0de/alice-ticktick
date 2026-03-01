@@ -261,6 +261,67 @@ async def test_create_task_with_date() -> None:
     assert "завтра" in response.text
 
 
+async def test_create_task_with_time_range() -> None:
+    """Create task with start and end time via NLU entities (hybrid approach)."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    # Simulates "добавь задачу кино на завтра с 19:00 до 21:30"  # noqa: RUF003
+    # Tokens below match the utterance above
+    # NLU entities: 2 DATETIME entities after command tokens (indices 0-1)
+    entity_start = Entity(
+        type="YANDEX.DATETIME",
+        tokens=TokensEntity(start=3, end=7),
+        value=DateTimeEntity(day=1, day_is_relative=True, hour=19, minute=0),
+    )
+    entity_end = Entity(
+        type="YANDEX.DATETIME",
+        tokens=TokensEntity(start=7, end=9),
+        value=DateTimeEntity(hour=21, minute=30),
+    )
+
+    message = _make_message()
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["добавь", "задачу", "кино", "на", "завтра", "с", "19:00", "до", "21:30"]
+    message.nlu.entities = [entity_start, entity_end]
+
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "Кино"}},
+    }
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "кино" in response.text.lower()
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.start_date is not None
+    assert call_args.due_date is not None
+    assert call_args.start_date != call_args.due_date
+    # start should be 19:00, end should be 21:30
+    start_dt = datetime.datetime.strptime(call_args.start_date, "%Y-%m-%dT%H:%M:%S.000+0000")
+    end_dt = datetime.datetime.strptime(call_args.due_date, "%Y-%m-%dT%H:%M:%S.000+0000")
+    assert start_dt.hour == 19
+    assert end_dt.hour == 21
+    assert end_dt.minute == 30
+
+
+async def test_create_task_without_end_date_no_start() -> None:
+    """Create task with only date — no startDate, only dueDate."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Купить молоко"},
+            "date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client()
+    await handle_create_task(message, intent_data, mock_factory)
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.start_date is None
+    assert call_args.due_date is not None
+
+
 async def test_create_task_with_priority() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {

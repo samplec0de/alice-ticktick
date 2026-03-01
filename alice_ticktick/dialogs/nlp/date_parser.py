@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import calendar
+import contextlib
 import datetime
-from typing import TypedDict
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from aliceio.types import NLU
 
 
 class YandexDateTime(TypedDict, total=False):
@@ -107,3 +112,100 @@ def _add_years(dt: datetime.datetime, years: int) -> datetime.datetime:
     max_day = calendar.monthrange(year, dt.month)[1]
     day = min(dt.day, max_day)
     return dt.replace(year=year, day=day)
+
+
+@dataclass
+class ExtractedDates:
+    """Dates extracted from NLU entities with cleaned task name."""
+
+    task_name: str
+    start_date: datetime.date | datetime.datetime | None = None
+    end_date: datetime.date | datetime.datetime | None = None
+
+
+def extract_dates_from_nlu(
+    nlu: NLU,
+    *,
+    command_token_count: int = 2,
+) -> ExtractedDates:
+    """Extract DATETIME entities from NLU and build a clean task name.
+
+    Looks at ``nlu.entities`` for YANDEX.DATETIME entries,
+    removes their token ranges from the task name tokens,
+    and parses the dates.
+
+    *command_token_count* is the number of leading tokens to skip
+    (e.g. "создай задачу" = 2 tokens).
+    """
+    from aliceio.types import DateTimeEntity
+
+    tokens = nlu.tokens
+
+    # Collect DATETIME entities that are AFTER the command tokens
+    dt_entities = []
+    for entity in nlu.entities:
+        if entity.type != "YANDEX.DATETIME":
+            continue
+        if entity.tokens.start < command_token_count:
+            continue
+        if not isinstance(entity.value, DateTimeEntity):
+            continue
+        dt_entities.append(entity)
+
+    # Sort by token position
+    dt_entities.sort(key=lambda e: e.tokens.start)
+
+    # Build set of token indices occupied by DATETIME entities
+    dt_token_indices: set[int] = set()
+    for entity in dt_entities:
+        dt_token_indices.update(range(entity.tokens.start, entity.tokens.end))
+
+    # Task name = tokens after command, excluding DATETIME token ranges
+    name_tokens = [
+        tokens[i] for i in range(command_token_count, len(tokens)) if i not in dt_token_indices
+    ]
+    # Also strip common prepositions left at the edges
+    while name_tokens and name_tokens[-1] in ("на", "с", "в", "до", "по", "к"):
+        name_tokens.pop()
+
+    task_name = " ".join(name_tokens)
+
+    # Parse dates
+    start_date = None
+    end_date = None
+
+    if len(dt_entities) >= 1:
+        val = dt_entities[0].value
+        slot = _datetime_entity_to_slot(val)
+        with contextlib.suppress(ValueError):
+            start_date = parse_yandex_datetime(slot)
+
+    if len(dt_entities) >= 2:
+        val = dt_entities[-1].value
+        slot = _datetime_entity_to_slot(val)
+        with contextlib.suppress(ValueError):
+            # Parse end date relative to start date's base
+            if start_date and isinstance(start_date, datetime.datetime):
+                end_date = parse_yandex_datetime(slot, now=start_date)
+            else:
+                end_date = parse_yandex_datetime(slot)
+
+    return ExtractedDates(
+        task_name=task_name,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+def _datetime_entity_to_slot(entity: object) -> YandexDateTime:
+    """Convert aliceio DateTimeEntity to our YandexDateTime dict."""
+    slot: YandexDateTime = {}
+    for field in ("year", "month", "day", "hour", "minute"):
+        val = getattr(entity, field, None)
+        if val is not None:
+            slot[field] = val
+        rel_key = f"{field}_is_relative"
+        rel_val = getattr(entity, rel_key, None)
+        if rel_val:
+            slot[rel_key] = rel_val  # type: ignore[literal-required]
+    return slot
