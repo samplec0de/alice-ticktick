@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.handlers import (
+    _reset_project_cache,
     handle_add_checklist_item,
     handle_add_subtask,
     handle_check_item,
@@ -15,6 +18,13 @@ from alice_ticktick.dialogs.handlers import (
     handle_show_checklist,
 )
 from alice_ticktick.ticktick.models import ChecklistItem, Project, Task
+
+
+@pytest.fixture(autouse=True)
+def _clear_project_cache() -> None:
+    """Reset all caches before each test."""
+    _reset_project_cache()
+
 
 # --- Helpers ---
 
