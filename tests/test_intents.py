@@ -5,20 +5,32 @@ from __future__ import annotations
 from typing import Any
 
 from alice_ticktick.dialogs.intents import (
+    ADD_CHECKLIST_ITEM,
+    ADD_SUBTASK,
     ALL_INTENTS,
+    CHECK_ITEM,
     COMPLETE_TASK,
     CREATE_TASK,
+    DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
     EDIT_TASK,
+    LIST_SUBTASKS,
     LIST_TASKS,
     OVERDUE_TASKS,
     SEARCH_TASK,
+    SHOW_CHECKLIST,
+    extract_add_checklist_item_slots,
+    extract_add_subtask_slots,
+    extract_check_item_slots,
     extract_complete_task_slots,
     extract_create_task_slots,
+    extract_delete_checklist_item_slots,
     extract_delete_task_slots,
     extract_edit_task_slots,
+    extract_list_subtasks_slots,
     extract_list_tasks_slots,
     extract_search_task_slots,
+    extract_show_checklist_slots,
 )
 
 
@@ -31,9 +43,15 @@ class TestIntentConstants:
         assert SEARCH_TASK in ALL_INTENTS
         assert EDIT_TASK in ALL_INTENTS
         assert DELETE_TASK in ALL_INTENTS
+        assert ADD_SUBTASK in ALL_INTENTS
+        assert LIST_SUBTASKS in ALL_INTENTS
+        assert ADD_CHECKLIST_ITEM in ALL_INTENTS
+        assert SHOW_CHECKLIST in ALL_INTENTS
+        assert CHECK_ITEM in ALL_INTENTS
+        assert DELETE_CHECKLIST_ITEM in ALL_INTENTS
 
     def test_all_intents_count(self) -> None:
-        assert len(ALL_INTENTS) == 7
+        assert len(ALL_INTENTS) == 13
 
 
 class TestCreateTaskSlots:
@@ -148,4 +166,148 @@ class TestDeleteTaskSlots:
     def test_no_name(self) -> None:
         data: dict[str, Any] = {"slots": {}}
         slots = extract_delete_task_slots(data)
+        assert slots.task_name is None
+
+
+class TestAddSubtaskSlots:
+    def test_full_slots(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "subtask_name": {"type": "YANDEX.STRING", "value": "купить хлеб"},
+                "parent_name": {"type": "YANDEX.STRING", "value": "поход в магазин"},
+            },
+        }
+        slots = extract_add_subtask_slots(data)
+        assert slots.subtask_name == "купить хлеб"
+        assert slots.parent_name == "поход в магазин"
+
+    def test_subtask_only(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "subtask_name": {"type": "YANDEX.STRING", "value": "купить хлеб"},
+            },
+        }
+        slots = extract_add_subtask_slots(data)
+        assert slots.subtask_name == "купить хлеб"
+        assert slots.parent_name is None
+
+    def test_empty_slots(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_add_subtask_slots(data)
+        assert slots.subtask_name is None
+        assert slots.parent_name is None
+
+
+class TestListSubtasksSlots:
+    def test_with_name(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {"task_name": {"type": "YANDEX.STRING", "value": "поход в магазин"}},
+        }
+        slots = extract_list_subtasks_slots(data)
+        assert slots.task_name == "поход в магазин"
+
+    def test_no_name(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_list_subtasks_slots(data)
+        assert slots.task_name is None
+
+
+class TestAddChecklistItemSlots:
+    def test_full_slots(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "item_name": {"type": "YANDEX.STRING", "value": "молоко"},
+                "task_name": {"type": "YANDEX.STRING", "value": "список покупок"},
+            },
+        }
+        slots = extract_add_checklist_item_slots(data)
+        assert slots.item_name == "молоко"
+        assert slots.task_name == "список покупок"
+
+    def test_item_only(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "item_name": {"type": "YANDEX.STRING", "value": "молоко"},
+            },
+        }
+        slots = extract_add_checklist_item_slots(data)
+        assert slots.item_name == "молоко"
+        assert slots.task_name is None
+
+    def test_empty_slots(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_add_checklist_item_slots(data)
+        assert slots.item_name is None
+        assert slots.task_name is None
+
+
+class TestShowChecklistSlots:
+    def test_with_name(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {"task_name": {"type": "YANDEX.STRING", "value": "список покупок"}},
+        }
+        slots = extract_show_checklist_slots(data)
+        assert slots.task_name == "список покупок"
+
+    def test_no_name(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_show_checklist_slots(data)
+        assert slots.task_name is None
+
+
+class TestCheckItemSlots:
+    def test_full_slots(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "item_name": {"type": "YANDEX.STRING", "value": "молоко"},
+                "task_name": {"type": "YANDEX.STRING", "value": "список покупок"},
+            },
+        }
+        slots = extract_check_item_slots(data)
+        assert slots.item_name == "молоко"
+        assert slots.task_name == "список покупок"
+
+    def test_item_only(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "item_name": {"type": "YANDEX.STRING", "value": "молоко"},
+            },
+        }
+        slots = extract_check_item_slots(data)
+        assert slots.item_name == "молоко"
+        assert slots.task_name is None
+
+    def test_empty_slots(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_check_item_slots(data)
+        assert slots.item_name is None
+        assert slots.task_name is None
+
+
+class TestDeleteChecklistItemSlots:
+    def test_full_slots(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "item_name": {"type": "YANDEX.STRING", "value": "молоко"},
+                "task_name": {"type": "YANDEX.STRING", "value": "список покупок"},
+            },
+        }
+        slots = extract_delete_checklist_item_slots(data)
+        assert slots.item_name == "молоко"
+        assert slots.task_name == "список покупок"
+
+    def test_item_only(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "item_name": {"type": "YANDEX.STRING", "value": "молоко"},
+            },
+        }
+        slots = extract_delete_checklist_item_slots(data)
+        assert slots.item_name == "молоко"
+        assert slots.task_name is None
+
+    def test_empty_slots(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_delete_checklist_item_slots(data)
+        assert slots.item_name is None
         assert slots.task_name is None
