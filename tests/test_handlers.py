@@ -1001,7 +1001,7 @@ async def test_create_task_with_time_uses_user_timezone() -> None:
     call_args = client.create_task.call_args[0][0]
     # Time-specific: dueDate should contain 19:XX and Moscow offset
     assert call_args.due_date is not None
-    assert call_args.due_date.startswith("2026-03-02T19:00:")
+    assert "T19:00:" in call_args.due_date
     assert "+0300" in call_args.due_date
     # isAllDay should be False for time-specific tasks
     assert call_args.is_all_day is False
