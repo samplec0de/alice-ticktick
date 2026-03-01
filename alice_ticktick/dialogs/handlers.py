@@ -6,8 +6,9 @@ import asyncio
 import datetime
 import logging
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
-from aliceio.types import Message, Response
+from aliceio.types import Message, Response, Update
 
 if TYPE_CHECKING:
     from aliceio.fsm.context import FSMContext
@@ -42,10 +43,27 @@ logger = logging.getLogger(__name__)
 ALICE_RESPONSE_MAX_LENGTH = 1024
 
 
-def _format_date(d: datetime.date | datetime.datetime) -> str:
+def _get_user_tz(event_update: Update | None) -> ZoneInfo:
+    """Extract user timezone from Alice event, default to UTC."""
+    if event_update and event_update.meta and event_update.meta.timezone:
+        try:
+            return ZoneInfo(event_update.meta.timezone)
+        except (KeyError, ValueError):
+            pass
+    return ZoneInfo("UTC")
+
+
+def _to_user_date(dt: datetime.datetime, tz: ZoneInfo) -> datetime.date:
+    """Convert a UTC datetime to user-local date."""
+    return dt.astimezone(tz).date()
+
+
+def _format_date(d: datetime.date | datetime.datetime, tz: ZoneInfo | None = None) -> str:
     """Format a date for display in Russian."""
-    today = datetime.datetime.now(tz=datetime.UTC).date()
-    day = d.date() if isinstance(d, datetime.datetime) else d
+    if tz is None:
+        tz = ZoneInfo("UTC")
+    today = datetime.datetime.now(tz=tz).date()
+    day = _to_user_date(d, tz) if isinstance(d, datetime.datetime) else d
 
     if day == today:
         return "сегодня"
@@ -162,15 +180,17 @@ async def handle_list_tasks(
     message: Message,
     intent_data: dict[str, Any],
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle list_tasks intent."""
     access_token = _get_access_token(message)
     if access_token is None:
         return Response(text=txt.AUTH_REQUIRED)
 
+    user_tz = _get_user_tz(event_update)
     slots = extract_list_tasks_slots(intent_data)
 
-    # Determine target date
+    # Determine target date (in user timezone)
     if slots.date:
         try:
             target_date = parse_yandex_datetime(slots.date)
@@ -179,11 +199,11 @@ async def handle_list_tasks(
             else:
                 target_day = target_date
         except ValueError:
-            target_day = datetime.datetime.now(tz=datetime.UTC).date()
+            target_day = datetime.datetime.now(tz=user_tz).date()
     else:
-        target_day = datetime.datetime.now(tz=datetime.UTC).date()
+        target_day = datetime.datetime.now(tz=user_tz).date()
 
-    date_display = _format_date(target_day)
+    date_display = _format_date(target_day, user_tz)
 
     factory = ticktick_client_factory or TickTickClient
     try:
@@ -193,15 +213,17 @@ async def handle_list_tasks(
         logger.exception("Failed to list tasks")
         return Response(text=txt.API_ERROR)
 
-    # Filter tasks for the target date
+    # Filter tasks for the target date (convert due_date to user timezone)
     day_tasks = [
         t
         for t in all_tasks
-        if t.due_date is not None and t.due_date.date() == target_day and t.status == 0
+        if t.due_date is not None
+        and _to_user_date(t.due_date, user_tz) == target_day
+        and t.status == 0
     ]
 
     if not day_tasks:
-        if target_day == datetime.datetime.now(tz=datetime.UTC).date():
+        if target_day == datetime.datetime.now(tz=user_tz).date():
             return Response(text=txt.NO_TASKS_TODAY)
         return Response(text=txt.NO_TASKS_FOR_DATE.format(date=date_display))
 
@@ -223,14 +245,16 @@ async def handle_list_tasks(
 async def handle_overdue_tasks(
     message: Message,
     ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle overdue_tasks intent."""
     access_token = _get_access_token(message)
     if access_token is None:
         return Response(text=txt.AUTH_REQUIRED)
 
+    user_tz = _get_user_tz(event_update)
     factory = ticktick_client_factory or TickTickClient
-    today = datetime.datetime.now(tz=datetime.UTC).date()
+    today = datetime.datetime.now(tz=user_tz).date()
 
     try:
         async with factory(access_token) as client:
@@ -242,7 +266,7 @@ async def handle_overdue_tasks(
     overdue = [
         t
         for t in all_tasks
-        if t.due_date is not None and t.due_date.date() < today and t.status == 0
+        if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today and t.status == 0
     ]
 
     if not overdue:

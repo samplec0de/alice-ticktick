@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from aliceio import Router
-from aliceio.types import Response
+from aliceio.types import Response, Update
 
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.filters import IntentFilter, NewSessionFilter
@@ -79,15 +79,19 @@ async def on_create_task(message: Message, intent_data: dict[str, Any]) -> Respo
 
 
 @router.message(IntentFilter(LIST_TASKS))
-async def on_list_tasks(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_list_tasks(
+    message: Message,
+    intent_data: dict[str, Any],
+    event_update: Update,
+) -> Response:
     """Handle list_tasks intent."""
-    return await handle_list_tasks(message, intent_data)
+    return await handle_list_tasks(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(OVERDUE_TASKS))
-async def on_overdue_tasks(message: Message) -> Response:
+async def on_overdue_tasks(message: Message, event_update: Update) -> Response:
     """Handle overdue_tasks intent."""
-    return await handle_overdue_tasks(message)
+    return await handle_overdue_tasks(message, event_update=event_update)
 
 
 @router.message(IntentFilter(COMPLETE_TASK))
