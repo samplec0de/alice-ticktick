@@ -1330,6 +1330,45 @@ def test_extract_create_task_slots_with_project() -> None:
     assert slots.task_name == "Купить молоко"
 
 
+async def test_router_disambiguate_add_subtask_vs_create_task_in_project() -> None:
+    """When both add_subtask and create_task match, prefer create_task if no subtask keyword."""
+    from alice_ticktick.dialogs.router import on_add_subtask
+
+    projects = [_make_project(project_id="p-personal", name="Личное")]
+    message = _make_message()
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["создай", "задачу", "тест", "в", "проект", "личное"]
+    message.nlu.entities = []
+    # Both intents match
+    message.nlu.intents = {
+        "add_subtask": {
+            "slots": {
+                "subtask_name": {"value": "задачу тест"},
+                "parent_name": {"value": "проект личное"},
+            },
+        },
+        "create_task": {
+            "slots": {
+                "task_name": {"value": "тест"},
+                "project_name": {"value": "личное"},
+            },
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects)
+    event_update = MagicMock()
+    event_update.meta.timezone = "UTC"
+    # Patch the handler's factory
+    from unittest.mock import patch
+
+    with patch("alice_ticktick.dialogs.handlers.TickTickClient", mock_factory):
+        add_subtask_data = message.nlu.intents["add_subtask"]
+        response = await on_add_subtask(message, add_subtask_data, event_update)
+
+    # Should NOT say "not found" (add_subtask behavior)
+    # Should create the task in project (create_task behavior)
+    assert "не найдена" not in response.text
+
+
 def test_extract_edit_task_slots_with_project() -> None:
     """Verify new_project is extracted from edit_task intent."""
     from alice_ticktick.dialogs.intents import extract_edit_task_slots
