@@ -490,10 +490,16 @@ async def test_list_tasks_includes_inbox() -> None:
         tzinfo=datetime.UTC,
     )
     inbox_task = _make_task(
-        task_id="t-inbox", title="Inbox Task", project_id="inbox123", due_date=today,
+        task_id="t-inbox",
+        title="Inbox Task",
+        project_id="inbox123",
+        due_date=today,
     )
     project_task = _make_task(
-        task_id="t-proj", title="Project Task", project_id="p1", due_date=today,
+        task_id="t-proj",
+        title="Project Task",
+        project_id="p1",
+        due_date=today,
     )
 
     client = AsyncMock()
