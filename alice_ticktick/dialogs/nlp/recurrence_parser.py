@@ -52,13 +52,23 @@ _BYDAY_TO_RU: dict[str, str] = {
     "SU": "воскресенье",
 }
 
-_FREQ_TO_RU: dict[str, tuple[str, str]] = {
-    # (singular "каждый X", plural base for interval)
-    "DAILY": ("каждый день", "дня"),
-    "WEEKLY": ("каждую неделю", "недели"),
-    "MONTHLY": ("каждый месяц", "месяца"),
-    "YEARLY": ("каждый год", "года"),
+_FREQ_TO_RU: dict[str, tuple[str, tuple[str, str, str]]] = {
+    # (singular "каждый X", (1-form, 2-4-form, 5+-form) for interval)
+    "DAILY": ("каждый день", ("день", "дня", "дней")),
+    "WEEKLY": ("каждую неделю", ("неделю", "недели", "недель")),
+    "MONTHLY": ("каждый месяц", ("месяц", "месяца", "месяцев")),
+    "YEARLY": ("каждый год", ("год", "года", "лет")),
 }
+
+
+def _pluralize_interval(n: int, forms: tuple[str, str, str]) -> str:
+    """Russian pluralization: 1 день, 2 дня, 5 дней."""
+    abs_n = abs(n)
+    if abs_n % 10 == 1 and abs_n % 100 != 11:
+        return f"{n} {forms[0]}"
+    if abs_n % 10 in (2, 3, 4) and abs_n % 100 not in (12, 13, 14):
+        return f"{n} {forms[1]}"
+    return f"{n} {forms[2]}"
 
 
 def build_rrule(
@@ -128,9 +138,9 @@ def format_recurrence(rrule: str | None) -> str | None:
             return f"каждый {day_name}" if byday in ("MO", "TU", "TH") else f"каждую {day_name}"
 
     if freq and freq in _FREQ_TO_RU:
-        singular, plural_base = _FREQ_TO_RU[freq]
+        singular, plural_forms = _FREQ_TO_RU[freq]
         if interval:
-            return f"каждые {interval} {plural_base}"
+            return f"каждые {_pluralize_interval(int(interval), plural_forms)}"
         return singular
 
     return "повторяется"

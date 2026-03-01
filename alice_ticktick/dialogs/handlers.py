@@ -514,12 +514,12 @@ async def handle_add_reminder(
             )
             await client.update_task(payload)
             _invalidate_task_cache()
+
+            rem_display = format_reminder(trigger) or ""
+            return Response(text=txt.REMINDER_ADDED.format(reminder=rem_display, name=best_match))
     except Exception:
         logger.exception("Failed to add reminder")
         return Response(text=txt.REMINDER_ERROR)
-
-    rem_display = format_reminder(trigger) or ""
-    return Response(text=txt.REMINDER_ADDED.format(reminder=rem_display, name=best_match))
 
 
 async def handle_list_tasks(
@@ -921,9 +921,9 @@ async def handle_edit_task(
         return Response(text=txt.EDIT_ERROR)
 
     # Specific messages for recurrence/reminder changes
-    if has_remove_recurrence and new_repeat_flag == "":
+    if has_remove_recurrence and new_repeat_flag is not None:
         return Response(text=txt.RECURRENCE_REMOVED.format(name=best_match))
-    if has_remove_reminder and new_reminders == []:
+    if has_remove_reminder and new_reminders is not None and not new_reminders:
         return Response(text=txt.REMINDER_REMOVED.format(name=best_match))
     if has_recurrence and new_repeat_flag:
         rec_display = format_recurrence(new_repeat_flag)
