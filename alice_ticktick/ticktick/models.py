@@ -40,6 +40,8 @@ class Task(BaseModel):
     start_date: datetime | None = Field(default=None, alias="startDate")
     items: list[ChecklistItem] = Field(default_factory=list)
     parent_id: str | None = Field(default=None, alias="parentId")
+    repeat_flag: str | None = Field(default=None, alias="repeatFlag")
+    reminders: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
@@ -63,6 +65,8 @@ class TaskCreate(BaseModel):
     is_all_day: bool | None = Field(default=None, alias="isAllDay")
     items: list[dict[str, Any]] | None = None
     parent_id: str | None = Field(default=None, alias="parentId")
+    repeat_flag: str | None = Field(default=None, alias="repeatFlag")
+    reminders: list[str] | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -78,6 +82,8 @@ class TaskUpdate(BaseModel):
     due_date: datetime | None = Field(default=None, alias="dueDate")
     is_all_day: bool | None = Field(default=None, alias="isAllDay")
     items: list[dict[str, Any]] | None = None
+    repeat_flag: str | None = Field(default=None, alias="repeatFlag")
+    reminders: list[str] | None = None
 
     model_config = {"populate_by_name": True}
 
