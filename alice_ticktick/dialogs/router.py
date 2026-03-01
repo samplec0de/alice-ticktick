@@ -60,6 +60,9 @@ logger = logging.getLogger(__name__)
 
 _MAX_CONFIRM_RETRIES = 3
 
+_CONFIRM_TOKENS = frozenset({"да", "конечно", "подтверждаю", "ладно", "давай", "удали"})
+_REJECT_TOKENS = frozenset({"нет", "отмена", "отменить", "не", "отменяй"})
+
 router = Router(name="main")
 
 
@@ -229,7 +232,20 @@ async def on_delete_reject(message: Message, state: FSMContext) -> Response:
 
 @router.message(DeleteTaskStates.confirm)
 async def on_delete_other(message: Message, state: FSMContext) -> Response:
-    """Handle unexpected input during delete confirmation."""
+    """Handle unexpected input during delete confirmation.
+
+    Also handles 'нет'/'да' as reject/confirm when NLU does not fire
+    YANDEX.CONFIRM / YANDEX.REJECT intents (e.g. after Lambda cold start).
+    """
+    # Token-based matching: catch reject/confirm words
+    tokens = set(message.nlu.tokens or []) if message.nlu else set()
+    command_lower = (message.command or "").lower().strip()
+
+    if tokens & _REJECT_TOKENS or command_lower in _REJECT_TOKENS:
+        return await handle_delete_reject(message, state)
+    if tokens & _CONFIRM_TOKENS or command_lower in _CONFIRM_TOKENS:
+        return await handle_delete_confirm(message, state)
+
     data = await state.get_data()
     retries = data.get("_confirm_retries", 0) + 1
     logger.debug("Unexpected input during delete confirm: %r (retry %d)", message.command, retries)

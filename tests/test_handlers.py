@@ -1176,6 +1176,46 @@ async def test_delete_other_escape_after_retries() -> None:
     state.clear.assert_called_once()
 
 
+async def test_delete_other_handles_net_as_reject() -> None:
+    """'нет' в состоянии confirm должен отменять удаление даже без YANDEX.REJECT."""
+    state = _make_mock_state(
+        data={"task_id": "t1", "task_name": "купить хлеб", "project_id": "p1"}
+    )
+    message = _make_message(command="нет")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["нет"]
+    response = await on_delete_other(message, state)
+    assert response.text == txt.DELETE_CANCELLED
+    state.clear.assert_called_once()
+
+
+async def test_delete_other_handles_da_as_confirm() -> None:
+    """'да' в состоянии confirm должен вызвать handle_delete_confirm."""
+    state = _make_mock_state(
+        data={"task_id": "t1", "task_name": "купить хлеб", "project_id": "proj-1"}
+    )
+    message = _make_message(command="да")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["да"]
+    response = await on_delete_other(message, state)
+    # handle_delete_confirm deletes the task; with mocks it will either succeed
+    # or raise error that gets caught. Key: state.clear was called (not re-prompted).
+    state.clear.assert_called_once()
+
+
+async def test_delete_other_handles_otmena_as_reject() -> None:
+    """'отмена' в состоянии confirm должен отменять удаление."""
+    state = _make_mock_state(
+        data={"task_id": "t1", "task_name": "купить хлеб", "project_id": "p1"}
+    )
+    message = _make_message(command="отмена")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["отмена"]
+    response = await on_delete_other(message, state)
+    assert response.text == txt.DELETE_CANCELLED
+    state.clear.assert_called_once()
+
+
 # --- Search edge cases ---
 
 
