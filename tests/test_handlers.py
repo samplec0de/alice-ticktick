@@ -241,6 +241,24 @@ async def test_create_task_name_required() -> None:
     assert response.text == txt.TASK_NAME_REQUIRED
 
 
+async def test_create_task_name_is_stopword_asks_for_name() -> None:
+    """Если task_name — это только слово 'задачу', переспросить название."""
+    message = _make_message(command="создай задачу")
+    message.nlu = None
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "задачу"}}}
+    response = await handle_create_task(message, intent_data)
+    assert response.text == txt.TASK_NAME_REQUIRED
+
+
+async def test_create_task_name_is_zadacha_variant_asks_for_name() -> None:
+    """'задача', 'задачи' тоже стоп-слова."""
+    message = _make_message(command="новая задача")
+    message.nlu = None
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "задача"}}}
+    response = await handle_create_task(message, intent_data)
+    assert response.text == txt.TASK_NAME_REQUIRED
+
+
 async def test_create_task_success() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {

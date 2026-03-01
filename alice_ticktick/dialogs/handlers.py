@@ -48,6 +48,12 @@ logger = logging.getLogger(__name__)
 
 ALICE_RESPONSE_MAX_LENGTH = 1024
 
+# Стоп-слова: NLU захватывает слово "задачу" как task_name при "создай задачу"
+_TASK_NAME_STOPWORDS = frozenset({
+    "задачу", "задача", "задачи", "задаче",
+    "напоминание", "напоминания",
+})
+
 
 def _auth_required_response(event_update: Update | None = None) -> Response:
     """Return a response that initiates Account Linking if supported."""
@@ -288,6 +294,10 @@ async def handle_create_task(
     slots = extract_create_task_slots(intent_data)
 
     if not slots.task_name:
+        return Response(text=txt.TASK_NAME_REQUIRED)
+
+    # Если task_name — это только стоп-слово, переспросить
+    if slots.task_name.lower().strip() in _TASK_NAME_STOPWORDS:
         return Response(text=txt.TASK_NAME_REQUIRED)
 
     user_tz = _get_user_tz(event_update)
