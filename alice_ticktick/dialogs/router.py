@@ -12,9 +12,11 @@ from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.filters import IntentFilter, NewSessionFilter
 from alice_ticktick.dialogs.handlers import (
     handle_add_checklist_item,
+    handle_add_reminder,
     handle_add_subtask,
     handle_check_item,
     handle_complete_task,
+    handle_create_recurring_task,
     handle_create_task,
     handle_delete_checklist_item,
     handle_delete_confirm,
@@ -33,9 +35,11 @@ from alice_ticktick.dialogs.handlers import (
 )
 from alice_ticktick.dialogs.intents import (
     ADD_CHECKLIST_ITEM,
+    ADD_REMINDER,
     ADD_SUBTASK,
     CHECK_ITEM,
     COMPLETE_TASK,
+    CREATE_RECURRING_TASK,
     CREATE_TASK,
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
@@ -100,6 +104,22 @@ async def on_add_checklist_item(
 ) -> Response:
     """Handle add_checklist_item intent."""
     return await handle_add_checklist_item(message, intent_data, event_update=event_update)
+
+
+@router.message(IntentFilter(CREATE_RECURRING_TASK))
+async def on_create_recurring_task(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
+    """Handle create_recurring_task intent."""
+    return await handle_create_recurring_task(message, intent_data, event_update=event_update)
+
+
+@router.message(IntentFilter(ADD_REMINDER))
+async def on_add_reminder(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
+    """Handle add_reminder intent."""
+    return await handle_add_reminder(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(CREATE_TASK))

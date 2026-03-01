@@ -1,0 +1,64 @@
+root:
+    %lemma
+    (создай|добавь|запиши|новая|поставь) (задачу|задача|напоминание)? $TaskName (в (проект|список|папку) $ProjectName)? (на $Date)? (с приоритетом (низкий|средний|высокий))? ($Recurrence)? (с напоминанием за $ReminderValue $ReminderUnit)?
+    (создай|добавь|запиши|новая|поставь) (задачу|задача|напоминание)? $TaskName (в (проект|список|папку) $ProjectName)? (на $Date)? (с приоритетом (низкий|средний|высокий))? ($Recurrence)? (с напоминанием за $ReminderUnit)?
+    (создай|добавь|запиши|новая|поставь) (задачу|задача|напоминание)? $TaskName $Recurrence (на $Date)? (в (проект|список|папку) $ProjectName)?
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+    date:
+        source: $Date
+        type: YANDEX.DATETIME
+    project_name:
+        source: $ProjectName
+        type: YANDEX.STRING
+    rec_freq:
+        source: $RecFreq
+        type: YANDEX.STRING
+    rec_interval:
+        source: $RecInterval
+        type: YANDEX.NUMBER
+    rec_monthday:
+        source: $RecMonthday
+        type: YANDEX.NUMBER
+    reminder_value:
+        source: $ReminderValue
+        type: YANDEX.NUMBER
+    reminder_unit:
+        source: $ReminderUnit
+        type: YANDEX.STRING
+
+$TaskName:
+    .+
+
+$Date:
+    $YANDEX.DATETIME
+
+$ProjectName:
+    .+
+
+$Recurrence:
+    (каждый|каждую|каждое) $RecFreq
+    (каждые) $RecInterval $RecFreq
+    (каждое) $RecMonthday (число)
+    ежедневно
+    еженедельно
+    ежемесячно
+    (по) $RecFreq
+
+$RecFreq:
+    .+
+
+$RecInterval:
+    $YANDEX.NUMBER
+
+$RecMonthday:
+    $YANDEX.NUMBER
+
+$ReminderValue:
+    $YANDEX.NUMBER
+
+$ReminderUnit:
+    .+

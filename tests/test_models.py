@@ -159,3 +159,92 @@ class TestTaskUpdateWithItems:
         assert tu.title == "New title"
         assert tu.priority == TaskPriority.HIGH
         assert tu.items is None
+
+
+class TestTaskRepeatAndReminders:
+    def test_task_with_repeat_flag(self) -> None:
+        data: dict[str, Any] = {
+            "id": "t1",
+            "projectId": "p1",
+            "title": "Daily standup",
+            "repeatFlag": "RRULE:FREQ=DAILY",
+        }
+        task = Task.model_validate(data)
+        assert task.repeat_flag == "RRULE:FREQ=DAILY"
+
+    def test_task_without_repeat_flag(self) -> None:
+        data: dict[str, Any] = {
+            "id": "t1",
+            "projectId": "p1",
+            "title": "Simple task",
+        }
+        task = Task.model_validate(data)
+        assert task.repeat_flag is None
+
+    def test_task_with_reminders(self) -> None:
+        data: dict[str, Any] = {
+            "id": "t1",
+            "projectId": "p1",
+            "title": "Meeting",
+            "reminders": ["TRIGGER:-PT30M", "TRIGGER:-PT1H"],
+        }
+        task = Task.model_validate(data)
+        assert task.reminders == ["TRIGGER:-PT30M", "TRIGGER:-PT1H"]
+
+    def test_task_without_reminders(self) -> None:
+        data: dict[str, Any] = {
+            "id": "t1",
+            "projectId": "p1",
+            "title": "Simple",
+        }
+        task = Task.model_validate(data)
+        assert task.reminders == []
+
+
+class TestTaskCreateRepeatAndReminders:
+    def test_create_with_repeat_flag(self) -> None:
+        tc = TaskCreate(title="Daily", repeat_flag="RRULE:FREQ=DAILY")
+        data = tc.model_dump(by_alias=True, exclude_none=True)
+        assert data["repeatFlag"] == "RRULE:FREQ=DAILY"
+        assert "reminders" not in data
+
+    def test_create_with_reminders(self) -> None:
+        tc = TaskCreate(title="Meeting", reminders=["TRIGGER:-PT30M"])
+        data = tc.model_dump(by_alias=True, exclude_none=True)
+        assert data["reminders"] == ["TRIGGER:-PT30M"]
+
+    def test_create_without_repeat_excludes_field(self) -> None:
+        tc = TaskCreate(title="Simple")
+        data = tc.model_dump(by_alias=True, exclude_none=True)
+        assert "repeatFlag" not in data
+        assert "reminders" not in data
+
+
+class TestTaskUpdateRepeatAndReminders:
+    def test_update_with_repeat_flag(self) -> None:
+        tu = TaskUpdate(id="t1", project_id="p1", repeat_flag="RRULE:FREQ=WEEKLY")
+        data = tu.model_dump(by_alias=True, exclude_none=True)
+        assert data["repeatFlag"] == "RRULE:FREQ=WEEKLY"
+
+    def test_update_remove_repeat_flag(self) -> None:
+        """Empty string removes recurrence (exclude_none=True keeps it)."""
+        tu = TaskUpdate(id="t1", project_id="p1", repeat_flag="")
+        data = tu.model_dump(by_alias=True, exclude_none=True)
+        assert data["repeatFlag"] == ""
+
+    def test_update_with_reminders(self) -> None:
+        tu = TaskUpdate(id="t1", project_id="p1", reminders=["TRIGGER:-PT1H"])
+        data = tu.model_dump(by_alias=True, exclude_none=True)
+        assert data["reminders"] == ["TRIGGER:-PT1H"]
+
+    def test_update_remove_reminders(self) -> None:
+        """Empty list removes reminders (exclude_none=True keeps it)."""
+        tu = TaskUpdate(id="t1", project_id="p1", reminders=[])
+        data = tu.model_dump(by_alias=True, exclude_none=True)
+        assert data["reminders"] == []
+
+    def test_update_none_repeat_excludes_field(self) -> None:
+        tu = TaskUpdate(id="t1", project_id="p1")
+        data = tu.model_dump(by_alias=True, exclude_none=True)
+        assert "repeatFlag" not in data
+        assert "reminders" not in data

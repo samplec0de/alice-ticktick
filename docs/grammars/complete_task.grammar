@@ -1,0 +1,11 @@
+root:
+    %lemma
+    (отметь | заверши | выполни | закрой) (задачу)? $TaskName (выполненной | готовой | сделанной)?
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+
+$TaskName:
+    .+

@@ -30,8 +30,12 @@ from alice_ticktick.dialogs.intents import (
     extract_show_checklist_slots,
 )
 from alice_ticktick.dialogs.nlp import (
+    build_rrule,
+    build_trigger,
     find_best_match,
     find_matches,
+    format_recurrence,
+    format_reminder,
     parse_priority,
     parse_yandex_datetime,
 )
@@ -344,6 +348,17 @@ async def handle_create_task(
     priority_raw = parse_priority(slots.priority) or 0
     priority_value = TaskPriority(priority_raw)
 
+    # Parse recurrence
+    repeat_flag = build_rrule(
+        rec_freq=slots.rec_freq,
+        rec_interval=slots.rec_interval,
+        rec_monthday=slots.rec_monthday,
+    )
+
+    # Parse reminder
+    reminder_trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
+    reminders_list: list[str] | None = [reminder_trigger] if reminder_trigger else None
+
     factory = ticktick_client_factory or TickTickClient
     project_id: str | None = None
     project_name_display: str | None = None
@@ -367,12 +382,33 @@ async def handle_create_task(
                 startDate=start_date_str,
                 dueDate=due_date_str,
                 isAllDay=is_all_day,
+                repeatFlag=repeat_flag,
+                reminders=reminders_list,
             )
             await client.create_task(payload)
             _invalidate_task_cache()
     except Exception:
         logger.exception("Failed to create task")
         return Response(text=txt.CREATE_ERROR)
+
+    # Build response with recurrence/reminder info
+    rec_display = format_recurrence(repeat_flag)
+    rem_display = format_reminder(reminder_trigger)
+
+    if rec_display and rem_display:
+        return Response(
+            text=txt.TASK_CREATED_RECURRING_WITH_REMINDER.format(
+                name=task_name, recurrence=rec_display, reminder=rem_display
+            )
+        )
+    if rec_display:
+        return Response(
+            text=txt.TASK_CREATED_RECURRING.format(name=task_name, recurrence=rec_display)
+        )
+    if rem_display:
+        return Response(
+            text=txt.TASK_CREATED_WITH_REMINDER.format(name=task_name, reminder=rem_display)
+        )
 
     if project_name_display:
         if date_display:
@@ -392,6 +428,98 @@ async def handle_create_task(
             )
         )
     return Response(text=txt.TASK_CREATED.format(name=slots.task_name))
+
+
+async def handle_create_recurring_task(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle create_recurring_task intent ('напоминай каждый...')."""
+    from alice_ticktick.dialogs.intents import extract_create_recurring_task_slots
+
+    slots = extract_create_recurring_task_slots(intent_data)
+
+    # Delegate to create_task with recurrence slots mapped
+    create_intent_data: dict[str, Any] = {"slots": {}}
+    if slots.task_name:
+        create_intent_data["slots"]["task_name"] = {"value": slots.task_name}
+    if slots.rec_freq:
+        create_intent_data["slots"]["rec_freq"] = {"value": slots.rec_freq}
+    if slots.rec_interval is not None:
+        create_intent_data["slots"]["rec_interval"] = {"value": slots.rec_interval}
+    if slots.rec_monthday is not None:
+        create_intent_data["slots"]["rec_monthday"] = {"value": slots.rec_monthday}
+
+    return await handle_create_task(
+        message,
+        create_intent_data,
+        ticktick_client_factory=ticktick_client_factory,
+        event_update=event_update,
+    )
+
+
+async def handle_add_reminder(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle add_reminder intent ('напомни o задаче X за Y')."""
+    from alice_ticktick.dialogs.intents import extract_add_reminder_slots
+
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    slots = extract_add_reminder_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.REMINDER_TASK_REQUIRED)
+
+    if slots.reminder_unit is None:
+        return Response(text=txt.REMINDER_VALUE_REQUIRED)
+
+    trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
+    if trigger is None:
+        return Response(text=txt.REMINDER_PARSE_ERROR)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            titles = [t.title for t in active_tasks]
+            match_result = find_best_match(slots.task_name, titles)
+            if match_result is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            best_match, match_idx = match_result
+            matched_task = active_tasks[match_idx]
+
+            # Merge with existing reminders
+            existing_reminders = list(matched_task.reminders)
+            if trigger not in existing_reminders:
+                existing_reminders.append(trigger)
+
+            payload = TaskUpdate(
+                id=matched_task.id,
+                projectId=matched_task.project_id,
+                reminders=existing_reminders,
+            )
+            await client.update_task(payload)
+            _invalidate_task_cache()
+
+            rem_display = format_reminder(trigger) or ""
+            return Response(text=txt.REMINDER_ADDED.format(reminder=rem_display, name=best_match))
+    except Exception:
+        logger.exception("Failed to add reminder")
+        return Response(text=txt.REMINDER_ERROR)
 
 
 async def handle_list_tasks(
@@ -614,6 +742,10 @@ async def handle_edit_task(
     has_priority = slots.new_priority is not None
     has_name = slots.new_name is not None
     has_project = slots.new_project is not None
+    has_recurrence = slots.rec_freq is not None or slots.rec_monthday is not None
+    has_reminder = slots.reminder_unit is not None
+    has_remove_recurrence = slots.remove_recurrence
+    has_remove_reminder = slots.remove_reminder
 
     # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
     user_tz = _get_user_tz(event_update)
@@ -622,7 +754,16 @@ async def handle_edit_task(
     nlu_has_date = nlu_dates is not None and nlu_dates.start_date is not None
     has_date = slots.new_date is not None or nlu_has_date
 
-    if not has_date and not has_priority and not has_name and not has_project:
+    if (
+        not has_date
+        and not has_priority
+        and not has_name
+        and not has_project
+        and not has_recurrence
+        and not has_reminder
+        and not has_remove_recurrence
+        and not has_remove_reminder
+    ):
         return Response(text=txt.EDIT_NO_CHANGES)
 
     factory = ticktick_client_factory or TickTickClient
@@ -708,6 +849,26 @@ async def handle_edit_task(
         else:
             logger.warning("Unrecognized priority value: %s", slots.new_priority)
 
+    # Build recurrence
+    new_repeat_flag: str | None = None
+    if has_remove_recurrence:
+        new_repeat_flag = ""  # empty string = remove
+    elif has_recurrence:
+        new_repeat_flag = build_rrule(
+            rec_freq=slots.rec_freq,
+            rec_interval=slots.rec_interval,
+            rec_monthday=slots.rec_monthday,
+        )
+
+    # Build reminder
+    new_reminders: list[str] | None = None
+    if has_remove_reminder:
+        new_reminders = []  # empty list = remove
+    elif has_reminder:
+        trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
+        if trigger:
+            new_reminders = [trigger]
+
     # Resolve target project if requested
     target_project_id: str | None = None
     target_project_name: str | None = None
@@ -731,6 +892,8 @@ async def handle_edit_task(
         and new_due_date is None
         and new_priority_value is None
         and target_project_id is None
+        and new_repeat_flag is None
+        and new_reminders is None
     ):
         if same_project_name:
             return Response(
@@ -746,6 +909,8 @@ async def handle_edit_task(
         startDate=new_start_date,
         dueDate=new_due_date,
         isAllDay=new_is_all_day,
+        repeatFlag=new_repeat_flag,
+        reminders=new_reminders,
     )
     try:
         async with factory(access_token) as client:
@@ -754,6 +919,20 @@ async def handle_edit_task(
     except Exception:
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
+
+    # Specific messages for recurrence/reminder changes
+    if has_remove_recurrence and new_repeat_flag is not None:
+        return Response(text=txt.RECURRENCE_REMOVED.format(name=best_match))
+    if has_remove_reminder and new_reminders is not None and not new_reminders:
+        return Response(text=txt.REMINDER_REMOVED.format(name=best_match))
+    if has_recurrence and new_repeat_flag:
+        rec_display = format_recurrence(new_repeat_flag)
+        return Response(
+            text=txt.RECURRENCE_UPDATED.format(name=best_match, recurrence=rec_display)
+        )
+    if has_reminder and new_reminders:
+        rem_display = format_reminder(new_reminders[0])
+        return Response(text=txt.REMINDER_UPDATED.format(name=best_match, reminder=rem_display))
 
     # Only project changed → specific move message
     only_project = (

@@ -6,10 +6,12 @@ from typing import Any
 
 from alice_ticktick.dialogs.intents import (
     ADD_CHECKLIST_ITEM,
+    ADD_REMINDER,
     ADD_SUBTASK,
     ALL_INTENTS,
     CHECK_ITEM,
     COMPLETE_TASK,
+    CREATE_RECURRING_TASK,
     CREATE_TASK,
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
@@ -49,9 +51,11 @@ class TestIntentConstants:
         assert SHOW_CHECKLIST in ALL_INTENTS
         assert CHECK_ITEM in ALL_INTENTS
         assert DELETE_CHECKLIST_ITEM in ALL_INTENTS
+        assert CREATE_RECURRING_TASK in ALL_INTENTS
+        assert ADD_REMINDER in ALL_INTENTS
 
     def test_all_intents_count(self) -> None:
-        assert len(ALL_INTENTS) == 13
+        assert len(ALL_INTENTS) == 15
 
 
 class TestCreateTaskSlots:

@@ -1,0 +1,37 @@
+root:
+    %lemma
+    (напоминай|напоминать|повторяй) $Recurrence $TaskName
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+    rec_freq:
+        source: $RecFreq
+        type: YANDEX.STRING
+    rec_interval:
+        source: $RecInterval
+        type: YANDEX.NUMBER
+    rec_monthday:
+        source: $RecMonthday
+        type: YANDEX.NUMBER
+
+$TaskName:
+    .+
+
+$Recurrence:
+    (каждый|каждую|каждое) $RecFreq
+    (каждые) $RecInterval $RecFreq
+    (каждое) $RecMonthday (число)
+    ежедневно
+    еженедельно
+    ежемесячно
+
+$RecFreq:
+    .+
+
+$RecInterval:
+    $YANDEX.NUMBER
+
+$RecMonthday:
+    $YANDEX.NUMBER

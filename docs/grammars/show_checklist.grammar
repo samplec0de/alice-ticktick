@@ -1,0 +1,11 @@
+root:
+    %lemma
+    (покажи | какой | что) (чеклист | список | пункты) (у | для | в)? (задачи)? $TaskName
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+
+$TaskName:
+    .+

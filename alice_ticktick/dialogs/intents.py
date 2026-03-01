@@ -22,6 +22,8 @@ ADD_CHECKLIST_ITEM = "add_checklist_item"
 SHOW_CHECKLIST = "show_checklist"
 CHECK_ITEM = "check_item"
 DELETE_CHECKLIST_ITEM = "delete_checklist_item"
+CREATE_RECURRING_TASK = "create_recurring_task"
+ADD_REMINDER = "add_reminder"
 
 ALL_INTENTS = frozenset(
     {
@@ -38,6 +40,8 @@ ALL_INTENTS = frozenset(
         SHOW_CHECKLIST,
         CHECK_ITEM,
         DELETE_CHECKLIST_ITEM,
+        CREATE_RECURRING_TASK,
+        ADD_REMINDER,
     }
 )
 
@@ -50,6 +54,11 @@ class CreateTaskSlots:
     date: YandexDateTime | None = None
     priority: str | None = None
     project_name: str | None = None
+    rec_freq: str | None = None
+    rec_interval: int | None = None
+    rec_monthday: int | None = None
+    reminder_value: int | None = None
+    reminder_unit: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +92,13 @@ class EditTaskSlots:
     new_priority: str | None = None
     new_name: str | None = None
     new_project: str | None = None
+    rec_freq: str | None = None
+    rec_interval: int | None = None
+    rec_monthday: int | None = None
+    reminder_value: int | None = None
+    reminder_unit: str | None = None
+    remove_recurrence: bool = False
+    remove_reminder: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +115,16 @@ def _get_slot_value(intent_data: dict[str, Any], slot_name: str) -> Any:
     return slot.get("value")
 
 
+def _as_int(value: Any) -> int | None:
+    """Coerce a slot value to int, or return None."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def extract_create_task_slots(intent_data: dict[str, Any]) -> CreateTaskSlots:
     """Extract slots from create_task intent."""
     return CreateTaskSlots(
@@ -106,6 +132,11 @@ def extract_create_task_slots(intent_data: dict[str, Any]) -> CreateTaskSlots:
         date=_get_slot_value(intent_data, "date"),
         priority=_get_slot_value(intent_data, "priority"),
         project_name=_get_slot_value(intent_data, "project_name"),
+        rec_freq=_get_slot_value(intent_data, "rec_freq"),
+        rec_interval=_as_int(_get_slot_value(intent_data, "rec_interval")),
+        rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
+        reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),
+        reminder_unit=_get_slot_value(intent_data, "reminder_unit"),
     )
 
 
@@ -139,6 +170,13 @@ def extract_edit_task_slots(intent_data: dict[str, Any]) -> EditTaskSlots:
         new_priority=_get_slot_value(intent_data, "new_priority"),
         new_name=_get_slot_value(intent_data, "new_name"),
         new_project=_get_slot_value(intent_data, "new_project"),
+        rec_freq=_get_slot_value(intent_data, "rec_freq"),
+        rec_interval=_as_int(_get_slot_value(intent_data, "rec_interval")),
+        rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
+        reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),
+        reminder_unit=_get_slot_value(intent_data, "reminder_unit"),
+        remove_recurrence=_get_slot_value(intent_data, "remove_recurrence") is not None,
+        remove_reminder=_get_slot_value(intent_data, "remove_reminder") is not None,
     )
 
 
@@ -242,4 +280,44 @@ def extract_delete_checklist_item_slots(
     return DeleteChecklistItemSlots(
         item_name=_get_slot_value(intent_data, "item_name"),
         task_name=_get_slot_value(intent_data, "task_name"),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class CreateRecurringTaskSlots:
+    """Extracted slots for create_recurring_task intent."""
+
+    task_name: str | None = None
+    rec_freq: str | None = None
+    rec_interval: int | None = None
+    rec_monthday: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AddReminderSlots:
+    """Extracted slots for add_reminder intent."""
+
+    task_name: str | None = None
+    reminder_value: int | None = None
+    reminder_unit: str | None = None
+
+
+def extract_create_recurring_task_slots(
+    intent_data: dict[str, Any],
+) -> CreateRecurringTaskSlots:
+    """Extract slots from create_recurring_task intent."""
+    return CreateRecurringTaskSlots(
+        task_name=_get_slot_value(intent_data, "task_name"),
+        rec_freq=_get_slot_value(intent_data, "rec_freq"),
+        rec_interval=_as_int(_get_slot_value(intent_data, "rec_interval")),
+        rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
+    )
+
+
+def extract_add_reminder_slots(intent_data: dict[str, Any]) -> AddReminderSlots:
+    """Extract slots from add_reminder intent."""
+    return AddReminderSlots(
+        task_name=_get_slot_value(intent_data, "task_name"),
+        reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),
+        reminder_unit=_get_slot_value(intent_data, "reminder_unit"),
     )

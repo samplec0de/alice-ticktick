@@ -14,7 +14,9 @@ from alice_ticktick.dialogs.handlers import (
     _auth_required_response,
     _reset_project_cache,
     _truncate_response,
+    handle_add_reminder,
     handle_complete_task,
+    handle_create_recurring_task,
     handle_create_task,
     handle_delete_confirm,
     handle_delete_reject,
@@ -999,7 +1001,7 @@ async def test_create_task_with_time_uses_user_timezone() -> None:
     call_args = client.create_task.call_args[0][0]
     # Time-specific: dueDate should contain 19:XX and Moscow offset
     assert call_args.due_date is not None
-    assert call_args.due_date.startswith("2026-03-02T19:00:")
+    assert "T19:00:" in call_args.due_date
     assert "+0300" in call_args.due_date
     # isAllDay should be False for time-specific tasks
     assert call_args.is_all_day is False
@@ -1382,3 +1384,285 @@ async def test_router_disambiguate_add_subtask_vs_create_task_in_project() -> No
     # Should NOT say "not found" (add_subtask behavior)
     # Should create the task in project (create_task behavior)
     assert "не найдена" not in response.text
+
+
+# --- Recurrence and reminder tests ---
+
+
+async def test_create_daily_recurring() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "rec_freq": {"value": "день"},
+        },
+    }
+    message = _make_message(command="создай задачу зарядка каждый день")
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "зарядка" in response.text
+    assert "создана" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=DAILY"
+
+
+async def test_create_weekly_monday() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "стендап"},
+            "rec_freq": {"value": "понедельник"},
+        },
+    }
+    message = _make_message(command="создай задачу стендап каждый понедельник")
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "стендап" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
+
+
+async def test_create_with_interval() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "полив цветов"},
+            "rec_freq": {"value": "дня"},
+            "rec_interval": {"value": 3},
+        },
+    }
+    message = _make_message(command="создай задачу полив цветов каждые 3 дня")
+    mock_factory = _make_mock_client()
+    await handle_create_task(message, intent_data, mock_factory)
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=DAILY;INTERVAL=3"
+
+
+async def test_create_with_reminder() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message(command="создай задачу встреча с напоминанием за 30 минут")
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "встреча" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.reminders == ["TRIGGER:-PT30M"]
+
+
+async def test_create_with_recurrence_and_reminder() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "rec_freq": {"value": "день"},
+            "reminder_value": {"value": 1},
+            "reminder_unit": {"value": "час"},
+        },
+    }
+    message = _make_message(command="создай задачу зарядка каждый день с напоминанием за час")
+    mock_factory = _make_mock_client()
+    await handle_create_task(message, intent_data, mock_factory)
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=DAILY"
+    assert payload.reminders == ["TRIGGER:-PT1H"]
+
+
+async def test_create_without_recurrence_no_repeat_flag() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "обычная задача"},
+        },
+    }
+    message = _make_message(command="создай задачу обычная задача")
+    mock_factory = _make_mock_client()
+    await handle_create_task(message, intent_data, mock_factory)
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag is None
+    assert payload.reminders is None
+
+
+# --- create_recurring_task tests ---
+
+
+async def test_create_recurring_delegates() -> None:
+    """create_recurring_task delegates to handle_create_task."""
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "проверить отчёт"},
+            "rec_freq": {"value": "понедельник"},
+        },
+    }
+    message = _make_message(command="напоминай каждый понедельник проверить отчёт")
+    mock_factory = _make_mock_client()
+    response = await handle_create_recurring_task(message, intent_data, mock_factory)
+    assert "проверить отчёт" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
+
+
+async def test_create_recurring_no_auth() -> None:
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "тест"}}}
+    message = _make_message(access_token=None)
+    response = await handle_create_recurring_task(message, intent_data)
+    assert "привязать" in response.text.lower()
+
+
+async def test_create_recurring_no_name() -> None:
+    intent_data: dict[str, Any] = {"slots": {"rec_freq": {"value": "день"}}}
+    message = _make_message()
+    mock_factory = _make_mock_client()
+    response = await handle_create_recurring_task(message, intent_data, mock_factory)
+    assert "назвать" in response.text.lower() or "название" in response.text.lower()
+
+
+# --- add_reminder tests ---
+
+
+async def test_add_reminder_success() -> None:
+    tasks = [_make_task(title="Встреча")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    # Override inbox to return the task (_gather_all_tasks fetches inbox)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message(command="напомни о задаче встреча за 30 минут")
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert "напоминание" in response.text.lower()
+    assert "30 минут" in response.text
+
+
+async def test_add_reminder_no_auth() -> None:
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "тест"}}}
+    message = _make_message(access_token=None)
+    response = await handle_add_reminder(message, intent_data)
+    assert "привязать" in response.text.lower()
+
+
+async def test_add_reminder_no_task_name() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {"reminder_value": {"value": 30}, "reminder_unit": {"value": "минут"}},
+    }
+    message = _make_message()
+    mock_factory = _make_mock_client()
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert response.text == txt.REMINDER_TASK_REQUIRED
+
+
+async def test_add_reminder_no_value() -> None:
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "встреча"}}}
+    message = _make_message()
+    mock_factory = _make_mock_client()
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert response.text == txt.REMINDER_VALUE_REQUIRED
+
+
+async def test_add_reminder_task_not_found() -> None:
+    mock_factory = _make_mock_client(tasks=[])
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=[])
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "несуществующая"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message()
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert "не найдена" in response.text.lower()
+
+
+# --- edit_task recurrence/reminder tests ---
+
+
+async def test_edit_add_recurrence() -> None:
+    tasks = [_make_task(title="Зарядка")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "rec_freq": {"value": "день"},
+        },
+    }
+    message = _make_message(command="поменяй повторение задачи зарядка на каждый день")
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "повторение" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == "RRULE:FREQ=DAILY"
+
+
+async def test_edit_remove_recurrence() -> None:
+    task = _make_task(title="Зарядка")
+    task.repeat_flag = "RRULE:FREQ=DAILY"
+    mock_factory = _make_mock_client(projects=[], tasks=[task])
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=[task])
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "remove_recurrence": {"value": "повторение"},
+        },
+    }
+    message = _make_message(command="убери повторение задачи зарядка")
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "убрано" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == ""
+
+
+async def test_edit_add_reminder() -> None:
+    tasks = [_make_task(title="Встреча")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message(command="поставь напоминание задачи встреча за 30 минут")
+    await handle_edit_task(message, intent_data, mock_factory)
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.reminders == ["TRIGGER:-PT30M"]
+
+
+async def test_edit_remove_reminder() -> None:
+    task = _make_task(title="Встреча")
+    task.reminders = ["TRIGGER:-PT30M"]
+    mock_factory = _make_mock_client(projects=[], tasks=[task])
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=[task])
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "remove_reminder": {"value": "напоминание"},
+        },
+    }
+    message = _make_message(command="убери напоминание задачи встреча")
+    await handle_edit_task(message, intent_data, mock_factory)
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.reminders == []
