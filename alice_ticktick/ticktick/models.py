@@ -60,6 +60,7 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = TaskPriority.NONE
     due_date: str | None = Field(default=None, alias="dueDate")
     start_date: str | None = Field(default=None, alias="startDate")
+    is_all_day: bool | None = Field(default=None, alias="isAllDay")
     items: list[dict[str, Any]] | None = None
     parent_id: str | None = Field(default=None, alias="parentId")
 
@@ -75,6 +76,7 @@ class TaskUpdate(BaseModel):
     priority: TaskPriority | None = None
     start_date: datetime | None = Field(default=None, alias="startDate")
     due_date: datetime | None = Field(default=None, alias="dueDate")
+    is_all_day: bool | None = Field(default=None, alias="isAllDay")
     items: list[dict[str, Any]] | None = None
 
     model_config = {"populate_by_name": True}
