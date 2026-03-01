@@ -51,7 +51,7 @@ URL: https://dialogs.yandex.ru/developer/skills/{skill_id}/draft/settings/intent
 ```
 root:
     %lemma
-    (создай|добавь|запиши|новая|поставь) (задачу|задача|напоминание)? $TaskName (на $Date)? (с приоритетом (низкий|средний|высокий))?
+    (создай|добавь|запиши|новая|поставь) (задачу|задача|напоминание)? $TaskName (в (проект|список|папку) $ProjectName)? (на $Date)? (с приоритетом (низкий|средний|высокий))?
 
 slots:
     task_name:
@@ -60,12 +60,18 @@ slots:
     date:
         source: $Date
         type: YANDEX.DATETIME
+    project_name:
+        source: $ProjectName
+        type: YANDEX.STRING
 
 $TaskName:
-    $YANDEX.STRING
+    .+
 
 $Date:
     $YANDEX.DATETIME
+
+$ProjectName:
+    .+
 ```
 
 **Положительные тесты:**
@@ -75,6 +81,8 @@ $Date:
 запиши задачу позвонить маме
 новая задача подготовить презентацию
 поставь задачу оплатить счёт на пятницу
+создай задачу купить молоко в проект Покупки
+добавь задачу отчёт в список Работа на завтра
 ```
 
 **Отрицательные тесты:**
@@ -193,8 +201,20 @@ $TaskName:
 ### 4.6. edit_task — Редактирование задачи (Phase 2)
 
 **ID:** `edit_task`
-**Слоты:** `task_name` (YANDEX.STRING), `date` (YANDEX.DATETIME), `priority` (YANDEX.STRING)
-**Примеры:** «перенеси задачу на завтра», «поменяй приоритет на высокий»
+**Слоты:** `task_name` (YANDEX.STRING), `new_date` (YANDEX.DATETIME), `new_priority` (YANDEX.STRING), `new_name` (YANDEX.STRING), `new_project` (YANDEX.STRING)
+**Примеры:** «перенеси задачу на завтра», «поменяй приоритет на высокий», «перенеси задачу в проект Работа»
+
+Грамматика должна включать альтернативный паттерн для перемещения:
+```
+(перенеси|перемести|переложи|перекинь|отправь) (задачу|задача)? $TaskName в (проект|список|папку) $ProjectName
+```
+
+Слот:
+```
+new_project:
+    source: $ProjectName
+    type: YANDEX.STRING
+```
 
 ### 4.7. delete_task — Удаление задачи (Phase 2)
 
