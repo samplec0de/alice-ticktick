@@ -14,7 +14,9 @@ from alice_ticktick.dialogs.handlers import (
     _auth_required_response,
     _reset_project_cache,
     _truncate_response,
+    handle_add_reminder,
     handle_complete_task,
+    handle_create_recurring_task,
     handle_create_task,
     handle_delete_confirm,
     handle_delete_reject,
@@ -1484,3 +1486,103 @@ async def test_create_without_recurrence_no_repeat_flag() -> None:
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag is None
     assert payload.reminders is None
+
+
+# --- create_recurring_task tests ---
+
+
+async def test_create_recurring_delegates() -> None:
+    """create_recurring_task delegates to handle_create_task."""
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "проверить отчёт"},
+            "rec_freq": {"value": "понедельник"},
+        },
+    }
+    message = _make_message(command="напоминай каждый понедельник проверить отчёт")
+    mock_factory = _make_mock_client()
+    response = await handle_create_recurring_task(message, intent_data, mock_factory)
+    assert "проверить отчёт" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
+
+
+async def test_create_recurring_no_auth() -> None:
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "тест"}}}
+    message = _make_message(access_token=None)
+    response = await handle_create_recurring_task(message, intent_data)
+    assert "привязать" in response.text.lower()
+
+
+async def test_create_recurring_no_name() -> None:
+    intent_data: dict[str, Any] = {"slots": {"rec_freq": {"value": "день"}}}
+    message = _make_message()
+    mock_factory = _make_mock_client()
+    response = await handle_create_recurring_task(message, intent_data, mock_factory)
+    assert "назвать" in response.text.lower() or "название" in response.text.lower()
+
+
+# --- add_reminder tests ---
+
+
+async def test_add_reminder_success() -> None:
+    tasks = [_make_task(title="Встреча")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    # Override inbox to return the task (_gather_all_tasks fetches inbox)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message(command="напомни о задаче встреча за 30 минут")
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert "напоминание" in response.text.lower()
+    assert "30 минут" in response.text
+
+
+async def test_add_reminder_no_auth() -> None:
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "тест"}}}
+    message = _make_message(access_token=None)
+    response = await handle_add_reminder(message, intent_data)
+    assert "привязать" in response.text.lower()
+
+
+async def test_add_reminder_no_task_name() -> None:
+    intent_data: dict[str, Any] = {
+        "slots": {"reminder_value": {"value": 30}, "reminder_unit": {"value": "минут"}},
+    }
+    message = _make_message()
+    mock_factory = _make_mock_client()
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert response.text == txt.REMINDER_TASK_REQUIRED
+
+
+async def test_add_reminder_no_value() -> None:
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "встреча"}}}
+    message = _make_message()
+    mock_factory = _make_mock_client()
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert response.text == txt.REMINDER_VALUE_REQUIRED
+
+
+async def test_add_reminder_task_not_found() -> None:
+    mock_factory = _make_mock_client(tasks=[])
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=[])
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "несуществующая"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message()
+    response = await handle_add_reminder(message, intent_data, mock_factory)
+    assert "не найдена" in response.text.lower()

@@ -426,6 +426,98 @@ async def handle_create_task(
     return Response(text=txt.TASK_CREATED.format(name=slots.task_name))
 
 
+async def handle_create_recurring_task(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle create_recurring_task intent ('напоминай каждый...')."""
+    from alice_ticktick.dialogs.intents import extract_create_recurring_task_slots
+
+    slots = extract_create_recurring_task_slots(intent_data)
+
+    # Delegate to create_task with recurrence slots mapped
+    create_intent_data: dict[str, Any] = {"slots": {}}
+    if slots.task_name:
+        create_intent_data["slots"]["task_name"] = {"value": slots.task_name}
+    if slots.rec_freq:
+        create_intent_data["slots"]["rec_freq"] = {"value": slots.rec_freq}
+    if slots.rec_interval is not None:
+        create_intent_data["slots"]["rec_interval"] = {"value": slots.rec_interval}
+    if slots.rec_monthday is not None:
+        create_intent_data["slots"]["rec_monthday"] = {"value": slots.rec_monthday}
+
+    return await handle_create_task(
+        message,
+        create_intent_data,
+        ticktick_client_factory=ticktick_client_factory,
+        event_update=event_update,
+    )
+
+
+async def handle_add_reminder(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle add_reminder intent ('напомни о задаче X за Y')."""
+    from alice_ticktick.dialogs.intents import extract_add_reminder_slots
+
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    slots = extract_add_reminder_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.REMINDER_TASK_REQUIRED)
+
+    if slots.reminder_value is None or slots.reminder_unit is None:
+        return Response(text=txt.REMINDER_VALUE_REQUIRED)
+
+    trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
+    if trigger is None:
+        return Response(text=txt.REMINDER_PARSE_ERROR)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            titles = [t.title for t in active_tasks]
+            match_result = find_best_match(slots.task_name, titles)
+            if match_result is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            best_match, match_idx = match_result
+            matched_task = active_tasks[match_idx]
+
+            # Merge with existing reminders
+            existing_reminders = list(matched_task.reminders)
+            if trigger not in existing_reminders:
+                existing_reminders.append(trigger)
+
+            payload = TaskUpdate(
+                id=matched_task.id,
+                projectId=matched_task.project_id,
+                reminders=existing_reminders,
+            )
+            await client.update_task(payload)
+            _invalidate_task_cache()
+    except Exception:
+        logger.exception("Failed to add reminder")
+        return Response(text=txt.REMINDER_ERROR)
+
+    rem_display = format_reminder(trigger) or ""
+    return Response(text=txt.REMINDER_ADDED.format(reminder=rem_display, name=best_match))
+
+
 async def handle_list_tasks(
     message: Message,
     intent_data: dict[str, Any],
