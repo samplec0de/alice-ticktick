@@ -184,6 +184,60 @@ $TaskName:
 какие задачи просрочены
 ```
 
+### 4.5. search_task — Поиск задачи (Phase 2)
+
+**ID:** `search_task`
+**Слоты:** `task_name` (YANDEX.STRING)
+**Примеры:** «найди задачу про отчёт», «поиск задачи молоко»
+
+### 4.6. edit_task — Редактирование задачи (Phase 2)
+
+**ID:** `edit_task`
+**Слоты:** `task_name` (YANDEX.STRING), `date` (YANDEX.DATETIME), `priority` (YANDEX.STRING)
+**Примеры:** «перенеси задачу на завтра», «поменяй приоритет на высокий»
+
+### 4.7. delete_task — Удаление задачи (Phase 2)
+
+**ID:** `delete_task`
+**Слоты:** `task_name` (YANDEX.STRING)
+**Примеры:** «удали задачу купить молоко», «убери задачу про отчёт»
+
+### 4.8. add_subtask — Добавление подзадачи (Phase 3)
+
+**ID:** `add_subtask`
+**Слоты:** `parent_name` (YANDEX.STRING), `subtask_name` (YANDEX.STRING)
+**Примеры:** «добавь подзадачу купить муку к задаче испечь торт»
+
+### 4.9. list_subtasks — Просмотр подзадач (Phase 3)
+
+**ID:** `list_subtasks`
+**Слоты:** `task_name` (YANDEX.STRING)
+**Примеры:** «покажи подзадачи задачи испечь торт»
+
+### 4.10. add_checklist_item — Добавление пункта чеклиста (Phase 3)
+
+**ID:** `add_checklist_item`
+**Слоты:** `task_name` (YANDEX.STRING), `item_name` (YANDEX.STRING)
+**Примеры:** «добавь пункт молоко в чеклист задачи покупки»
+
+### 4.11. show_checklist — Просмотр чеклиста (Phase 3)
+
+**ID:** `show_checklist`
+**Слоты:** `task_name` (YANDEX.STRING)
+**Примеры:** «покажи чеклист задачи покупки»
+
+### 4.12. check_item — Отметка пункта чеклиста (Phase 3)
+
+**ID:** `check_item`
+**Слоты:** `task_name` (YANDEX.STRING), `item_name` (YANDEX.STRING)
+**Примеры:** «отметь пункт молоко в задаче покупки»
+
+### 4.13. delete_checklist_item — Удаление пункта чеклиста (Phase 3)
+
+**ID:** `delete_checklist_item`
+**Слоты:** `task_name` (YANDEX.STRING), `item_name` (YANDEX.STRING)
+**Примеры:** «удали пункт молоко из чеклиста задачи покупки»
+
 ## 5. Связка аккаунтов (Account Linking)
 
 Настраивается в `Черновик → Связка аккаунтов`:
@@ -201,6 +255,7 @@ GitHub Actions настроен в `.github/workflows/ci.yml`:
 - **lint**: ruff check + format
 - **typecheck**: mypy strict mode
 - **test**: pytest с покрытием + codecov
+- **deploy** (только main): сборка deploy.zip → загрузка в Object Storage (`alice-ticktick-deploy`) → деплой в YC Functions (`python312`)
 
 ## 7. Локальная разработка
 
@@ -229,7 +284,10 @@ uv run mypy alice_ticktick/
 | Phase 1 — MVP | ✅ Готово | TickTick клиент, NLP, обработчики Алисы (PR #1) |
 | Phase 2 — Поиск, редактирование | ✅ Готово | Fuzzy search, изменение, удаление задач, 158 тестов (PR #2) |
 | Phase 2 — Интенты NLU | ✅ Готово | search_task, edit_task, delete_task настроены |
-| Phase 3 — Подзадачи, чеклисты | ✅ Готово | 6 обработчиков, 238 тестов (PR #3) |
+| Phase 3 — Подзадачи, чеклисты | ✅ Готово | 6 обработчиков, 239 тестов (PR #3) |
+| Phase 3 — Интенты NLU | ✅ Готово | add_subtask, list_subtasks, add_checklist_item, show_checklist, check_item, delete_checklist_item |
+| Phase 3 — CD + деплой | ✅ Готово | Object Storage, python312 runtime, linux-совместимые бинарники (PR #4) |
+| Phase 3 — Помощь / прощание | ✅ Готово | Обработчики YANDEX.HELP, YANDEX.WHAT_CAN_YOU_DO, YANDEX.GOODBYE (PR #5) |
 | Phase 4 — Теги, повтор. задачи | ⬜ В очереди | Теги, RRULE, напоминания, фильтрация |
 | Phase 5 — Kanban, проекты | ⬜ В очереди | Колонки, перемещение карточек |
 | Phase 6 — Привычки, статистика | ⬜ В очереди | Серии, привычки, брифинги |
