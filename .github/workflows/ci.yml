@@ -74,7 +74,7 @@ jobs:
         run: |
           yc serverless function version create \
             --function-id ${{ vars.YC_FUNCTION_ID }} \
-            --runtime python313 \
+            --runtime python312 \
             --entrypoint alice_ticktick.main.handler \
             --memory 128m \
             --execution-timeout 3s \
