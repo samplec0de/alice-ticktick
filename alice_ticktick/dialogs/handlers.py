@@ -14,12 +14,18 @@ if TYPE_CHECKING:
 
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.intents import (
+    extract_add_checklist_item_slots,
+    extract_add_subtask_slots,
+    extract_check_item_slots,
     extract_complete_task_slots,
     extract_create_task_slots,
+    extract_delete_checklist_item_slots,
     extract_delete_task_slots,
     extract_edit_task_slots,
+    extract_list_subtasks_slots,
     extract_list_tasks_slots,
     extract_search_task_slots,
+    extract_show_checklist_slots,
 )
 from alice_ticktick.dialogs.nlp import (
     find_best_match,
@@ -520,6 +526,380 @@ async def handle_delete_reject(message: Message, state: FSMContext) -> Response:
     """Handle delete rejection (user said 'no')."""
     await state.clear()
     return Response(text=txt.DELETE_CANCELLED)
+
+
+async def handle_add_subtask(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle add_subtask intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_add_subtask_slots(intent_data)
+
+    if not slots.parent_name:
+        return Response(text=txt.SUBTASK_PARENT_REQUIRED)
+
+    if not slots.subtask_name:
+        return Response(text=txt.SUBTASK_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.parent_name))
+
+            titles = [t.title for t in active_tasks]
+            match_result = find_best_match(slots.parent_name, titles)
+
+            if match_result is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.parent_name))
+
+            best_match, match_idx = match_result
+            parent_task = active_tasks[match_idx]
+
+            payload = TaskCreate(
+                title=slots.subtask_name,
+                projectId=parent_task.project_id,
+                parentId=parent_task.id,
+            )
+            await client.create_task(payload)
+
+    except Exception:
+        logger.exception("Failed to create subtask")
+        return Response(text=txt.SUBTASK_ERROR)
+
+    return Response(text=txt.SUBTASK_CREATED.format(name=slots.subtask_name, parent=best_match))
+
+
+async def handle_list_subtasks(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle list_subtasks intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_list_subtasks_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.LIST_SUBTASKS_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for subtask listing")
+        return Response(text=txt.API_ERROR)
+
+    active_tasks = [t for t in all_tasks if t.status == 0]
+    if not active_tasks:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    titles = [t.title for t in active_tasks]
+    match_result = find_best_match(slots.task_name, titles)
+
+    if match_result is None:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    best_match, match_idx = match_result
+    parent_task = active_tasks[match_idx]
+
+    subtasks = [t for t in all_tasks if t.parent_id == parent_task.id and t.status == 0]
+
+    if not subtasks:
+        return Response(text=txt.NO_SUBTASKS.format(name=best_match))
+
+    count_str = txt.pluralize_tasks(len(subtasks))
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(subtasks[:5])]
+    task_list = "\n".join(lines)
+
+    return Response(
+        text=_truncate_response(
+            txt.SUBTASKS_HEADER.format(name=best_match, count=count_str, tasks=task_list)
+        )
+    )
+
+
+async def handle_add_checklist_item(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle add_checklist_item intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_add_checklist_item_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.CHECKLIST_TASK_REQUIRED)
+
+    if not slots.item_name:
+        return Response(text=txt.CHECKLIST_ITEM_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            titles = [t.title for t in active_tasks]
+            match_result = find_best_match(slots.task_name, titles)
+
+            if match_result is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            best_match, match_idx = match_result
+            matched_task = active_tasks[match_idx]
+
+            # Build updated items list
+            existing_items: list[dict[str, Any]] = [
+                {
+                    "id": item.id,
+                    "title": item.title,
+                    "status": item.status,
+                    "sortOrder": item.sort_order,
+                }
+                for item in matched_task.items
+            ]
+            new_item: dict[str, Any] = {"title": slots.item_name, "status": 0}
+            updated_items = [*existing_items, new_item]
+
+            payload = TaskUpdate(
+                id=matched_task.id,
+                projectId=matched_task.project_id,
+                items=updated_items,
+            )
+            await client.update_task(payload)
+
+    except Exception:
+        logger.exception("Failed to add checklist item")
+        return Response(text=txt.CHECKLIST_ITEM_ERROR)
+
+    return Response(
+        text=txt.CHECKLIST_ITEM_ADDED.format(
+            item=slots.item_name, task=best_match, count=len(updated_items)
+        )
+    )
+
+
+async def handle_show_checklist(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle show_checklist intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_show_checklist_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.SHOW_CHECKLIST_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for checklist")
+        return Response(text=txt.API_ERROR)
+
+    active_tasks = [t for t in all_tasks if t.status == 0]
+    if not active_tasks:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    titles = [t.title for t in active_tasks]
+    match_result = find_best_match(slots.task_name, titles)
+
+    if match_result is None:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+    best_match, match_idx = match_result
+    matched_task = active_tasks[match_idx]
+
+    if not matched_task.items:
+        return Response(text=txt.CHECKLIST_EMPTY.format(name=best_match))
+
+    lines: list[str] = []
+    for i, item in enumerate(matched_task.items, 1):
+        mark = "[x]" if item.status == 1 else "[ ]"
+        lines.append(f"{i}. {mark} {item.title}")
+    items_text = "\n".join(lines)
+
+    return Response(
+        text=_truncate_response(txt.CHECKLIST_HEADER.format(name=best_match, items=items_text))
+    )
+
+
+async def handle_check_item(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle check_item intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_check_item_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.CHECKLIST_TASK_REQUIRED)
+
+    if not slots.item_name:
+        return Response(text=txt.CHECKLIST_ITEM_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            titles = [t.title for t in active_tasks]
+            match_result = find_best_match(slots.task_name, titles)
+
+            if match_result is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            best_match, match_idx = match_result
+            matched_task = active_tasks[match_idx]
+
+            if not matched_task.items:
+                return Response(
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                )
+
+            item_titles = [item.title for item in matched_task.items]
+            item_match = find_best_match(slots.item_name, item_titles)
+
+            if item_match is None:
+                return Response(
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                )
+
+            matched_item_title, item_idx = item_match
+
+            # Build updated items list with matched item checked
+            updated_items: list[dict[str, Any]] = []
+            for i, item in enumerate(matched_task.items):
+                item_dict: dict[str, Any] = {
+                    "id": item.id,
+                    "title": item.title,
+                    "status": 1 if i == item_idx else item.status,
+                    "sortOrder": item.sort_order,
+                }
+                updated_items.append(item_dict)
+
+            payload = TaskUpdate(
+                id=matched_task.id,
+                projectId=matched_task.project_id,
+                items=updated_items,
+            )
+            await client.update_task(payload)
+
+    except Exception:
+        logger.exception("Failed to check item")
+        return Response(text=txt.CHECKLIST_CHECK_ERROR)
+
+    return Response(text=txt.CHECKLIST_ITEM_CHECKED.format(item=matched_item_title))
+
+
+async def handle_delete_checklist_item(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+) -> Response:
+    """Handle delete_checklist_item intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return Response(text=txt.AUTH_REQUIRED)
+
+    slots = extract_delete_checklist_item_slots(intent_data)
+
+    if not slots.task_name:
+        return Response(text=txt.CHECKLIST_TASK_REQUIRED)
+
+    if not slots.item_name:
+        return Response(text=txt.CHECKLIST_ITEM_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+
+            active_tasks = [t for t in all_tasks if t.status == 0]
+            if not active_tasks:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            titles = [t.title for t in active_tasks]
+            match_result = find_best_match(slots.task_name, titles)
+
+            if match_result is None:
+                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+
+            best_match, match_idx = match_result
+            matched_task = active_tasks[match_idx]
+
+            if not matched_task.items:
+                return Response(
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                )
+
+            item_titles = [item.title for item in matched_task.items]
+            item_match = find_best_match(slots.item_name, item_titles)
+
+            if item_match is None:
+                return Response(
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                )
+
+            matched_item_title, item_idx = item_match
+
+            # Build updated items list without the matched item
+            updated_items: list[dict[str, Any]] = [
+                {
+                    "id": item.id,
+                    "title": item.title,
+                    "status": item.status,
+                    "sortOrder": item.sort_order,
+                }
+                for i, item in enumerate(matched_task.items)
+                if i != item_idx
+            ]
+
+            payload = TaskUpdate(
+                id=matched_task.id,
+                projectId=matched_task.project_id,
+                items=updated_items,
+            )
+            await client.update_task(payload)
+
+    except Exception:
+        logger.exception("Failed to delete checklist item")
+        return Response(text=txt.CHECKLIST_ITEM_DELETE_ERROR)
+
+    return Response(
+        text=txt.CHECKLIST_ITEM_DELETED.format(item=matched_item_title, task=best_match)
+    )
 
 
 async def handle_unknown(message: Message) -> Response:
