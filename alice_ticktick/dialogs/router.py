@@ -73,9 +73,11 @@ async def on_help(message: Message) -> Response:
 
 
 @router.message(IntentFilter(CREATE_TASK))
-async def on_create_task(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_create_task(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle create_task intent."""
-    return await handle_create_task(message, intent_data)
+    return await handle_create_task(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(LIST_TASKS))
@@ -95,72 +97,90 @@ async def on_overdue_tasks(message: Message, event_update: Update) -> Response:
 
 
 @router.message(IntentFilter(COMPLETE_TASK))
-async def on_complete_task(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_complete_task(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle complete_task intent."""
-    return await handle_complete_task(message, intent_data)
+    return await handle_complete_task(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(SEARCH_TASK))
-async def on_search_task(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_search_task(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle search_task intent."""
-    return await handle_search_task(message, intent_data)
+    return await handle_search_task(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(EDIT_TASK))
-async def on_edit_task(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_edit_task(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle edit_task intent."""
-    return await handle_edit_task(message, intent_data)
+    return await handle_edit_task(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(DELETE_TASK))
 async def on_delete_task(
-    message: Message, intent_data: dict[str, Any], state: FSMContext
+    message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
     """Handle delete_task intent."""
-    return await handle_delete_task(message, intent_data, state)
+    return await handle_delete_task(message, intent_data, state, event_update=event_update)
 
 
 @router.message(IntentFilter(ADD_SUBTASK))
-async def on_add_subtask(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_add_subtask(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle add_subtask intent."""
-    return await handle_add_subtask(message, intent_data)
+    return await handle_add_subtask(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(LIST_SUBTASKS))
-async def on_list_subtasks(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_list_subtasks(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle list_subtasks intent."""
-    return await handle_list_subtasks(message, intent_data)
+    return await handle_list_subtasks(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(ADD_CHECKLIST_ITEM))
-async def on_add_checklist_item(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_add_checklist_item(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle add_checklist_item intent."""
-    return await handle_add_checklist_item(message, intent_data)
+    return await handle_add_checklist_item(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(SHOW_CHECKLIST))
-async def on_show_checklist(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_show_checklist(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle show_checklist intent."""
-    return await handle_show_checklist(message, intent_data)
+    return await handle_show_checklist(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(CHECK_ITEM))
-async def on_check_item(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_check_item(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle check_item intent."""
-    return await handle_check_item(message, intent_data)
+    return await handle_check_item(message, intent_data, event_update=event_update)
 
 
 @router.message(IntentFilter(DELETE_CHECKLIST_ITEM))
-async def on_delete_checklist_item(message: Message, intent_data: dict[str, Any]) -> Response:
+async def on_delete_checklist_item(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
     """Handle delete_checklist_item intent."""
-    return await handle_delete_checklist_item(message, intent_data)
+    return await handle_delete_checklist_item(message, intent_data, event_update=event_update)
 
 
 # FSM handlers for delete confirmation — must be BEFORE the unknown handler
 @router.message(DeleteTaskStates.confirm, IntentFilter("YANDEX.CONFIRM"))
-async def on_delete_confirm(message: Message, state: FSMContext) -> Response:
+async def on_delete_confirm(message: Message, state: FSMContext, event_update: Update) -> Response:
     """Handle delete confirmation."""
-    return await handle_delete_confirm(message, state)
+    return await handle_delete_confirm(message, state, event_update=event_update)
 
 
 @router.message(DeleteTaskStates.confirm, IntentFilter("YANDEX.REJECT"))

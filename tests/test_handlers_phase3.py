@@ -107,7 +107,7 @@ class TestAddSubtask:
     async def test_auth_required(self) -> None:
         message = _make_message(access_token=None)
         response = await handle_add_subtask(message, _intent_data(), None)
-        assert response.text == txt.AUTH_REQUIRED
+        assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
     async def test_parent_name_required(self) -> None:
         message = _make_message()
@@ -183,7 +183,7 @@ class TestListSubtasks:
     async def test_auth_required(self) -> None:
         message = _make_message(access_token=None)
         response = await handle_list_subtasks(message, _intent_data(), None)
-        assert response.text == txt.AUTH_REQUIRED
+        assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
     async def test_task_name_required(self) -> None:
         message = _make_message()
@@ -253,7 +253,7 @@ class TestAddChecklistItem:
     async def test_auth_required(self) -> None:
         message = _make_message(access_token=None)
         response = await handle_add_checklist_item(message, _intent_data(), None)
-        assert response.text == txt.AUTH_REQUIRED
+        assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
     async def test_task_name_required(self) -> None:
         message = _make_message()
@@ -339,7 +339,7 @@ class TestShowChecklist:
     async def test_auth_required(self) -> None:
         message = _make_message(access_token=None)
         response = await handle_show_checklist(message, _intent_data(), None)
-        assert response.text == txt.AUTH_REQUIRED
+        assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
     async def test_task_name_required(self) -> None:
         message = _make_message()
@@ -400,7 +400,7 @@ class TestCheckItem:
     async def test_auth_required(self) -> None:
         message = _make_message(access_token=None)
         response = await handle_check_item(message, _intent_data(), None)
-        assert response.text == txt.AUTH_REQUIRED
+        assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
     async def test_task_name_required(self) -> None:
         message = _make_message()
@@ -497,7 +497,7 @@ class TestDeleteChecklistItem:
     async def test_auth_required(self) -> None:
         message = _make_message(access_token=None)
         response = await handle_delete_checklist_item(message, _intent_data(), None)
-        assert response.text == txt.AUTH_REQUIRED
+        assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
     async def test_task_name_required(self) -> None:
         message = _make_message()
