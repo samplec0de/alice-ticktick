@@ -14,7 +14,10 @@ HELP = (
     "- Найти: «найди задачу про отчёт»\n"
     "- Изменить: «перенеси задачу на завтра»\n"
     "- Удалить: «удали задачу купить молоко»\n"
-    "- Завершить: «отметь задачу купить молоко»"
+    "- Завершить: «отметь задачу купить молоко»\n"
+    "- Подзадача: «добавь подзадачу к задаче»\n"
+    "- Чеклист: «добавь пункт в чеклист задачи»\n"
+    "- Показать чеклист: «покажи чеклист задачи»"
 )
 
 # Auth
@@ -65,6 +68,29 @@ DELETE_SUCCESS = 'Задача "{name}" удалена.'
 DELETE_CANCELLED = "Отменила удаление."
 DELETE_ERROR = "Не удалось удалить задачу. Попробуйте ещё раз."
 DELETE_CONFIRM_PROMPT = 'Скажите "да" для удаления или "нет" для отмены.'
+
+# Subtasks
+SUBTASK_PARENT_REQUIRED = "Назовите задачу, к которой нужно добавить подзадачу."
+SUBTASK_NAME_REQUIRED = "Как назвать подзадачу?"
+SUBTASK_CREATED = "Подзадача «{name}» добавлена к задаче «{parent}»."
+SUBTASK_ERROR = "Не удалось создать подзадачу. Попробуйте ещё раз."
+NO_SUBTASKS = "У задачи «{name}» нет подзадач."
+SUBTASKS_HEADER = "Подзадачи «{name}» ({count}):\n{tasks}"
+LIST_SUBTASKS_NAME_REQUIRED = "Назовите задачу, подзадачи которой показать."
+
+# Checklists
+CHECKLIST_TASK_REQUIRED = "Назовите задачу для чеклиста."
+CHECKLIST_ITEM_REQUIRED = "Что добавить в чеклист?"
+CHECKLIST_ITEM_ADDED = "Добавила «{item}» в чеклист задачи «{task}». Всего пунктов: {count}."
+CHECKLIST_ITEM_ERROR = "Не удалось добавить пункт в чеклист."
+CHECKLIST_EMPTY = "Чеклист задачи «{name}» пуст."
+CHECKLIST_HEADER = "Чеклист задачи «{name}»:\n{items}"
+CHECKLIST_ITEM_CHECKED = "Пункт «{item}» отмечен выполненным."
+CHECKLIST_ITEM_NOT_FOUND = "Пункт «{item}» не найден в чеклисте задачи «{task}»."
+CHECKLIST_ITEM_DELETED = "Пункт «{item}» удалён из чеклиста задачи «{task}»."
+CHECKLIST_ITEM_DELETE_ERROR = "Не удалось удалить пункт из чеклиста."
+CHECKLIST_CHECK_ERROR = "Не удалось отметить пункт."
+SHOW_CHECKLIST_NAME_REQUIRED = "Назовите задачу, чеклист которой показать."
 
 # Unknown
 UNKNOWN = "Не поняла команду. Скажите «помощь», чтобы узнать, что я умею."

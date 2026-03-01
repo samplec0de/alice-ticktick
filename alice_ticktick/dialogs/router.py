@@ -11,26 +11,38 @@ from aliceio.types import Response
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.filters import IntentFilter, NewSessionFilter
 from alice_ticktick.dialogs.handlers import (
+    handle_add_checklist_item,
+    handle_add_subtask,
+    handle_check_item,
     handle_complete_task,
     handle_create_task,
+    handle_delete_checklist_item,
     handle_delete_confirm,
     handle_delete_reject,
     handle_delete_task,
     handle_edit_task,
+    handle_list_subtasks,
     handle_list_tasks,
     handle_overdue_tasks,
     handle_search_task,
+    handle_show_checklist,
     handle_unknown,
     handle_welcome,
 )
 from alice_ticktick.dialogs.intents import (
+    ADD_CHECKLIST_ITEM,
+    ADD_SUBTASK,
+    CHECK_ITEM,
     COMPLETE_TASK,
     CREATE_TASK,
+    DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
     EDIT_TASK,
+    LIST_SUBTASKS,
     LIST_TASKS,
     OVERDUE_TASKS,
     SEARCH_TASK,
+    SHOW_CHECKLIST,
 )
 from alice_ticktick.dialogs.states import DeleteTaskStates
 
@@ -93,6 +105,42 @@ async def on_delete_task(
 ) -> Response:
     """Handle delete_task intent."""
     return await handle_delete_task(message, intent_data, state)
+
+
+@router.message(IntentFilter(ADD_SUBTASK))
+async def on_add_subtask(message: Message, intent_data: dict[str, Any]) -> Response:
+    """Handle add_subtask intent."""
+    return await handle_add_subtask(message, intent_data)
+
+
+@router.message(IntentFilter(LIST_SUBTASKS))
+async def on_list_subtasks(message: Message, intent_data: dict[str, Any]) -> Response:
+    """Handle list_subtasks intent."""
+    return await handle_list_subtasks(message, intent_data)
+
+
+@router.message(IntentFilter(ADD_CHECKLIST_ITEM))
+async def on_add_checklist_item(message: Message, intent_data: dict[str, Any]) -> Response:
+    """Handle add_checklist_item intent."""
+    return await handle_add_checklist_item(message, intent_data)
+
+
+@router.message(IntentFilter(SHOW_CHECKLIST))
+async def on_show_checklist(message: Message, intent_data: dict[str, Any]) -> Response:
+    """Handle show_checklist intent."""
+    return await handle_show_checklist(message, intent_data)
+
+
+@router.message(IntentFilter(CHECK_ITEM))
+async def on_check_item(message: Message, intent_data: dict[str, Any]) -> Response:
+    """Handle check_item intent."""
+    return await handle_check_item(message, intent_data)
+
+
+@router.message(IntentFilter(DELETE_CHECKLIST_ITEM))
+async def on_delete_checklist_item(message: Message, intent_data: dict[str, Any]) -> Response:
+    """Handle delete_checklist_item intent."""
+    return await handle_delete_checklist_item(message, intent_data)
 
 
 # FSM handlers for delete confirmation — must be BEFORE the unknown handler

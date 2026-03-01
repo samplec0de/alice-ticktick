@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import IntEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -15,6 +16,17 @@ class TaskPriority(IntEnum):
     HIGH = 5
 
 
+class ChecklistItem(BaseModel):
+    """A single checklist item within a task."""
+
+    id: str = ""
+    title: str
+    status: int = 0  # 0 = incomplete, 1 = completed
+    sort_order: int = Field(default=0, alias="sortOrder")
+
+    model_config = {"populate_by_name": True}
+
+
 class Task(BaseModel):
     """TickTick task."""
 
@@ -26,6 +38,8 @@ class Task(BaseModel):
     status: int = 0
     due_date: datetime | None = Field(default=None, alias="dueDate")
     start_date: datetime | None = Field(default=None, alias="startDate")
+    items: list[ChecklistItem] = Field(default_factory=list)
+    parent_id: str | None = Field(default=None, alias="parentId")
 
     model_config = {"populate_by_name": True}
 
@@ -46,6 +60,8 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = TaskPriority.NONE
     due_date: str | None = Field(default=None, alias="dueDate")
     start_date: str | None = Field(default=None, alias="startDate")
+    items: list[dict[str, Any]] | None = None
+    parent_id: str | None = Field(default=None, alias="parentId")
 
     model_config = {"populate_by_name": True}
 
@@ -58,6 +74,7 @@ class TaskUpdate(BaseModel):
     title: str | None = None
     priority: TaskPriority | None = None
     due_date: datetime | None = Field(default=None, alias="dueDate")
+    items: list[dict[str, Any]] | None = None
 
     model_config = {"populate_by_name": True}
 
