@@ -73,11 +73,24 @@ async def on_help(message: Message) -> Response:
 
 
 # --- Specific "добавь..." intents BEFORE generic create_task ---
+_SUBTASK_KEYWORDS = frozenset({"подзадачу", "подзадача", "подзадачи"})
+
+
 @router.message(IntentFilter(ADD_SUBTASK))
 async def on_add_subtask(
     message: Message, intent_data: dict[str, Any], event_update: Update
 ) -> Response:
-    """Handle add_subtask intent."""
+    """Handle add_subtask intent.
+
+    Disambiguate with create_task: "создай задачу X в проект Y" matches both
+    intents because "в" looks like a subtask separator.  Prefer create_task
+    unless the utterance explicitly contains a subtask keyword.
+    """
+    if message.nlu and message.nlu.intents and CREATE_TASK in message.nlu.intents:
+        tokens = set(message.nlu.tokens or [])
+        if not tokens & _SUBTASK_KEYWORDS:
+            create_data = message.nlu.intents[CREATE_TASK]
+            return await handle_create_task(message, create_data, event_update=event_update)
     return await handle_add_subtask(message, intent_data, event_update=event_update)
 
 
