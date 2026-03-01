@@ -83,6 +83,16 @@ class TickTickClient:
         _raise_for_status(response)
         return [Project.model_validate(p) for p in response.json()]
 
+    # -- Inbox --
+
+    async def get_inbox_tasks(self) -> list[Task]:
+        """Get tasks from inbox (not included in get_projects)."""
+        response = await self._client.get("/project/inbox/data")
+        _raise_for_status(response)
+        data: dict[str, Any] = response.json()
+        raw_tasks: list[dict[str, Any]] = data.get("tasks", [])
+        return [Task.model_validate(t) for t in raw_tasks]
+
     # -- Tasks --
 
     async def get_tasks(self, project_id: str) -> list[Task]:

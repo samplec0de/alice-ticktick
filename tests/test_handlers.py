@@ -97,6 +97,7 @@ def _make_mock_client(
     client = AsyncMock()
     client.get_projects = AsyncMock(return_value=projects)
     client.get_tasks = AsyncMock(return_value=tasks)
+    client.get_inbox_tasks = AsyncMock(return_value=[])
     client.create_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
     client.complete_task = AsyncMock(return_value=None)
     client.update_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
@@ -466,6 +467,7 @@ async def test_list_tasks_parallel_fetch() -> None:
     client = AsyncMock()
     client.get_projects = AsyncMock(return_value=projects)
     client.get_tasks = AsyncMock(side_effect=[tasks_p1, tasks_p2])
+    client.get_inbox_tasks = AsyncMock(return_value=[])
 
     factory = MagicMock()
     factory.return_value.__aenter__ = AsyncMock(return_value=client)
@@ -478,6 +480,38 @@ async def test_list_tasks_parallel_fetch() -> None:
     assert "Task A" in response.text
     assert "Task B" in response.text
     assert client.get_tasks.call_count == 2
+
+
+async def test_list_tasks_includes_inbox() -> None:
+    """Verify inbox tasks are included alongside project tasks."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    inbox_task = _make_task(
+        task_id="t-inbox", title="Inbox Task", project_id="inbox123", due_date=today,
+    )
+    project_task = _make_task(
+        task_id="t-proj", title="Project Task", project_id="p1", due_date=today,
+    )
+
+    client = AsyncMock()
+    client.get_projects = AsyncMock(return_value=[_make_project(project_id="p1")])
+    client.get_tasks = AsyncMock(return_value=[project_task])
+    client.get_inbox_tasks = AsyncMock(return_value=[inbox_task])
+
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(return_value=client)
+    factory.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+    response = await handle_list_tasks(message, intent_data, factory)
+
+    assert "Inbox Task" in response.text
+    assert "Project Task" in response.text
+    client.get_inbox_tasks.assert_called_once()
 
 
 # --- FSM state helper ---

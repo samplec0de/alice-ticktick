@@ -80,6 +80,7 @@ def _make_mock_client(
     client = AsyncMock()
     client.get_projects = AsyncMock(return_value=projects)
     client.get_tasks = AsyncMock(return_value=tasks)
+    client.get_inbox_tasks = AsyncMock(return_value=[])
     client.create_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
     client.complete_task = AsyncMock(return_value=None)
     client.update_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
