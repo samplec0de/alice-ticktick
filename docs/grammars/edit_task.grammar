@@ -1,0 +1,30 @@
+root:
+    %lemma
+    (перенеси | поменяй | измени | переименуй | сдвинь | обнови) (задачу)? $TaskName ($NewDate)? (в $NewName)? ((с | на | приоритет | приоритетом) (низкий | средний | высокий))?
+    (перенеси|перемести|переложи|перекинь|отправь) (задачу|задача)? $TaskName в (проект|список|папку) $ProjectName
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+    new_date:
+        source: $NewDate
+        type: YANDEX.DATETIME
+    new_name:
+        source: $NewName
+        type: YANDEX.STRING
+    new_project:
+        source: $ProjectName
+        type: YANDEX.STRING
+
+$TaskName:
+    .+
+
+$NewDate:
+    $YANDEX.DATETIME
+
+$NewName:
+    .+
+
+$ProjectName:
+    .+

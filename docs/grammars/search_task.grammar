@@ -1,0 +1,11 @@
+root:
+    %lemma
+    (найди | поищи | где) (задачу)? $Query
+
+slots:
+    query:
+        source: $Query
+        type: YANDEX.STRING
+
+$Query:
+    .+

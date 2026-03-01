@@ -1,0 +1,11 @@
+root:
+    %lemma
+    (удали | убери | сотри) (задачу)? $TaskName
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+
+$TaskName:
+    .+

@@ -1,0 +1,11 @@
+root:
+    %lemma
+    (какие | покажи | что) (у меня)? (задачи | задач | дела | запланировано)? (на | в | за)? $Date
+
+slots:
+    date:
+        source: $Date
+        type: YANDEX.DATETIME
+
+$Date:
+    $YANDEX.DATETIME

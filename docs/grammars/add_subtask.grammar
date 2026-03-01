@@ -1,0 +1,17 @@
+root:
+    %lemma
+    (добавь | создай) (подзадачу)? $SubtaskName (к | в | для) (задаче)? $ParentName
+
+slots:
+    subtask_name:
+        source: $SubtaskName
+        type: YANDEX.STRING
+    parent_name:
+        source: $ParentName
+        type: YANDEX.STRING
+
+$SubtaskName:
+    .+
+
+$ParentName:
+    .+

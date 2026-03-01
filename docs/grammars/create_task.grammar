@@ -1,0 +1,23 @@
+root:
+    %lemma
+    (создай|добавь|запиши|новая|поставь) (задачу|задача|напоминание)? $TaskName (в (проект|список|папку) $ProjectName)? (на $Date)? (с приоритетом (низкий|средний|высокий))?
+
+slots:
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+    date:
+        source: $Date
+        type: YANDEX.DATETIME
+    project_name:
+        source: $ProjectName
+        type: YANDEX.STRING
+
+$TaskName:
+    .+
+
+$Date:
+    $YANDEX.DATETIME
+
+$ProjectName:
+    .+

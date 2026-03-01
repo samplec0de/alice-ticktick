@@ -1,0 +1,17 @@
+root:
+    %lemma
+    (удали | убери) (пункт | элемент) $ItemName (из | от) (чеклиста | списка) (задачи)? $TaskName
+
+slots:
+    item_name:
+        source: $ItemName
+        type: YANDEX.STRING
+    task_name:
+        source: $TaskName
+        type: YANDEX.STRING
+
+$ItemName:
+    .+
+
+$TaskName:
+    .+
