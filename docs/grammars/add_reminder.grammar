@@ -1,6 +1,7 @@
 root:
     %lemma
     (напомни|поставь напоминание) (о|про|на|для) (задаче|задачу|задача)? $TaskName за $ReminderValue $ReminderUnit
+    (напомни|поставь напоминание) (о|про|на|для) (задаче|задачу|задача)? $TaskName за $ReminderUnit
 
 slots:
     task_name:

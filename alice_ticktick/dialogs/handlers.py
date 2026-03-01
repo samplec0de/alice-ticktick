@@ -478,7 +478,7 @@ async def handle_add_reminder(
     if not slots.task_name:
         return Response(text=txt.REMINDER_TASK_REQUIRED)
 
-    if slots.reminder_value is None or slots.reminder_unit is None:
+    if slots.reminder_unit is None:
         return Response(text=txt.REMINDER_VALUE_REQUIRED)
 
     trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
@@ -743,7 +743,7 @@ async def handle_edit_task(
     has_name = slots.new_name is not None
     has_project = slots.new_project is not None
     has_recurrence = slots.rec_freq is not None or slots.rec_monthday is not None
-    has_reminder = slots.reminder_value is not None and slots.reminder_unit is not None
+    has_reminder = slots.reminder_unit is not None
     has_remove_recurrence = slots.remove_recurrence
     has_remove_reminder = slots.remove_reminder
 

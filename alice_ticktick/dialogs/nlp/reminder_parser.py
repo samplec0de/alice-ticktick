@@ -31,10 +31,14 @@ _TRIGGER_RE = re.compile(r"TRIGGER:(-?)P(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?|(\
 def build_trigger(value: int | None, unit: str | None) -> str | None:
     """Convert NLU reminder slots to an iCal TRIGGER string.
 
-    Returns None if value or unit is missing/unknown.
+    When value is None but unit is provided, defaults to 1 (e.g. "за час" → 1 hour).
+    Returns None if unit is missing/unknown.
     """
-    if value is None or unit is None:
+    if unit is None:
         return None
+
+    if value is None:
+        value = 1
 
     if value == 0:
         return "TRIGGER:PT0S"

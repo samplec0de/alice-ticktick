@@ -29,8 +29,11 @@ class TestBuildTrigger:
         """value=0 means 'at the time of the task'."""
         assert build_trigger(0, "минут") == "TRIGGER:PT0S"
 
-    def test_none_value(self) -> None:
-        assert build_trigger(None, "минут") is None
+    def test_none_value_defaults_to_one(self) -> None:
+        """'за час' without explicit number defaults to 1."""
+        assert build_trigger(None, "час") == "TRIGGER:-PT1H"
+        assert build_trigger(None, "день") == "TRIGGER:-P1D"
+        assert build_trigger(None, "минуту") == "TRIGGER:-PT1M"
 
     def test_none_unit(self) -> None:
         assert build_trigger(30, None) is None
