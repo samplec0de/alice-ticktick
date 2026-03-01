@@ -164,9 +164,25 @@ def extract_dates_from_nlu(
     name_tokens = [
         tokens[i] for i in range(command_token_count, len(tokens)) if i not in dt_token_indices
     ]
-    # Also strip common prepositions left at the edges
-    while name_tokens and name_tokens[-1] in ("на", "с", "в", "до", "по", "к"):
+    # Strip prepositions and date words left at the edges.
+    # Yandex NLU may not include "завтра" in DATETIME entity token range
+    # even though its semantics are captured in the entity value.
+    _strip = {
+        "на",
+        "с",
+        "в",
+        "до",
+        "по",
+        "к",  # prepositions
+        "завтра",
+        "сегодня",
+        "послезавтра",
+        "вчера",  # date words
+    }
+    while name_tokens and name_tokens[-1] in _strip:
         name_tokens.pop()
+    while name_tokens and name_tokens[0] in _strip:
+        name_tokens.pop(0)
 
     task_name = " ".join(name_tokens)
 
