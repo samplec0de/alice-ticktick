@@ -16,6 +16,7 @@ from alice_ticktick.dialogs.handlers import (
     handle_delete_reject,
     handle_delete_task,
     handle_edit_task,
+    handle_goodbye,
     handle_help,
     handle_list_tasks,
     handle_overdue_tasks,
@@ -121,6 +122,13 @@ async def test_handle_help() -> None:
     message = _make_message()
     response = await handle_help(message)
     assert response.text == txt.HELP
+
+
+async def test_handle_goodbye() -> None:
+    message = _make_message()
+    response = await handle_goodbye(message)
+    assert response.text == txt.GOODBYE
+    assert response.end_session is True
 
 
 async def test_handle_unknown() -> None:

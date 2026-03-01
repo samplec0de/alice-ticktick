@@ -97,6 +97,11 @@ async def handle_help(message: Message) -> Response:
     return Response(text=txt.HELP)
 
 
+async def handle_goodbye(message: Message) -> Response:
+    """Handle goodbye / session end."""
+    return Response(text=txt.GOODBYE, end_session=True)
+
+
 async def handle_create_task(
     message: Message,
     intent_data: dict[str, Any],

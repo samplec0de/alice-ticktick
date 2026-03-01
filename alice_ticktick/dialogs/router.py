@@ -21,6 +21,8 @@ from alice_ticktick.dialogs.handlers import (
     handle_delete_reject,
     handle_delete_task,
     handle_edit_task,
+    handle_goodbye,
+    handle_help,
     handle_list_subtasks,
     handle_list_tasks,
     handle_overdue_tasks,
@@ -61,6 +63,13 @@ router = Router(name="main")
 async def on_new_session(message: Message) -> Response:
     """Greet user on new session."""
     return await handle_welcome(message)
+
+
+@router.message(IntentFilter("YANDEX.HELP"))
+@router.message(IntentFilter("YANDEX.WHAT_CAN_YOU_DO"))
+async def on_help(message: Message) -> Response:
+    """Handle help and 'what can you do' requests."""
+    return await handle_help(message)
 
 
 @router.message(IntentFilter(CREATE_TASK))
@@ -169,6 +178,12 @@ async def on_delete_other(message: Message, state: FSMContext) -> Response:
 
     await state.set_data({**data, "_confirm_retries": retries})
     return Response(text=txt.DELETE_CONFIRM_PROMPT)
+
+
+@router.message(IntentFilter("YANDEX.GOODBYE"))
+async def on_goodbye(message: Message) -> Response:
+    """Handle goodbye."""
+    return await handle_goodbye(message)
 
 
 # Fallback — must be LAST
