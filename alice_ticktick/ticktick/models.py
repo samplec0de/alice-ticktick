@@ -73,12 +73,13 @@ class TaskUpdate(BaseModel):
     project_id: str = Field(alias="projectId")
     title: str | None = None
     priority: TaskPriority | None = None
+    start_date: datetime | None = Field(default=None, alias="startDate")
     due_date: datetime | None = Field(default=None, alias="dueDate")
     items: list[dict[str, Any]] | None = None
 
     model_config = {"populate_by_name": True}
 
-    @field_serializer("due_date")
+    @field_serializer("start_date", "due_date")
     @classmethod
     def serialize_datetime(cls, value: datetime | None) -> str | None:
         """Format datetime to TickTick API format."""
