@@ -896,6 +896,102 @@ async def test_edit_task_update_api_error() -> None:
     assert response.text == txt.EDIT_ERROR
 
 
+async def test_edit_task_via_nlu_entities() -> None:
+    """Edit task date via NLU entities when grammar .+ swallows date tokens."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    # "перенеси задачу купить молоко на сегодня"
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["перенеси", "задачу", "купить", "молоко", "на", "сегодня"]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=4, end=6),
+            value=DateTimeEntity(day=0, day_is_relative=True),
+        ),
+    ]
+    # Grammar swallowed date: task_name contains "на сегодня" but no new_date
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко на сегодня"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.due_date is not None
+
+
+async def test_create_task_date_only_uses_user_timezone() -> None:
+    """Date-only task uses midnight in user timezone, not UTC."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    message = _make_message()
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["добавь", "задачу", "купить", "молоко", "на", "завтра"]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=4, end=6),
+            value=DateTimeEntity(day=1, day_is_relative=True),
+        ),
+    ]
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "Купить молоко"}},
+    }
+    # Create event_update with Moscow timezone
+    event_update = MagicMock()
+    event_update.meta.timezone = "Europe/Moscow"
+
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory, event_update)
+    assert "купить молоко" in response.text.lower()
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    # Date-only: dueDate should be midnight in user timezone (+0300 for Moscow)
+    assert call_args.due_date is not None
+    assert "+0300" in call_args.due_date
+    assert "T00:00:00" in call_args.due_date
+
+
+async def test_create_task_with_time_uses_user_timezone() -> None:
+    """Task with specific time uses user timezone."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    message = _make_message()
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["добавь", "задачу", "кино", "на", "завтра", "в", "19", "00"]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=3, end=8),
+            value=DateTimeEntity(day=1, day_is_relative=True, hour=19, minute=0),
+        ),
+    ]
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "Кино"}},
+    }
+    event_update = MagicMock()
+    event_update.meta.timezone = "Europe/Moscow"
+
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory, event_update)
+    assert "кино" in response.text.lower()
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    # Time-specific: dueDate should contain 19:XX and Moscow offset
+    assert call_args.due_date is not None
+    assert call_args.due_date.startswith("2026-03-02T19:00:")
+    assert "+0300" in call_args.due_date
+
+
 # --- Delete task ---
 
 

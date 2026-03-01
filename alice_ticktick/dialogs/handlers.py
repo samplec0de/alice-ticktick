@@ -118,7 +118,12 @@ def _get_access_token(message: Message) -> str | None:
     return message.user.access_token
 
 
-def _extract_nlu_dates(message: Message) -> ExtractedDates | None:
+def _format_ticktick_dt(dt: datetime.datetime) -> str:
+    """Format datetime for TickTick API with proper timezone offset."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000%z")
+
+
+def _extract_nlu_dates(message: Message, tz: ZoneInfo) -> ExtractedDates | None:
     """Try to extract dates from NLU entities (hybrid approach)."""
     if not message.nlu:
         return None
@@ -130,7 +135,8 @@ def _extract_nlu_dates(message: Message) -> ExtractedDates | None:
     cmd_count = 1
     if len(tokens) > 1 and tokens[1] in filler:
         cmd_count = 2
-    result = extract_dates_from_nlu(message.nlu, command_token_count=cmd_count)
+    now = datetime.datetime.now(tz=tz)
+    result = extract_dates_from_nlu(message.nlu, command_token_count=cmd_count, now=now)
     if result.start_date is None:
         return None
     return result
@@ -167,7 +173,7 @@ async def handle_create_task(
     if not slots.task_name:
         return Response(text=txt.TASK_NAME_REQUIRED)
 
-    _fmt = "%Y-%m-%dT%H:%M:%S.000+0000"
+    user_tz = _get_user_tz(event_update)
     start_date_str: str | None = None
     due_date_str: str | None = None
     date_display: str | None = None
@@ -175,43 +181,44 @@ async def handle_create_task(
 
     # Hybrid approach: try NLU entities first for better date extraction,
     # fall back to grammar slots.
-    nlu_dates = _extract_nlu_dates(message)
+    nlu_dates = _extract_nlu_dates(message, user_tz)
     if nlu_dates and nlu_dates.start_date:
         # NLU entities found — use them and the cleaned task name
         if nlu_dates.task_name:
             task_name = nlu_dates.task_name
 
         parsed_start = nlu_dates.start_date
-        date_display = _format_date(parsed_start)
+        date_display = _format_date(parsed_start, user_tz)
 
         if isinstance(parsed_start, datetime.datetime):
-            start_date_str = parsed_start.strftime(_fmt)
+            start_date_str = _format_ticktick_dt(parsed_start)
         else:
-            dt_s = datetime.datetime.combine(parsed_start, datetime.time(), tzinfo=datetime.UTC)
-            start_date_str = dt_s.strftime(_fmt)
+            dt_s = datetime.datetime.combine(parsed_start, datetime.time(), tzinfo=user_tz)
+            start_date_str = _format_ticktick_dt(dt_s)
 
         if nlu_dates.end_date:
             # Time range: startDate and dueDate are different
             parsed_end = nlu_dates.end_date
             if isinstance(parsed_end, datetime.datetime):
-                due_date_str = parsed_end.strftime(_fmt)
+                due_date_str = _format_ticktick_dt(parsed_end)
             else:
-                dt_e = datetime.datetime.combine(parsed_end, datetime.time(), tzinfo=datetime.UTC)
-                due_date_str = dt_e.strftime(_fmt)
+                dt_e = datetime.datetime.combine(parsed_end, datetime.time(), tzinfo=user_tz)
+                due_date_str = _format_ticktick_dt(dt_e)
         else:
             # Single date: only dueDate (no startDate for simple tasks)
             due_date_str = start_date_str
             start_date_str = None
     elif slots.date:
         # Fallback: grammar-based date extraction
+        now_local = datetime.datetime.now(tz=user_tz)
         try:
-            parsed_date = parse_yandex_datetime(slots.date)
+            parsed_date = parse_yandex_datetime(slots.date, now=now_local)
             if isinstance(parsed_date, datetime.datetime):
-                due_date_str = parsed_date.strftime(_fmt)
+                due_date_str = _format_ticktick_dt(parsed_date)
             else:
-                dt = datetime.datetime.combine(parsed_date, datetime.time(), tzinfo=datetime.UTC)
-                due_date_str = dt.strftime(_fmt)
-            date_display = _format_date(parsed_date)
+                dt = datetime.datetime.combine(parsed_date, datetime.time(), tzinfo=user_tz)
+                due_date_str = _format_ticktick_dt(dt)
+            date_display = _format_date(parsed_date, user_tz)
         except ValueError:
             pass
 
@@ -459,9 +466,15 @@ async def handle_edit_task(
         return Response(text=txt.EDIT_NAME_REQUIRED)
 
     # Check that at least one change is specified
-    has_date = slots.new_date is not None
     has_priority = slots.new_priority is not None
     has_name = slots.new_name is not None
+
+    # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
+    user_tz = _get_user_tz(event_update)
+    now_local = datetime.datetime.now(tz=user_tz)
+    nlu_dates = _extract_nlu_dates(message, user_tz)
+    nlu_has_date = nlu_dates is not None and nlu_dates.start_date is not None
+    has_date = slots.new_date is not None or nlu_has_date
 
     if not has_date and not has_priority and not has_name:
         return Response(text=txt.EDIT_NO_CHANGES)
@@ -492,24 +505,42 @@ async def handle_edit_task(
 
     new_start_date: datetime.datetime | None = None
     new_due_date: datetime.datetime | None = None
-    if has_date and slots.new_date:
+
+    # Prefer NLU entities for dates (grammar .+ often swallows date tokens)
+    if nlu_dates and nlu_dates.start_date:
+        parsed_start = nlu_dates.start_date
+        if isinstance(parsed_start, datetime.datetime):
+            new_start_date = parsed_start
+        else:
+            new_start_date = datetime.datetime.combine(
+                parsed_start, datetime.time(), tzinfo=user_tz
+            )
+        if nlu_dates.end_date:
+            parsed_end = nlu_dates.end_date
+            if isinstance(parsed_end, datetime.datetime):
+                new_due_date = parsed_end
+            else:
+                new_due_date = datetime.datetime.combine(
+                    parsed_end, datetime.time(), tzinfo=user_tz
+                )
+        else:
+            new_due_date = new_start_date
+    elif slots.new_date:
         try:
-            parsed_date = parse_yandex_datetime(slots.new_date)
+            parsed_date = parse_yandex_datetime(slots.new_date, now=now_local)
             if isinstance(parsed_date, datetime.datetime):
                 new_start_date = parsed_date
             else:
                 new_start_date = datetime.datetime.combine(
-                    parsed_date, datetime.time(), tzinfo=datetime.UTC
+                    parsed_date, datetime.time(), tzinfo=user_tz
                 )
-            # If end date is specified, use it as dueDate (duration mode).
-            # Otherwise, set dueDate = startDate (single date mode).
             if slots.new_end_date:
-                parsed_end = parse_yandex_datetime(slots.new_end_date)
+                parsed_end = parse_yandex_datetime(slots.new_end_date, now=now_local)
                 if isinstance(parsed_end, datetime.datetime):
                     new_due_date = parsed_end
                 else:
                     new_due_date = datetime.datetime.combine(
-                        parsed_end, datetime.time(), tzinfo=datetime.UTC
+                        parsed_end, datetime.time(), tzinfo=user_tz
                     )
             else:
                 new_due_date = new_start_date

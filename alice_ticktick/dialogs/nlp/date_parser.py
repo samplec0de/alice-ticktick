@@ -127,6 +127,7 @@ def extract_dates_from_nlu(
     nlu: NLU,
     *,
     command_token_count: int = 2,
+    now: datetime.datetime | None = None,
 ) -> ExtractedDates:
     """Extract DATETIME entities from NLU and build a clean task name.
 
@@ -194,7 +195,7 @@ def extract_dates_from_nlu(
         val = dt_entities[0].value
         slot = _datetime_entity_to_slot(val)
         with contextlib.suppress(ValueError):
-            start_date = parse_yandex_datetime(slot)
+            start_date = parse_yandex_datetime(slot, now=now)
 
     if len(dt_entities) >= 2:
         val = dt_entities[-1].value
@@ -204,7 +205,7 @@ def extract_dates_from_nlu(
             if start_date and isinstance(start_date, datetime.datetime):
                 end_date = parse_yandex_datetime(slot, now=start_date)
             else:
-                end_date = parse_yandex_datetime(slot)
+                end_date = parse_yandex_datetime(slot, now=now)
 
     return ExtractedDates(
         task_name=task_name,

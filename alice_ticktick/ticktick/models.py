@@ -85,4 +85,4 @@ class TaskUpdate(BaseModel):
         """Format datetime to TickTick API format."""
         if value is None:
             return None
-        return value.strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+        return value.strftime("%Y-%m-%dT%H:%M:%S.000%z")
