@@ -60,6 +60,25 @@ _REMINDER_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+_FIXED_RECURRENCE_TOKENS = frozenset({
+    "ежедневно", "еженедельно", "ежемесячно", "ежегодно",
+})
+
+
+def _infer_rec_freq_from_tokens(
+    rec_freq: str | None,
+    tokens: list[str] | None,
+) -> str | None:
+    """Если rec_freq не извлечён NLU, попробовать найти в токенах."""
+    if rec_freq is not None:
+        return rec_freq
+    if not tokens:
+        return None
+    for token in tokens:
+        if token.lower() in _FIXED_RECURRENCE_TOKENS:
+            return token.lower()
+    return None
+
 
 def _auth_required_response(event_update: Update | None = None) -> Response:
     """Return a response that initiates Account Linking if supported."""
@@ -370,9 +389,11 @@ async def handle_create_task(
     priority_raw = parse_priority(slots.priority) or 0
     priority_value = TaskPriority(priority_raw)
 
-    # Parse recurrence
+    # Parse recurrence — fallback: проверить токены, если NLU не заполнил rec_freq
+    _tokens = message.nlu.tokens if message.nlu else None
+    effective_rec_freq = _infer_rec_freq_from_tokens(slots.rec_freq, _tokens)
     repeat_flag = build_rrule(
-        rec_freq=slots.rec_freq,
+        rec_freq=effective_rec_freq,
         rec_interval=slots.rec_interval,
         rec_monthday=slots.rec_monthday,
     )

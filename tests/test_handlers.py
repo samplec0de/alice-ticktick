@@ -1574,6 +1574,60 @@ async def test_create_recurring_no_name() -> None:
     assert "назвать" in response.text.lower() or "название" in response.text.lower()
 
 
+async def test_create_task_ejednevno_creates_daily_rrule() -> None:
+    """'создай задачу зарядка ежедневно' -> RRULE:FREQ=DAILY."""
+    message = _make_message(command="создай задачу зарядка ежедневно")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["создай", "задачу", "зарядка", "ежедневно"]
+    message.nlu.entities = []
+    message.nlu.intents = {}
+    factory = _make_mock_client()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            # rec_freq НЕ заполнен NLU (баг)
+        }
+    }
+    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=DAILY"
+
+
+async def test_create_task_ezhenedelno_creates_weekly_rrule() -> None:
+    """'создай задачу уборка еженедельно' -> RRULE:FREQ=WEEKLY."""
+    message = _make_message(command="создай задачу уборка еженедельно")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["создай", "задачу", "уборка", "еженедельно"]
+    message.nlu.entities = []
+    message.nlu.intents = {}
+    factory = _make_mock_client()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "уборка"}}
+    }
+    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=WEEKLY"
+
+
+async def test_create_recurring_task_ejednevno_creates_daily_rrule() -> None:
+    """'напоминай ежедневно делать зарядку' -> RRULE:FREQ=DAILY."""
+    message = _make_message(command="напоминай ежедневно делать зарядку")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["напоминай", "ежедневно", "делать", "зарядку"]
+    message.nlu.entities = []
+    message.nlu.intents = {}
+    factory = _make_mock_client()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "делать зарядку"},
+            # rec_freq НЕ заполнен NLU (баг)
+        }
+    }
+    response = await handle_create_recurring_task(message, intent_data, ticktick_client_factory=factory)
+    payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
+    assert payload.repeat_flag == "RRULE:FREQ=DAILY"
+
+
 # --- add_reminder tests ---
 
 
