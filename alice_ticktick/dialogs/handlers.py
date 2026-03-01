@@ -30,8 +30,12 @@ from alice_ticktick.dialogs.intents import (
     extract_show_checklist_slots,
 )
 from alice_ticktick.dialogs.nlp import (
+    build_rrule,
+    build_trigger,
     find_best_match,
     find_matches,
+    format_recurrence,
+    format_reminder,
     parse_priority,
     parse_yandex_datetime,
 )
@@ -344,6 +348,17 @@ async def handle_create_task(
     priority_raw = parse_priority(slots.priority) or 0
     priority_value = TaskPriority(priority_raw)
 
+    # Parse recurrence
+    repeat_flag = build_rrule(
+        rec_freq=slots.rec_freq,
+        rec_interval=slots.rec_interval,
+        rec_monthday=slots.rec_monthday,
+    )
+
+    # Parse reminder
+    reminder_trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
+    reminders_list: list[str] | None = [reminder_trigger] if reminder_trigger else None
+
     factory = ticktick_client_factory or TickTickClient
     project_id: str | None = None
     project_name_display: str | None = None
@@ -367,12 +382,29 @@ async def handle_create_task(
                 startDate=start_date_str,
                 dueDate=due_date_str,
                 isAllDay=is_all_day,
+                repeat_flag=repeat_flag,
+                reminders=reminders_list,
             )
             await client.create_task(payload)
             _invalidate_task_cache()
     except Exception:
         logger.exception("Failed to create task")
         return Response(text=txt.CREATE_ERROR)
+
+    # Build response with recurrence/reminder info
+    rec_display = format_recurrence(repeat_flag)
+    rem_display = format_reminder(reminder_trigger)
+
+    if rec_display and rem_display:
+        return Response(
+            text=txt.TASK_CREATED_RECURRING_WITH_REMINDER.format(
+                name=task_name, recurrence=rec_display, reminder=rem_display
+            )
+        )
+    if rec_display:
+        return Response(text=txt.TASK_CREATED_RECURRING.format(name=task_name, recurrence=rec_display))
+    if rem_display:
+        return Response(text=txt.TASK_CREATED_WITH_REMINDER.format(name=task_name, reminder=rem_display))
 
     if project_name_display:
         if date_display:
