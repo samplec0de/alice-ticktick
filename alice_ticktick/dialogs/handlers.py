@@ -738,6 +738,10 @@ async def handle_edit_task(
     has_priority = slots.new_priority is not None
     has_name = slots.new_name is not None
     has_project = slots.new_project is not None
+    has_recurrence = slots.rec_freq is not None or slots.rec_monthday is not None
+    has_reminder = slots.reminder_value is not None and slots.reminder_unit is not None
+    has_remove_recurrence = slots.remove_recurrence
+    has_remove_reminder = slots.remove_reminder
 
     # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
     user_tz = _get_user_tz(event_update)
@@ -746,7 +750,16 @@ async def handle_edit_task(
     nlu_has_date = nlu_dates is not None and nlu_dates.start_date is not None
     has_date = slots.new_date is not None or nlu_has_date
 
-    if not has_date and not has_priority and not has_name and not has_project:
+    if (
+        not has_date
+        and not has_priority
+        and not has_name
+        and not has_project
+        and not has_recurrence
+        and not has_reminder
+        and not has_remove_recurrence
+        and not has_remove_reminder
+    ):
         return Response(text=txt.EDIT_NO_CHANGES)
 
     factory = ticktick_client_factory or TickTickClient
@@ -832,6 +845,26 @@ async def handle_edit_task(
         else:
             logger.warning("Unrecognized priority value: %s", slots.new_priority)
 
+    # Build recurrence
+    new_repeat_flag: str | None = None
+    if has_remove_recurrence:
+        new_repeat_flag = ""  # empty string = remove
+    elif has_recurrence:
+        new_repeat_flag = build_rrule(
+            rec_freq=slots.rec_freq,
+            rec_interval=slots.rec_interval,
+            rec_monthday=slots.rec_monthday,
+        )
+
+    # Build reminder
+    new_reminders: list[str] | None = None
+    if has_remove_reminder:
+        new_reminders = []  # empty list = remove
+    elif has_reminder:
+        trigger = build_trigger(slots.reminder_value, slots.reminder_unit)
+        if trigger:
+            new_reminders = [trigger]
+
     # Resolve target project if requested
     target_project_id: str | None = None
     target_project_name: str | None = None
@@ -855,6 +888,8 @@ async def handle_edit_task(
         and new_due_date is None
         and new_priority_value is None
         and target_project_id is None
+        and new_repeat_flag is None
+        and new_reminders is None
     ):
         if same_project_name:
             return Response(
@@ -870,6 +905,8 @@ async def handle_edit_task(
         startDate=new_start_date,
         dueDate=new_due_date,
         isAllDay=new_is_all_day,
+        repeat_flag=new_repeat_flag,
+        reminders=new_reminders,
     )
     try:
         async with factory(access_token) as client:
@@ -878,6 +915,18 @@ async def handle_edit_task(
     except Exception:
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
+
+    # Specific messages for recurrence/reminder changes
+    if has_remove_recurrence and new_repeat_flag == "":
+        return Response(text=txt.RECURRENCE_REMOVED.format(name=best_match))
+    if has_remove_reminder and new_reminders == []:
+        return Response(text=txt.REMINDER_REMOVED.format(name=best_match))
+    if has_recurrence and new_repeat_flag:
+        rec_display = format_recurrence(new_repeat_flag)
+        return Response(text=txt.RECURRENCE_UPDATED.format(name=best_match, recurrence=rec_display))
+    if has_reminder and new_reminders:
+        rem_display = format_reminder(new_reminders[0])
+        return Response(text=txt.REMINDER_UPDATED.format(name=best_match, reminder=rem_display))
 
     # Only project changed → specific move message
     only_project = (

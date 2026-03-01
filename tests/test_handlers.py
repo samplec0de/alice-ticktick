@@ -1586,3 +1586,83 @@ async def test_add_reminder_task_not_found() -> None:
     message = _make_message()
     response = await handle_add_reminder(message, intent_data, mock_factory)
     assert "не найдена" in response.text.lower()
+
+
+# --- edit_task recurrence/reminder tests ---
+
+
+async def test_edit_add_recurrence() -> None:
+    tasks = [_make_task(title="Зарядка")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "rec_freq": {"value": "день"},
+        },
+    }
+    message = _make_message(command="поменяй повторение задачи зарядка на каждый день")
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "повторение" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == "RRULE:FREQ=DAILY"
+
+
+async def test_edit_remove_recurrence() -> None:
+    task = _make_task(title="Зарядка")
+    task.repeat_flag = "RRULE:FREQ=DAILY"
+    mock_factory = _make_mock_client(projects=[], tasks=[task])
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=[task])
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "remove_recurrence": {"value": "повторение"},
+        },
+    }
+    message = _make_message(command="убери повторение задачи зарядка")
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "убрано" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == ""
+
+
+async def test_edit_add_reminder() -> None:
+    tasks = [_make_task(title="Встреча")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "reminder_value": {"value": 30},
+            "reminder_unit": {"value": "минут"},
+        },
+    }
+    message = _make_message(command="поставь напоминание задачи встреча за 30 минут")
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.reminders == ["TRIGGER:-PT30M"]
+
+
+async def test_edit_remove_reminder() -> None:
+    task = _make_task(title="Встреча")
+    task.reminders = ["TRIGGER:-PT30M"]
+    mock_factory = _make_mock_client(projects=[], tasks=[task])
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=[task])
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "встреча"},
+            "remove_reminder": {"value": "напоминание"},
+        },
+    }
+    message = _make_message(command="убери напоминание задачи встреча")
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.reminders == []
