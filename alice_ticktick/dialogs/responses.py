@@ -30,6 +30,8 @@ AUTH_REQUIRED_NO_LINKING = (
 # Create task
 TASK_CREATED = 'Готово! Задача "{name}" создана.'
 TASK_CREATED_WITH_DATE = 'Готово! Задача "{name}" создана на {date}.'
+TASK_CREATED_IN_PROJECT = "Задача «{name}» создана в проекте «{project}»."
+TASK_CREATED_IN_PROJECT_WITH_DATE = "Задача «{name}» создана в проекте «{project}» на {date}."
 TASK_NAME_REQUIRED = "Как назвать задачу? Скажите название."
 CREATE_ERROR = "Не удалось создать задачу. Попробуйте ещё раз."
 
@@ -59,6 +61,7 @@ EDIT_NO_CHANGES = (
     "Не поняла, что изменить. Скажите, например: "
     "«перенеси на завтра» или «поменяй приоритет на высокий»."
 )
+TASK_MOVED = "Задача «{name}» перемещена в проект «{project}»."
 EDIT_SUCCESS = 'Задача "{name}" обновлена.'
 EDIT_ERROR = "Не удалось обновить задачу. Попробуйте ещё раз."
 
@@ -92,6 +95,8 @@ CHECKLIST_ITEM_DELETED = "Пункт «{item}» удалён из чеклист
 CHECKLIST_ITEM_DELETE_ERROR = "Не удалось удалить пункт из чеклиста."
 CHECKLIST_CHECK_ERROR = "Не удалось отметить пункт."
 SHOW_CHECKLIST_NAME_REQUIRED = "Назовите задачу, чеклист которой показать."
+
+PROJECT_NOT_FOUND = "Проект «{name}» не найден. Ваши проекты: {projects}."
 
 # Unknown
 UNKNOWN = "Не поняла команду. Скажите «помощь», чтобы узнать, что я умею."

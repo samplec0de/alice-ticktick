@@ -131,6 +131,32 @@ def _invalidate_task_cache() -> None:
 _GATHER_TIMEOUT = 4.0  # seconds — total budget for fetching all tasks
 
 
+async def _get_cached_projects(client: TickTickClient) -> list[Project]:
+    """Return cached project list, fetching from API if stale."""
+    global _cached_projects, _cached_projects_ts
+
+    now = time.monotonic()
+    if _cached_projects is not None and now - _cached_projects_ts < _PROJECT_CACHE_TTL:
+        return list(_cached_projects)
+
+    projects = await client.get_projects()
+    _cached_projects = projects
+    _cached_projects_ts = time.monotonic()
+    return projects
+
+
+def _find_project_by_name(projects: list[Project], name: str) -> Project | None:
+    """Find a project by fuzzy name match."""
+    if not projects or not name:
+        return None
+    project_names = [p.name for p in projects]
+    result = find_best_match(name, project_names)
+    if result is None:
+        return None
+    _matched_name, idx = result
+    return projects[idx]
+
+
 async def _gather_all_tasks(client: TickTickClient) -> list[Task]:
     """Fetch tasks from all projects and inbox in parallel.
 
@@ -319,10 +345,24 @@ async def handle_create_task(
     priority_value = TaskPriority(priority_raw)
 
     factory = ticktick_client_factory or TickTickClient
+    project_id: str | None = None
+    project_name_display: str | None = None
     try:
         async with factory(access_token) as client:
+            if slots.project_name:
+                projects = await _get_cached_projects(client)
+                project = _find_project_by_name(projects, slots.project_name)
+                if project is None:
+                    names = ", ".join(p.name for p in projects) if projects else "—"
+                    return Response(
+                        text=txt.PROJECT_NOT_FOUND.format(name=slots.project_name, projects=names)
+                    )
+                project_id = project.id
+                project_name_display = project.name
+
             payload = TaskCreate(
                 title=task_name,
+                projectId=project_id,
                 priority=priority_value,
                 startDate=start_date_str,
                 dueDate=due_date_str,
@@ -334,6 +374,16 @@ async def handle_create_task(
         logger.exception("Failed to create task")
         return Response(text=txt.CREATE_ERROR)
 
+    if project_name_display:
+        if date_display:
+            return Response(
+                text=txt.TASK_CREATED_IN_PROJECT_WITH_DATE.format(
+                    name=task_name, project=project_name_display, date=date_display
+                )
+            )
+        return Response(
+            text=txt.TASK_CREATED_IN_PROJECT.format(name=task_name, project=project_name_display)
+        )
     if date_display:
         return Response(
             text=txt.TASK_CREATED_WITH_DATE.format(
@@ -563,6 +613,7 @@ async def handle_edit_task(
     # Check that at least one change is specified
     has_priority = slots.new_priority is not None
     has_name = slots.new_name is not None
+    has_project = slots.new_project is not None
 
     # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
     user_tz = _get_user_tz(event_update)
@@ -571,7 +622,7 @@ async def handle_edit_task(
     nlu_has_date = nlu_dates is not None and nlu_dates.start_date is not None
     has_date = slots.new_date is not None or nlu_has_date
 
-    if not has_date and not has_priority and not has_name:
+    if not has_date and not has_priority and not has_name and not has_project:
         return Response(text=txt.EDIT_NO_CHANGES)
 
     factory = ticktick_client_factory or TickTickClient
@@ -655,13 +706,39 @@ async def handle_edit_task(
         else:
             logger.warning("Unrecognized priority value: %s", slots.new_priority)
 
+    # Resolve target project if requested
+    target_project_id: str | None = None
+    target_project_name: str | None = None
+    if has_project:
+        try:
+            async with factory(access_token) as client:
+                projects = await _get_cached_projects(client)
+        except Exception:
+            logger.exception("Failed to fetch projects for move")
+            return Response(text=txt.API_ERROR)
+
+        project = _find_project_by_name(projects, slots.new_project)  # type: ignore[arg-type]
+        if project is None:
+            names = ", ".join(p.name for p in projects) if projects else "—"
+            return Response(
+                text=txt.PROJECT_NOT_FOUND.format(name=slots.new_project, projects=names)
+            )
+        if project.id != matched_task.project_id:
+            target_project_id = project.id
+            target_project_name = project.name
+
     # Check that at least one field was successfully parsed
-    if new_title is None and new_due_date is None and new_priority_value is None:
+    if (
+        new_title is None
+        and new_due_date is None
+        and new_priority_value is None
+        and target_project_id is None
+    ):
         return Response(text=txt.EDIT_NO_CHANGES)
 
     payload = TaskUpdate(
         id=matched_task.id,
-        projectId=matched_task.project_id,
+        projectId=target_project_id or matched_task.project_id,
         title=new_title,
         priority=new_priority_value,
         startDate=new_start_date,
@@ -676,6 +753,15 @@ async def handle_edit_task(
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
 
+    # Only project changed → specific move message
+    only_project = (
+        target_project_id is not None
+        and new_title is None
+        and new_due_date is None
+        and new_priority_value is None
+    )
+    if only_project and target_project_name:
+        return Response(text=txt.TASK_MOVED.format(name=best_match, project=target_project_name))
     return Response(text=txt.EDIT_SUCCESS.format(name=best_match))
 
 

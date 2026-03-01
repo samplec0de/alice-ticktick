@@ -1136,3 +1136,193 @@ async def test_search_task_all_completed() -> None:
     mock_factory = _make_mock_client(tasks=tasks)
     response = await handle_search_task(message, intent_data, mock_factory)
     assert "ничего не найдено" in response.text
+
+
+# --- Create task in project ---
+
+
+async def test_create_task_in_project() -> None:
+    """Create a task in a specific project."""
+    projects = [
+        _make_project(project_id="p-shop", name="Покупки"),
+        _make_project(project_id="p-work", name="Работа"),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Купить молоко"},
+            "project_name": {"value": "Покупки"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects)
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Покупки" in response.text
+    assert "Купить молоко" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.project_id == "p-shop"
+
+
+async def test_create_task_in_project_with_date() -> None:
+    """Create a task in a project with a date."""
+    projects = [_make_project(project_id="p-shop", name="Покупки")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Купить молоко"},
+            "project_name": {"value": "Покупки"},
+            "date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects)
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Покупки" in response.text
+    assert "Купить молоко" in response.text
+    assert "завтра" in response.text
+
+
+async def test_create_task_project_not_found() -> None:
+    """When project not found, return list of available projects."""
+    projects = [
+        _make_project(project_id="p1", name="Покупки"),
+        _make_project(project_id="p2", name="Работа"),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Тест"},
+            "project_name": {"value": "Несуществующий"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects)
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "не найден" in response.text
+    assert "Покупки" in response.text
+    assert "Работа" in response.text
+
+
+async def test_create_task_project_fuzzy_match() -> None:
+    """Fuzzy matching on project name (e.g., 'покупка' matches 'Покупки')."""
+    projects = [_make_project(project_id="p-shop", name="Покупки")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Молоко"},
+            "project_name": {"value": "покупка"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects)
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Покупки" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.project_id == "p-shop"
+
+
+# --- Edit task: move to project ---
+
+
+async def test_edit_task_move_to_project() -> None:
+    """Move a task to another project."""
+    projects = [
+        _make_project(project_id="p1", name="Inbox"),
+        _make_project(project_id="p-work", name="Работа"),
+    ]
+    tasks = [_make_task(title="Подготовить отчёт", project_id="p1")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "подготовить отчёт"},
+            "new_project": {"value": "Работа"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "перемещена" in response.text
+    assert "Работа" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.project_id == "p-work"
+
+
+async def test_edit_task_move_project_not_found() -> None:
+    """Moving to a non-existent project shows available projects."""
+    projects = [
+        _make_project(project_id="p1", name="Покупки"),
+        _make_project(project_id="p2", name="Работа"),
+    ]
+    tasks = [_make_task(title="Тест")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "тест"},
+            "new_project": {"value": "Несуществующий"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "не найден" in response.text
+    assert "Покупки" in response.text
+    assert "Работа" in response.text
+
+
+async def test_edit_task_move_and_reschedule() -> None:
+    """Move to another project and change date simultaneously."""
+    projects = [
+        _make_project(project_id="p1", name="Inbox"),
+        _make_project(project_id="p-work", name="Работа"),
+    ]
+    tasks = [_make_task(title="Отчёт", project_id="p1")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_project": {"value": "Работа"},
+            "new_date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    # Multiple changes → EDIT_SUCCESS (not TASK_MOVED)
+    assert "обновлена" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.project_id == "p-work"
+    assert call_args.due_date is not None
+
+
+# --- Intent slot extraction ---
+
+
+def test_extract_create_task_slots_with_project() -> None:
+    """Verify project_name is extracted from create_task intent."""
+    from alice_ticktick.dialogs.intents import extract_create_task_slots
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Купить молоко"},
+            "project_name": {"value": "Покупки"},
+        },
+    }
+    slots = extract_create_task_slots(intent_data)
+    assert slots.project_name == "Покупки"
+    assert slots.task_name == "Купить молоко"
+
+
+def test_extract_edit_task_slots_with_project() -> None:
+    """Verify new_project is extracted from edit_task intent."""
+    from alice_ticktick.dialogs.intents import extract_edit_task_slots
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Отчёт"},
+            "new_project": {"value": "Работа"},
+        },
+    }
+    slots = extract_edit_task_slots(intent_data)
+    assert slots.new_project == "Работа"
+    assert slots.task_name == "Отчёт"

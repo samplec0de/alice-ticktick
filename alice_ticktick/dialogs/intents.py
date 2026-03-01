@@ -49,6 +49,7 @@ class CreateTaskSlots:
     task_name: str | None = None
     date: YandexDateTime | None = None
     priority: str | None = None
+    project_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +82,7 @@ class EditTaskSlots:
     new_end_date: YandexDateTime | None = None
     new_priority: str | None = None
     new_name: str | None = None
+    new_project: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +105,7 @@ def extract_create_task_slots(intent_data: dict[str, Any]) -> CreateTaskSlots:
         task_name=_get_slot_value(intent_data, "task_name"),
         date=_get_slot_value(intent_data, "date"),
         priority=_get_slot_value(intent_data, "priority"),
+        project_name=_get_slot_value(intent_data, "project_name"),
     )
 
 
@@ -135,6 +138,7 @@ def extract_edit_task_slots(intent_data: dict[str, Any]) -> EditTaskSlots:
         new_end_date=_get_slot_value(intent_data, "new_end_date"),
         new_priority=_get_slot_value(intent_data, "new_priority"),
         new_name=_get_slot_value(intent_data, "new_name"),
+        new_project=_get_slot_value(intent_data, "new_project"),
     )
 
 
