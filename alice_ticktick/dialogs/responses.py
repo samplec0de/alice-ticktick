@@ -45,6 +45,21 @@ TASK_CREATED_WITH_REMINDER = 'Готово! Задача "{name}" создана
 TASK_CREATED_RECURRING_WITH_REMINDER = (
     'Готово! Задача "{name}" создана, {recurrence}, напоминание {reminder}.'
 )
+# Create task with duration/range
+TASK_CREATED_WITH_DURATION = 'Добавила! "{name}" на {date}, {start_time} до {end_time}.'
+TASK_CREATED_WITH_DURATION_AND_PRIORITY = (
+    'Добавила! "{name}" на {date}, {start_time} до {end_time}, приоритет — {priority}.'
+)
+TASK_CREATED_WITH_DURATION_RECURRING = (
+    'Добавила! "{name}" на {date}, {start_time} до {end_time}, {recurrence}.'
+)
+TASK_CREATED_WITH_DURATION_AND_REMINDER = (
+    'Добавила! "{name}" на {date}, {start_time} до {end_time}, напоминание {reminder}.'
+)
+TASK_CREATED_WITH_DURATION_RECURRING_AND_REMINDER = (
+    'Добавила! "{name}" на {date}, {start_time} до {end_time}, {recurrence}, напоминание {reminder}.'
+)
+DURATION_MISSING_START_TIME = "Во сколько начинается? Скажите время."
 TASK_NAME_REQUIRED = "Как назвать задачу? Скажите название."
 CREATE_ERROR = "Не удалось создать задачу. Попробуйте ещё раз."
 
