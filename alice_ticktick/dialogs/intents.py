@@ -70,6 +70,7 @@ class ListTasksSlots:
     """Extracted slots for list_tasks intent."""
 
     date: YandexDateTime | None = None
+    priority: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +156,7 @@ def extract_list_tasks_slots(intent_data: dict[str, Any]) -> ListTasksSlots:
     """Extract slots from list_tasks intent."""
     return ListTasksSlots(
         date=_get_slot_value(intent_data, "date"),
+        priority=_get_slot_value(intent_data, "priority"),
     )
 
 

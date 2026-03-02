@@ -102,6 +102,31 @@ class TestListTasksSlots:
         slots = extract_list_tasks_slots(data)
         assert slots.date is None
 
+    def test_with_priority(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "priority": {"type": "YANDEX.STRING", "value": "высокий"},
+            },
+        }
+        slots = extract_list_tasks_slots(data)
+        assert slots.priority == "высокий"
+
+    def test_with_date_and_priority(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "date": {"type": "YANDEX.DATETIME", "value": {"day": 5, "month": 3}},
+                "priority": {"type": "YANDEX.STRING", "value": "срочный"},
+            },
+        }
+        slots = extract_list_tasks_slots(data)
+        assert slots.date == {"day": 5, "month": 3}
+        assert slots.priority == "срочный"
+
+    def test_no_priority(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_list_tasks_slots(data)
+        assert slots.priority is None
+
 
 class TestCompleteTaskSlots:
     def test_with_name(self) -> None:
