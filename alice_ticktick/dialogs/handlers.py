@@ -385,9 +385,8 @@ async def handle_create_task(
     nlu_dates = _extract_nlu_dates(message, user_tz)
 
     # Duration without date → ask for start time
-    if duration and not slots.date:
-        if not nlu_dates or not nlu_dates.start_date:
-            return Response(text=txt.DURATION_MISSING_START_TIME)
+    if duration and not slots.date and (not nlu_dates or not nlu_dates.start_date):
+        return Response(text=txt.DURATION_MISSING_START_TIME)
     if nlu_dates and nlu_dates.start_date:
         # NLU entities found — use them and the cleaned task name
         if nlu_dates.task_name:
