@@ -484,15 +484,26 @@ async def handle_create_task(
             text=txt.TASK_CREATED_WITH_REMINDER.format(name=task_name, reminder=rem_display)
         )
 
+    priority_display = _format_priority_label(priority_value)
+    # Remove " приоритет" suffix for inline use
+    priority_short = priority_display.replace(" приоритет", "") if priority_display else ""
+
     if project_name_display:
         if date_display:
-            return Response(
-                text=txt.TASK_CREATED_IN_PROJECT_WITH_DATE.format(
-                    name=task_name, project=project_name_display, date=date_display
-                )
+            resp = txt.TASK_CREATED_IN_PROJECT_WITH_DATE.format(
+                name=task_name, project=project_name_display, date=date_display
             )
+        else:
+            resp = txt.TASK_CREATED_IN_PROJECT.format(name=task_name, project=project_name_display)
+        if priority_short:
+            resp = resp.rstrip(".") + f", приоритет — {priority_short}."
+        return Response(text=resp)
+
+    if date_display and priority_short:
         return Response(
-            text=txt.TASK_CREATED_IN_PROJECT.format(name=task_name, project=project_name_display)
+            text=txt.TASK_CREATED_WITH_DATE_AND_PRIORITY.format(
+                name=task_name, date=date_display, priority=priority_short
+            )
         )
     if date_display:
         return Response(
@@ -500,6 +511,10 @@ async def handle_create_task(
                 name=task_name,
                 date=date_display,
             )
+        )
+    if priority_short:
+        return Response(
+            text=txt.TASK_CREATED_WITH_PRIORITY.format(name=task_name, priority=priority_short)
         )
     return Response(text=txt.TASK_CREATED.format(name=slots.task_name))
 
@@ -748,7 +763,9 @@ async def handle_complete_task(
         logger.exception("Failed to complete task")
         return Response(text=txt.COMPLETE_ERROR)
 
-    return Response(text=txt.TASK_COMPLETED.format(name=best_match))
+    user_tz = _get_user_tz(event_update)
+    context = _format_task_context(matched_task, user_tz)
+    return Response(text=txt.TASK_COMPLETED.format(name=best_match, context=context))
 
 
 def _build_search_response(
@@ -1087,7 +1104,26 @@ async def handle_edit_task(
     )
     if only_project and target_project_name:
         return Response(text=txt.TASK_MOVED.format(name=best_match, project=target_project_name))
-    return Response(text=txt.EDIT_SUCCESS.format(name=best_match))
+
+    # Build detailed confirmation of what changed
+    user_tz = _get_user_tz(event_update)
+    changes: list[str] = []
+    if new_due_date is not None:
+        changes.append(f"дата изменена на {_format_date(new_due_date, user_tz)}")
+    if new_priority_value is not None:
+        prio_label = _format_priority_label(new_priority_value)
+        if prio_label:
+            changes.append(f"приоритет — {prio_label.replace(' приоритет', '')}")
+        else:
+            changes.append("приоритет убран")
+    if new_title is not None:
+        changes.append(f'название изменено на "{new_title}"')
+    if target_project_name:
+        changes.append(f'перемещена в проект "{target_project_name}"')
+
+    if changes:
+        return Response(text=txt.EDIT_SUCCESS.format(name=best_match, changes=", ".join(changes)))
+    return Response(text=txt.EDIT_SUCCESS_NO_DETAILS.format(name=best_match))
 
 
 async def handle_delete_task(
@@ -1128,16 +1164,20 @@ async def handle_delete_task(
     best_match, match_idx = match_result
     matched_task = active_tasks[match_idx]
 
+    user_tz = _get_user_tz(event_update)
+    context = _format_task_context(matched_task, user_tz)
+
     await state.set_state(DeleteTaskStates.confirm)
     await state.set_data(
         {
             "task_id": matched_task.id,
             "project_id": matched_task.project_id,
             "task_name": best_match,
+            "task_context": context,
         }
     )
 
-    return Response(text=txt.DELETE_CONFIRM.format(name=best_match))
+    return Response(text=txt.DELETE_CONFIRM.format(name=best_match, context=context))
 
 
 async def handle_delete_confirm(
@@ -1156,6 +1196,7 @@ async def handle_delete_confirm(
     task_id = data.get("task_id", "")
     project_id = data.get("project_id", "")
     task_name = data.get("task_name", "")
+    task_context = data.get("task_context", "")
 
     if not task_id or not project_id or not task_name:
         logger.error(
@@ -1178,7 +1219,7 @@ async def handle_delete_confirm(
         return Response(text=txt.DELETE_ERROR)
 
     await state.clear()
-    return Response(text=txt.DELETE_SUCCESS.format(name=task_name))
+    return Response(text=txt.DELETE_SUCCESS.format(name=task_name, context=task_context))
 
 
 async def handle_delete_reject(message: Message, state: FSMContext) -> Response:
@@ -1487,7 +1528,9 @@ async def handle_check_item(
         logger.exception("Failed to check item")
         return Response(text=txt.CHECKLIST_CHECK_ERROR)
 
-    return Response(text=txt.CHECKLIST_ITEM_CHECKED.format(item=matched_item_title))
+    return Response(
+        text=txt.CHECKLIST_ITEM_CHECKED.format(item=matched_item_title, task=best_match)
+    )
 
 
 async def handle_delete_checklist_item(
