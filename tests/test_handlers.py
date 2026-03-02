@@ -133,6 +133,7 @@ async def test_handle_welcome() -> None:
     message = _make_message(new=True)
     response = await handle_welcome(message)
     assert response.text == txt.WELCOME
+    assert response.tts == txt.WELCOME_TTS
 
 
 async def test_handle_help() -> None:

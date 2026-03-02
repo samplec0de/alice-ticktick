@@ -1,11 +1,10 @@
 """Response text constants for Alice skill (all in Russian)."""
 
 # Welcome / help
-WELCOME = (
-    "Привет! Я помогу управлять задачами в TickTick. "
-    'Скажите "что на сегодня", "создай задачу" или "помощь".'
-)
-WELCOME_BACK = 'С возвращением! Скажите "что на сегодня" или "создай задачу".'
+WELCOME = "Слушаю!"
+WELCOME_TTS = '<speaker audio="alice-sounds-things-bell-1">'
+WELCOME_BACK = "С возвращением!"
+WELCOME_BACK_TTS = '<speaker audio="alice-sounds-things-bell-1">'
 HELP = (
     "Я умею:\n"
     "- Создать: «создай задачу купить молоко на завтра»\n"

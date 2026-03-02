@@ -331,7 +331,7 @@ def _extract_nlu_dates(message: Message, tz: ZoneInfo) -> ExtractedDates | None:
 
 async def handle_welcome(message: Message) -> Response:
     """Handle new session greeting."""
-    return Response(text=txt.WELCOME)
+    return Response(text=txt.WELCOME, tts=txt.WELCOME_TTS)
 
 
 async def handle_help(message: Message) -> Response:
