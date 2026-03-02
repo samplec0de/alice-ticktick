@@ -44,6 +44,25 @@ class TestBuildTrigger:
     def test_case_insensitive(self) -> None:
         assert build_trigger(10, "Минут") == "TRIGGER:-PT10M"
 
+    def test_build_trigger_minutes_uses_T_notation(self) -> None:
+        """TRIGGER:-PT30M — минуты требуют T-нотацию (time duration)."""
+        result = build_trigger(30, "минут")
+        assert result == "TRIGGER:-PT30M"
+        # Не P30M (что было бы 30 месяцев!) и не P30D (30 дней)
+        assert "PT" in result
+
+    def test_build_trigger_hours_uses_T_notation(self) -> None:
+        """TRIGGER:-PT2H — часы тоже требуют T-нотацию."""
+        result = build_trigger(2, "часа")
+        assert result == "TRIGGER:-PT2H"
+        assert "PT" in result
+
+    def test_build_trigger_days_uses_D_notation(self) -> None:
+        """TRIGGER:-P1D — дни используют date-нотацию без T."""
+        result = build_trigger(1, "день")
+        assert result == "TRIGGER:-P1D"
+        assert "PT" not in result
+
 
 class TestFormatReminder:
     """Tests for format_reminder: TRIGGER → human-readable Russian."""

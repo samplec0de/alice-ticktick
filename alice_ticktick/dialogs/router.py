@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from aliceio import Router
@@ -59,6 +60,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MAX_CONFIRM_RETRIES = 3
+
+_CONFIRM_TOKENS = frozenset({"да", "конечно", "подтверждаю", "ладно", "давай", "удали"})
+_REJECT_TOKENS = frozenset({"нет", "отмена", "отменить", "не", "отменяй"})
+
+# Checklist dispatch: keywords that indicate add_checklist_item intent
+_CHECKLIST_KEYWORDS = frozenset({"чеклист", "чеклиста", "чеклисте", "чеклисту"})
+_ITEM_KEYWORDS = frozenset({"пункт", "элемент", "пункте", "пункта"})
+
+_CHECKLIST_ITEM_RE = re.compile(
+    r"(?:добавь|добавить)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|к)\s+(?:чеклист|список)\s+(?:задачи?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
+
+def _try_parse_checklist_command(command: str) -> tuple[str, str] | None:
+    """Попытаться извлечь item_name и task_name из команды чеклиста."""
+    m = _CHECKLIST_ITEM_RE.search(command)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    return None
+
 
 router = Router(name="main")
 
@@ -126,7 +148,27 @@ async def on_add_reminder(
 async def on_create_task(
     message: Message, intent_data: dict[str, Any], event_update: Update
 ) -> Response:
-    """Handle create_task intent."""
+    """Handle create_task intent.
+
+    Also detects when NLU fired create_task but the utterance is actually
+    an add_checklist_item command (e.g. 'добавь пункт X в чеклист задачи Y').
+    """
+    # Проверка: не является ли это командой add_checklist_item
+    if message.nlu:
+        tokens = set(message.nlu.tokens or [])
+        if tokens & _CHECKLIST_KEYWORDS and tokens & _ITEM_KEYWORDS:
+            parsed = _try_parse_checklist_command(message.command or "")
+            if parsed:
+                item_name, task_name = parsed
+                fake_intent_data: dict[str, Any] = {
+                    "slots": {
+                        "item_name": {"value": item_name},
+                        "task_name": {"value": task_name},
+                    }
+                }
+                return await handle_add_checklist_item(
+                    message, fake_intent_data, event_update=event_update
+                )
     return await handle_create_task(message, intent_data, event_update=event_update)
 
 
@@ -229,7 +271,20 @@ async def on_delete_reject(message: Message, state: FSMContext) -> Response:
 
 @router.message(DeleteTaskStates.confirm)
 async def on_delete_other(message: Message, state: FSMContext) -> Response:
-    """Handle unexpected input during delete confirmation."""
+    """Handle unexpected input during delete confirmation.
+
+    Also handles 'нет'/'да' as reject/confirm when NLU does not fire
+    YANDEX.CONFIRM / YANDEX.REJECT intents (e.g. after Lambda cold start).
+    """
+    # Token-based matching: catch reject/confirm words
+    tokens = set(message.nlu.tokens or []) if message.nlu else set()
+    command_lower = (message.command or "").lower().strip()
+
+    if tokens & _REJECT_TOKENS or command_lower in _REJECT_TOKENS:
+        return await handle_delete_reject(message, state)
+    if tokens & _CONFIRM_TOKENS or command_lower in _CONFIRM_TOKENS:
+        return await handle_delete_confirm(message, state)
+
     data = await state.get_data()
     retries = data.get("_confirm_retries", 0) + 1
     logger.debug("Unexpected input during delete confirm: %r (retry %d)", message.command, retries)

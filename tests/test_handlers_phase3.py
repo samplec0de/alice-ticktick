@@ -590,3 +590,122 @@ class TestDeleteChecklistItem:
         client.update_task = AsyncMock(side_effect=Exception("API error"))
         response = await handle_delete_checklist_item(message, data, mock_factory)
         assert response.text == txt.CHECKLIST_ITEM_DELETE_ERROR
+
+
+# =============================================================================
+# on_create_task → checklist dispatch
+# =============================================================================
+
+
+class TestChecklistDispatchFromCreateTask:
+    """When NLU fires create_task but utterance is a checklist command,
+    on_create_task should dispatch to handle_add_checklist_item."""
+
+    async def test_dispatches_to_checklist_when_keywords_present(self) -> None:
+        """'добавь пункт молоко в чеклист задачи покупки' dispatches to checklist."""
+        from unittest.mock import patch
+
+        from alice_ticktick.dialogs.intents import CREATE_TASK
+        from alice_ticktick.dialogs.router import on_create_task
+
+        message = _make_message()
+        message.command = "добавь пункт молоко в чеклист задачи покупки"
+        message.nlu = MagicMock()
+        message.nlu.tokens = [
+            "добавь",
+            "пункт",
+            "молоко",
+            "в",
+            "чеклист",
+            "задачи",
+            "покупки",
+        ]
+        task_name_val = "пункт молоко в чеклист задачи покупки"
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": task_name_val}}}}
+        message.nlu.entities = []
+
+        intent_data = message.nlu.intents[CREATE_TASK]
+        event_update = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with patch(
+            "alice_ticktick.dialogs.router.handle_add_checklist_item",
+            new_callable=AsyncMock,
+            return_value=MagicMock(text="ok"),
+        ) as mock_handler:
+            await on_create_task(message, intent_data, event_update)
+            mock_handler.assert_called_once()
+            call_kwargs = mock_handler.call_args
+            fake_intent = call_kwargs[0][1]
+            assert fake_intent is not None
+            item_name = fake_intent["slots"]["item_name"]["value"]
+            task_name = fake_intent["slots"]["task_name"]["value"]
+            assert item_name == "молоко"
+            assert task_name == "покупки"
+
+    async def test_normal_create_task_not_affected(self) -> None:
+        """Обычная 'создай задачу купить хлеб' не перехватывается диспетчером чеклиста."""
+        from unittest.mock import patch
+
+        from alice_ticktick.dialogs.intents import CREATE_TASK
+        from alice_ticktick.dialogs.router import on_create_task
+
+        message = _make_message()
+        message.command = "создай задачу купить хлеб"
+        message.nlu = MagicMock()
+        message.nlu.tokens = ["создай", "задачу", "купить", "хлеб"]
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": "купить хлеб"}}}}
+        message.nlu.entities = []
+
+        intent_data = message.nlu.intents[CREATE_TASK]
+        event_update = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with patch(
+            "alice_ticktick.dialogs.router.handle_create_task",
+            new_callable=AsyncMock,
+            return_value=MagicMock(text="Готово!"),
+        ) as mock_create:
+            await on_create_task(message, intent_data, event_update)
+            mock_create.assert_called_once()
+
+    async def test_multi_word_item_and_task(self) -> None:
+        """'добавь пункт купить мыло в чеклист задачи сменить полотенца' parses correctly."""
+        from unittest.mock import patch
+
+        from alice_ticktick.dialogs.intents import CREATE_TASK
+        from alice_ticktick.dialogs.router import on_create_task
+
+        message = _make_message()
+        message.command = "добавь пункт купить мыло в чеклист задачи сменить полотенца"
+        message.nlu = MagicMock()
+        message.nlu.tokens = [
+            "добавь",
+            "пункт",
+            "купить",
+            "мыло",
+            "в",
+            "чеклист",
+            "задачи",
+            "сменить",
+            "полотенца",
+        ]
+        task_name_val = "пункт купить мыло в чеклист задачи сменить полотенца"
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": task_name_val}}}}
+        message.nlu.entities = []
+
+        intent_data = message.nlu.intents[CREATE_TASK]
+        event_update = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with patch(
+            "alice_ticktick.dialogs.router.handle_add_checklist_item",
+            new_callable=AsyncMock,
+            return_value=MagicMock(text="ok"),
+        ) as mock_handler:
+            await on_create_task(message, intent_data, event_update)
+            mock_handler.assert_called_once()
+            call_kwargs = mock_handler.call_args
+            fake_intent = call_kwargs[0][1]
+            assert fake_intent["slots"]["item_name"]["value"] == "купить мыло"
+            assert fake_intent["slots"]["task_name"]["value"] == "сменить полотенца"

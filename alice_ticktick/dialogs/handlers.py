@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
@@ -47,6 +48,47 @@ from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskPriori
 logger = logging.getLogger(__name__)
 
 ALICE_RESPONSE_MAX_LENGTH = 1024
+
+# Стоп-слова: NLU захватывает слово "задачу" как task_name при "создай задачу"
+_TASK_NAME_STOPWORDS = frozenset(
+    {
+        "задачу",
+        "задача",
+        "задачи",
+        "задаче",
+        "напоминание",
+        "напоминания",
+    }
+)
+
+_REMINDER_SUFFIX_RE = re.compile(
+    r"\s+с\s+напоминанием\s+за\s+(?:\d+\s+)?(?:минуту|минуты|минут|час|часа|часов|день|дня|дней)\s*$",
+    re.IGNORECASE,
+)
+
+_FIXED_RECURRENCE_TOKENS = frozenset(
+    {
+        "ежедневно",
+        "еженедельно",
+        "ежемесячно",
+        "ежегодно",
+    }
+)
+
+
+def _infer_rec_freq_from_tokens(
+    rec_freq: str | None,
+    tokens: list[str] | None,
+) -> str | None:
+    """Если rec_freq не извлечён NLU, попробовать найти в токенах."""
+    if rec_freq is not None:
+        return rec_freq
+    if not tokens:
+        return None
+    for token in tokens:
+        if token.lower() in _FIXED_RECURRENCE_TOKENS:
+            return token.lower()
+    return None
 
 
 def _auth_required_response(event_update: Update | None = None) -> Response:
@@ -290,12 +332,22 @@ async def handle_create_task(
     if not slots.task_name:
         return Response(text=txt.TASK_NAME_REQUIRED)
 
+    # Если task_name — это только стоп-слово, переспросить
+    if slots.task_name.lower().strip() in _TASK_NAME_STOPWORDS:
+        return Response(text=txt.TASK_NAME_REQUIRED)
+
     user_tz = _get_user_tz(event_update)
     start_date_str: str | None = None
     due_date_str: str | None = None
     is_all_day: bool | None = None
     date_display: str | None = None
     task_name = slots.task_name
+
+    # Обрезать суффикс "с напоминанием за N единиц" из названия задачи
+    if slots.reminder_unit is not None:
+        task_name = _REMINDER_SUFFIX_RE.sub("", task_name).strip()
+        if not task_name:
+            return Response(text=txt.TASK_NAME_REQUIRED)
 
     # Hybrid approach: try NLU entities first for better date extraction,
     # fall back to grammar slots.
@@ -348,9 +400,11 @@ async def handle_create_task(
     priority_raw = parse_priority(slots.priority) or 0
     priority_value = TaskPriority(priority_raw)
 
-    # Parse recurrence
+    # Parse recurrence — fallback: проверить токены, если NLU не заполнил rec_freq
+    _tokens = message.nlu.tokens if message.nlu else None
+    effective_rec_freq = _infer_rec_freq_from_tokens(slots.rec_freq, _tokens)
     repeat_flag = build_rrule(
-        rec_freq=slots.rec_freq,
+        rec_freq=effective_rec_freq,
         rec_interval=slots.rec_interval,
         rec_monthday=slots.rec_monthday,
     )
