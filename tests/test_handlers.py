@@ -1423,6 +1423,49 @@ def test_extract_create_task_slots_with_project() -> None:
     assert slots.task_name == "Купить молоко"
 
 
+def test_extract_create_task_slots_fixed_rec_freq_fallback() -> None:
+    """When rec_freq is None but fixed_rec_freq is set, use fixed_rec_freq."""
+    from alice_ticktick.dialogs.intents import extract_create_task_slots
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "fixed_rec_freq": {"value": "ежедневно"},
+        },
+    }
+    slots = extract_create_task_slots(intent_data)
+    assert slots.rec_freq == "ежедневно"
+
+
+def test_extract_create_task_slots_rec_freq_preferred_over_fixed() -> None:
+    """When both rec_freq and fixed_rec_freq are set, prefer rec_freq."""
+    from alice_ticktick.dialogs.intents import extract_create_task_slots
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "уборка"},
+            "rec_freq": {"value": "понедельник"},
+            "fixed_rec_freq": {"value": "еженедельно"},
+        },
+    }
+    slots = extract_create_task_slots(intent_data)
+    assert slots.rec_freq == "понедельник"
+
+
+def test_extract_create_recurring_task_slots_fixed_rec_freq_fallback() -> None:
+    """When rec_freq is None but fixed_rec_freq is set, use fixed_rec_freq."""
+    from alice_ticktick.dialogs.intents import extract_create_recurring_task_slots
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "fixed_rec_freq": {"value": "еженедельно"},
+        },
+    }
+    slots = extract_create_recurring_task_slots(intent_data)
+    assert slots.rec_freq == "еженедельно"
+
+
 def test_extract_edit_task_slots_with_project() -> None:
     """Verify new_project is extracted from edit_task intent."""
     from alice_ticktick.dialogs.intents import extract_edit_task_slots

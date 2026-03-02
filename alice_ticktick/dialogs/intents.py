@@ -127,12 +127,15 @@ def _as_int(value: Any) -> int | None:
 
 def extract_create_task_slots(intent_data: dict[str, Any]) -> CreateTaskSlots:
     """Extract slots from create_task intent."""
+    rec_freq = _get_slot_value(intent_data, "rec_freq")
+    if rec_freq is None:
+        rec_freq = _get_slot_value(intent_data, "fixed_rec_freq")
     return CreateTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
         date=_get_slot_value(intent_data, "date"),
         priority=_get_slot_value(intent_data, "priority"),
         project_name=_get_slot_value(intent_data, "project_name"),
-        rec_freq=_get_slot_value(intent_data, "rec_freq"),
+        rec_freq=rec_freq,
         rec_interval=_as_int(_get_slot_value(intent_data, "rec_interval")),
         rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
         reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),
@@ -306,9 +309,12 @@ def extract_create_recurring_task_slots(
     intent_data: dict[str, Any],
 ) -> CreateRecurringTaskSlots:
     """Extract slots from create_recurring_task intent."""
+    rec_freq = _get_slot_value(intent_data, "rec_freq")
+    if rec_freq is None:
+        rec_freq = _get_slot_value(intent_data, "fixed_rec_freq")
     return CreateRecurringTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
-        rec_freq=_get_slot_value(intent_data, "rec_freq"),
+        rec_freq=rec_freq,
         rec_interval=_as_int(_get_slot_value(intent_data, "rec_interval")),
         rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
     )

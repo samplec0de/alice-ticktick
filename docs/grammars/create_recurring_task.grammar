@@ -15,6 +15,9 @@ slots:
     rec_monthday:
         source: $RecMonthday
         type: YANDEX.NUMBER
+    fixed_rec_freq:
+        source: $FixedRecFreq
+        type: YANDEX.STRING
 
 $TaskName:
     .+
@@ -23,9 +26,13 @@ $Recurrence:
     (каждый|каждую|каждое) $RecFreq
     (каждые) $RecInterval $RecFreq
     (каждое) $RecMonthday (число)
+    $FixedRecFreq
+
+$FixedRecFreq:
     ежедневно
     еженедельно
     ежемесячно
+    ежегодно
 
 $RecFreq:
     .+
