@@ -166,6 +166,9 @@ def extract_search_task_slots(intent_data: dict[str, Any]) -> SearchTaskSlots:
 
 def extract_edit_task_slots(intent_data: dict[str, Any]) -> EditTaskSlots:
     """Extract slots from edit_task intent."""
+    rec_freq = _get_slot_value(intent_data, "rec_freq")
+    if rec_freq is None:
+        rec_freq = _get_slot_value(intent_data, "fixed_rec_freq")
     return EditTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
         new_date=_get_slot_value(intent_data, "new_date"),
@@ -173,7 +176,7 @@ def extract_edit_task_slots(intent_data: dict[str, Any]) -> EditTaskSlots:
         new_priority=_get_slot_value(intent_data, "new_priority"),
         new_name=_get_slot_value(intent_data, "new_name"),
         new_project=_get_slot_value(intent_data, "new_project"),
-        rec_freq=_get_slot_value(intent_data, "rec_freq"),
+        rec_freq=rec_freq,
         rec_interval=_as_int(_get_slot_value(intent_data, "rec_interval")),
         rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
         reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),

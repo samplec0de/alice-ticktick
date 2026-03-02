@@ -36,6 +36,9 @@ slots:
     reminder_unit:
         source: $ReminderUnit
         type: YANDEX.STRING
+    fixed_rec_freq:
+        source: $FixedRecFreq
+        type: YANDEX.STRING
     remove_recurrence:
         source: $RemoveRecurrence
         type: YANDEX.STRING
@@ -59,10 +62,14 @@ $Recurrence:
     (каждый|каждую|каждое) $RecFreq
     (каждые) $RecInterval $RecFreq
     (каждое) $RecMonthday (число)
+    $FixedRecFreq
+    (по) $RecFreq
+
+$FixedRecFreq:
     ежедневно
     еженедельно
     ежемесячно
-    (по) $RecFreq
+    ежегодно
 
 $RecFreq:
     .+
