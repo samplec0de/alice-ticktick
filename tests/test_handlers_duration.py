@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
-from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -18,9 +16,6 @@ from alice_ticktick.ticktick.models import Task
 def _clear_project_cache() -> None:
     """Reset the project cache before each test."""
     _reset_project_cache()
-
-
-TZ = ZoneInfo("Europe/Moscow")
 
 
 def _make_message(
@@ -120,9 +115,7 @@ class TestDurationCreateTask:
                 "duration_unit": {"value": "час"},
             }
         }
-        msg = _make_message(
-            tokens=["создай", "встречу", "ланч", "завтра", "в", "12", "на", "час"]
-        )
+        msg = _make_message(tokens=["создай", "встречу", "ланч", "завтра", "в", "12", "на", "час"])
         factory = _make_mock_client()
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())

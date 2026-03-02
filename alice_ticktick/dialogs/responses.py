@@ -57,7 +57,8 @@ TASK_CREATED_WITH_DURATION_AND_REMINDER = (
     'Добавила! "{name}" на {date}, {start_time} до {end_time}, напоминание {reminder}.'
 )
 TASK_CREATED_WITH_DURATION_RECURRING_AND_REMINDER = (
-    'Добавила! "{name}" на {date}, {start_time} до {end_time}, {recurrence}, напоминание {reminder}.'
+    'Добавила! "{name}" на {date}, {start_time} до {end_time},'
+    " {recurrence}, напоминание {reminder}."
 )
 DURATION_MISSING_START_TIME = "Во сколько начинается? Скажите время."
 TASK_NAME_REQUIRED = "Как назвать задачу? Скажите название."

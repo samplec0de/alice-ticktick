@@ -2,6 +2,7 @@
 
 import datetime
 
+from alice_ticktick.dialogs.intents import extract_create_task_slots
 from alice_ticktick.dialogs.nlp.duration_parser import parse_duration
 
 
@@ -37,9 +38,6 @@ class TestParseDuration:
     def test_minutes_declensions(self) -> None:
         for word in ("минута", "минуту", "минуты", "минут"):
             assert parse_duration(15, word) == datetime.timedelta(minutes=15)
-
-
-from alice_ticktick.dialogs.intents import extract_create_task_slots
 
 
 class TestCreateTaskSlotsExtraction:

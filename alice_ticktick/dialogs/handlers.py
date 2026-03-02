@@ -442,9 +442,13 @@ async def handle_create_task(
         try:
             parsed_rs = parse_yandex_datetime(slots.range_start, now=now_local)
             parsed_re = parse_yandex_datetime(slots.range_end, now=now_local)
-            if isinstance(parsed_rs, datetime.date) and not isinstance(parsed_rs, datetime.datetime):
+            if isinstance(parsed_rs, datetime.date) and not isinstance(
+                parsed_rs, datetime.datetime
+            ):
                 parsed_rs = datetime.datetime.combine(parsed_rs, datetime.time(), tzinfo=user_tz)
-            if isinstance(parsed_re, datetime.date) and not isinstance(parsed_re, datetime.datetime):
+            if isinstance(parsed_re, datetime.date) and not isinstance(
+                parsed_re, datetime.datetime
+            ):
                 parsed_re = datetime.datetime.combine(parsed_re, datetime.time(), tzinfo=user_tz)
             start_date_str = _format_ticktick_dt(parsed_rs)
             due_date_str = _format_ticktick_dt(parsed_re)
@@ -457,7 +461,11 @@ async def handle_create_task(
             pass
     elif duration and (start_date_str or due_date_str):
         # Duration with a start datetime: compute end = start + duration
-        if nlu_dates and nlu_dates.start_date and isinstance(nlu_dates.start_date, datetime.datetime):
+        if (
+            nlu_dates
+            and nlu_dates.start_date
+            and isinstance(nlu_dates.start_date, datetime.datetime)
+        ):
             start_dt = nlu_dates.start_date
         elif slots.date:
             now_local = datetime.datetime.now(tz=user_tz)
