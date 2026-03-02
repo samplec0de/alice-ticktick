@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from aliceio import Router
@@ -62,6 +63,23 @@ _MAX_CONFIRM_RETRIES = 3
 
 _CONFIRM_TOKENS = frozenset({"да", "конечно", "подтверждаю", "ладно", "давай", "удали"})
 _REJECT_TOKENS = frozenset({"нет", "отмена", "отменить", "не", "отменяй"})
+
+# Checklist dispatch: keywords that indicate add_checklist_item intent
+_CHECKLIST_KEYWORDS = frozenset({"чеклист", "чеклиста", "чеклисте", "чеклисту"})
+_ITEM_KEYWORDS = frozenset({"пункт", "элемент", "пункте", "пункта"})
+
+_CHECKLIST_ITEM_RE = re.compile(
+    r"(?:добавь|добавить)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|к)\s+(?:чеклист|список)\s+(?:задачи?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
+
+def _try_parse_checklist_command(command: str) -> tuple[str, str] | None:
+    """Попытаться извлечь item_name и task_name из команды чеклиста."""
+    m = _CHECKLIST_ITEM_RE.search(command)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    return None
 
 router = Router(name="main")
 
@@ -129,7 +147,27 @@ async def on_add_reminder(
 async def on_create_task(
     message: Message, intent_data: dict[str, Any], event_update: Update
 ) -> Response:
-    """Handle create_task intent."""
+    """Handle create_task intent.
+
+    Also detects when NLU fired create_task but the utterance is actually
+    an add_checklist_item command (e.g. 'добавь пункт X в чеклист задачи Y').
+    """
+    # Проверка: не является ли это командой add_checklist_item
+    if message.nlu:
+        tokens = set(message.nlu.tokens or [])
+        if tokens & _CHECKLIST_KEYWORDS and tokens & _ITEM_KEYWORDS:
+            parsed = _try_parse_checklist_command(message.command or "")
+            if parsed:
+                item_name, task_name = parsed
+                fake_intent_data: dict[str, Any] = {
+                    "slots": {
+                        "item_name": {"value": item_name},
+                        "task_name": {"value": task_name},
+                    }
+                }
+                return await handle_add_checklist_item(
+                    message, fake_intent_data, event_update=event_update
+                )
     return await handle_create_task(message, intent_data, event_update=event_update)
 
 
