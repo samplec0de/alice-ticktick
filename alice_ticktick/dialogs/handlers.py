@@ -37,6 +37,7 @@ from alice_ticktick.dialogs.nlp import (
     find_matches,
     format_recurrence,
     format_reminder,
+    parse_duration,
     parse_priority,
     parse_yandex_datetime,
 )
@@ -375,6 +376,15 @@ async def handle_create_task(
         if not task_name:
             return Response(text=txt.TASK_NAME_REQUIRED)
 
+    # --- Duration / Range handling ---
+    duration = parse_duration(slots.duration_value, slots.duration_unit)
+
+    # Duration without date → ask for start time
+    if duration and not slots.date:
+        nlu_check = _extract_nlu_dates(message, user_tz)
+        if not nlu_check or not nlu_check.start_date:
+            return Response(text=txt.DURATION_MISSING_START_TIME)
+
     # Hybrid approach: try NLU entities first for better date extraction,
     # fall back to grammar slots.
     nlu_dates = _extract_nlu_dates(message, user_tz)
@@ -421,6 +431,54 @@ async def handle_create_task(
             date_display = _format_date(parsed_date, user_tz)
         except ValueError:
             pass
+
+    # --- Compute start/end from range or duration slots ---
+    has_duration_or_range = False
+    start_time_display: str | None = None
+    end_time_display: str | None = None
+
+    if slots.range_start and slots.range_end:
+        now_local = datetime.datetime.now(tz=user_tz)
+        try:
+            parsed_rs = parse_yandex_datetime(slots.range_start, now=now_local)
+            parsed_re = parse_yandex_datetime(slots.range_end, now=now_local)
+            if isinstance(parsed_rs, datetime.date) and not isinstance(parsed_rs, datetime.datetime):
+                parsed_rs = datetime.datetime.combine(parsed_rs, datetime.time(), tzinfo=user_tz)
+            if isinstance(parsed_re, datetime.date) and not isinstance(parsed_re, datetime.datetime):
+                parsed_re = datetime.datetime.combine(parsed_re, datetime.time(), tzinfo=user_tz)
+            start_date_str = _format_ticktick_dt(parsed_rs)
+            due_date_str = _format_ticktick_dt(parsed_re)
+            is_all_day = False
+            date_display = _format_date(parsed_rs, user_tz)
+            start_time_display = parsed_rs.strftime("%H:%M")
+            end_time_display = parsed_re.strftime("%H:%M")
+            has_duration_or_range = True
+        except ValueError:
+            pass
+    elif duration and (start_date_str or due_date_str):
+        # Duration with a start datetime: compute end = start + duration
+        if nlu_dates and nlu_dates.start_date and isinstance(nlu_dates.start_date, datetime.datetime):
+            start_dt = nlu_dates.start_date
+        elif slots.date:
+            now_local = datetime.datetime.now(tz=user_tz)
+            parsed = parse_yandex_datetime(slots.date, now=now_local)
+            start_dt = (
+                parsed
+                if isinstance(parsed, datetime.datetime)
+                else datetime.datetime.combine(parsed, datetime.time(), tzinfo=user_tz)
+            )
+        else:
+            start_dt = None
+
+        if start_dt:
+            end_dt = start_dt + duration
+            start_date_str = _format_ticktick_dt(start_dt)
+            due_date_str = _format_ticktick_dt(end_dt)
+            is_all_day = False
+            date_display = _format_date(start_dt, user_tz)
+            start_time_display = start_dt.strftime("%H:%M")
+            end_time_display = end_dt.strftime("%H:%M")
+            has_duration_or_range = True
 
     # Parse optional priority
     priority_raw = parse_priority(slots.priority) or 0
@@ -474,6 +532,59 @@ async def handle_create_task(
     # Build response with recurrence/reminder info
     rec_display = format_recurrence(repeat_flag)
     rem_display = format_reminder(reminder_trigger)
+
+    # --- Duration/range response ---
+    if has_duration_or_range and start_time_display and end_time_display:
+        priority_short = _format_priority_short(priority_value)
+        if rec_display and rem_display:
+            return Response(
+                text=txt.TASK_CREATED_WITH_DURATION_RECURRING_AND_REMINDER.format(
+                    name=task_name,
+                    date=date_display,
+                    start_time=start_time_display,
+                    end_time=end_time_display,
+                    recurrence=rec_display,
+                    reminder=rem_display,
+                )
+            )
+        if rec_display:
+            return Response(
+                text=txt.TASK_CREATED_WITH_DURATION_RECURRING.format(
+                    name=task_name,
+                    date=date_display,
+                    start_time=start_time_display,
+                    end_time=end_time_display,
+                    recurrence=rec_display,
+                )
+            )
+        if rem_display:
+            return Response(
+                text=txt.TASK_CREATED_WITH_DURATION_AND_REMINDER.format(
+                    name=task_name,
+                    date=date_display,
+                    start_time=start_time_display,
+                    end_time=end_time_display,
+                    reminder=rem_display,
+                )
+            )
+        if priority_short:
+            return Response(
+                text=txt.TASK_CREATED_WITH_DURATION_AND_PRIORITY.format(
+                    name=task_name,
+                    date=date_display,
+                    start_time=start_time_display,
+                    end_time=end_time_display,
+                    priority=priority_short,
+                )
+            )
+        return Response(
+            text=txt.TASK_CREATED_WITH_DURATION.format(
+                name=task_name,
+                date=date_display,
+                start_time=start_time_display,
+                end_time=end_time_display,
+            )
+        )
 
     if rec_display and rem_display:
         return Response(
