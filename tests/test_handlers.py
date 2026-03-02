@@ -5,12 +5,11 @@ from __future__ import annotations
 import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from alice_ticktick.dialogs import responses as txt
-from zoneinfo import ZoneInfo
-
 from alice_ticktick.dialogs.handlers import (
     ALICE_RESPONSE_MAX_LENGTH,
     _auth_required_response,
@@ -36,7 +35,7 @@ from alice_ticktick.dialogs.handlers import (
 )
 from alice_ticktick.dialogs.router import _MAX_CONFIRM_RETRIES, on_delete_other
 from alice_ticktick.dialogs.states import DeleteTaskStates
-from alice_ticktick.ticktick.models import Project, Task
+from alice_ticktick.ticktick.models import ChecklistItem, Project, Task
 
 
 @pytest.fixture(autouse=True)
@@ -1233,6 +1232,134 @@ async def test_search_task_all_completed() -> None:
     mock_factory = _make_mock_client(tasks=tasks)
     response = await handle_search_task(message, intent_data, mock_factory)
     assert "ничего не найдено" in response.text
+
+
+async def test_search_task_best_match_with_description() -> None:
+    """Best match shows description."""
+    tasks = [
+        Task(
+            id="t1",
+            title="Купить хлеб",
+            projectId="p1",
+            content="Зайти в Перекрёсток",
+            priority=0,
+            status=0,
+        ),
+        Task(id="t2", title="Купить молоко", projectId="p1", priority=0, status=0),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "купить"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "Лучшее совпадение" in response.text
+    assert "Купить хлеб" in response.text
+    assert "Зайти в Перекрёсток" in response.text
+    assert "Также найдено" in response.text
+    assert "Купить молоко" in response.text
+
+
+async def test_search_task_best_match_with_checklist() -> None:
+    """Best match shows checklist with statuses."""
+    tasks = [
+        Task(
+            id="t1",
+            title="Список покупок",
+            projectId="p1",
+            content="",
+            priority=0,
+            status=0,
+            items=[
+                ChecklistItem(id="c1", title="Молоко", status=1),
+                ChecklistItem(id="c2", title="Хлеб", status=0),
+            ],
+        ),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "список покупок"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "Список покупок" in response.text
+    assert "[x] Молоко" in response.text
+    assert "[ ] Хлеб" in response.text
+
+
+async def test_search_task_single_result_no_also_found() -> None:
+    """Single match — no 'Также найдено' section."""
+    tasks = [
+        Task(id="t1", title="Уникальная задача", projectId="p1", priority=0, status=0),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "уникальная задача"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "Найдена задача" in response.text
+    assert "Также найдено" not in response.text
+
+
+async def test_search_task_no_description_no_checklist() -> None:
+    """Best match without description/checklist skips those sections."""
+    tasks = [
+        Task(id="t1", title="Простая задача", projectId="p1", priority=0, status=0),
+        Task(id="t2", title="Простая работа", projectId="p1", priority=0, status=0),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "простая"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "Лучшее совпадение" in response.text
+    assert "Описание" not in response.text
+    assert "Чеклист" not in response.text
+
+
+async def test_search_task_budget_truncates_checklist() -> None:
+    """When checklist is too long, show partial + 'и ещё N'."""
+    long_items = [
+        ChecklistItem(
+            id=f"c{i}",
+            title=f"Пункт номер {i} с очень длинным названием для теста",
+            status=0,
+        )
+        for i in range(30)
+    ]
+    tasks = [
+        Task(
+            id="t1",
+            title="Задача",
+            projectId="p1",
+            content="Описание " * 20,
+            priority=5,
+            status=0,
+            items=long_items,
+        ),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "задача"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert len(response.text) <= 1024
+    assert "и ещё" in response.text
+
+
+async def test_search_task_best_match_with_context() -> None:
+    """Best match shows date and priority in context."""
+    tz = ZoneInfo("UTC")
+    tomorrow = datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)
+    tasks = [
+        Task(
+            id="t1",
+            title="Важное дело",
+            projectId="p1",
+            priority=5,
+            status=0,
+            dueDate=tomorrow,
+        ),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "важное дело"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert "завтра" in response.text
+    assert "высокий приоритет" in response.text
 
 
 # --- Create task in project ---

@@ -751,6 +751,77 @@ async def handle_complete_task(
     return Response(text=txt.TASK_COMPLETED.format(name=best_match))
 
 
+def _build_search_response(
+    best_task: Task,
+    other_tasks: list[Task],
+    tz: ZoneInfo,
+) -> str:
+    """Build budget-aware search response with details for the best match."""
+    budget = ALICE_RESPONSE_MAX_LENGTH
+    parts: list[str] = []
+
+    # 1. Header for best match
+    context = _format_task_context(best_task, tz)
+    if other_tasks:
+        header = txt.SEARCH_BEST_MATCH.format(name=best_task.title, context=context)
+    else:
+        header = txt.SEARCH_BEST_MATCH_SINGLE.format(name=best_task.title, context=context)
+    parts.append(header)
+    budget -= len(header) + 1  # +1 for \n
+
+    # 2. Description (priority over checklist)
+    if best_task.content.strip():
+        desc_line = txt.SEARCH_DESCRIPTION.format(description=best_task.content.strip())
+        if len(desc_line) + 1 <= budget:
+            parts.append(desc_line)
+            budget -= len(desc_line) + 1
+        else:
+            # Truncate description to fit
+            available = budget - len("Описание: ") - 2  # 1 for \n, 1 for …
+            if available > 20:
+                parts.append("Описание: " + best_task.content.strip()[:available] + "…")
+                budget = 0
+
+    # 3. Checklist
+    if best_task.items and budget > 30:
+        checklist_header = "Чеклист:"
+        parts.append(checklist_header)
+        budget -= len(checklist_header) + 1
+
+        shown = 0
+        remaining = len(best_task.items)
+        for i, item in enumerate(best_task.items, 1):
+            mark = "[x]" if item.status == 1 else "[ ]"
+            line = f"{i}. {mark} {item.title}"
+            if len(line) + 1 <= budget:
+                parts.append(line)
+                budget -= len(line) + 1
+                shown += 1
+                remaining -= 1
+            else:
+                break
+
+        if remaining > 0 and shown > 0:
+            more_line = txt.SEARCH_CHECKLIST_MORE.format(count=remaining)
+            parts.append(more_line)
+            budget -= len(more_line) + 1
+
+    # 4. Other matches
+    if other_tasks and budget > 20:
+        parts.append(txt.SEARCH_ALSO_FOUND.strip())
+        budget -= len(txt.SEARCH_ALSO_FOUND.strip()) + 1
+
+        for i, task in enumerate(other_tasks, 2):
+            line = _format_task_line(i, task)
+            if len(line) + 1 <= budget:
+                parts.append(line)
+                budget -= len(line) + 1
+            else:
+                break
+
+    return "\n".join(parts)
+
+
 async def handle_search_task(
     message: Message,
     intent_data: dict[str, Any],
@@ -786,14 +857,13 @@ async def handle_search_task(
         return Response(text=txt.SEARCH_NO_RESULTS.format(query=slots.query))
 
     matched_tasks = [active_tasks[idx] for _title, _score, idx in matches]
+    best_task = matched_tasks[0]
+    other_tasks = matched_tasks[1:]
 
-    count_str = txt.pluralize_tasks(len(matched_tasks))
-    lines = [_format_task_line(i + 1, t) for i, t in enumerate(matched_tasks)]
-    task_list = "\n".join(lines)
+    user_tz = _get_user_tz(event_update)
+    response_text = _build_search_response(best_task, other_tasks, user_tz)
 
-    return Response(
-        text=_truncate_response(txt.SEARCH_RESULTS.format(count=count_str, tasks=task_list))
-    )
+    return Response(text=response_text)
 
 
 async def handle_edit_task(
