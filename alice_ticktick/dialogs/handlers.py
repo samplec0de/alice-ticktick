@@ -141,6 +141,26 @@ def _format_task_line(idx: int, task: Task) -> str:
     return f"{idx}. {task.title}{priority_label}"
 
 
+def _format_priority_label(priority: int) -> str:
+    """Format task priority as Russian text for voice output."""
+    return {5: "высокий приоритет", 3: "средний приоритет", 1: "низкий приоритет"}.get(
+        priority, ""
+    )
+
+
+def _format_task_context(task: Task, tz: ZoneInfo) -> str:
+    """Format task date+priority as ' (завтра, высокий приоритет)' or ''."""
+    parts: list[str] = []
+    if task.due_date:
+        parts.append(_format_date(task.due_date, tz))
+    prio = _format_priority_label(task.priority)
+    if prio:
+        parts.append(prio)
+    if not parts:
+        return ""
+    return " (" + ", ".join(parts) + ")"
+
+
 def _truncate_response(text: str) -> str:
     """Truncate response to Alice's 1024-char limit."""
     if len(text) <= ALICE_RESPONSE_MAX_LENGTH:

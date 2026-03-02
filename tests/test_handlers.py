@@ -9,9 +9,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from alice_ticktick.dialogs import responses as txt
+from zoneinfo import ZoneInfo
+
 from alice_ticktick.dialogs.handlers import (
     ALICE_RESPONSE_MAX_LENGTH,
     _auth_required_response,
+    _format_priority_label,
+    _format_task_context,
     _reset_project_cache,
     _truncate_response,
     handle_add_reminder,
@@ -1881,3 +1885,57 @@ async def test_edit_remove_reminder() -> None:
     await handle_edit_task(message, intent_data, mock_factory)
     call_args = client.update_task.call_args[0][0]
     assert call_args.reminders == []
+
+
+# --- _format_priority_label ---
+
+
+class TestFormatPriorityLabel:
+    def test_high(self) -> None:
+        assert _format_priority_label(5) == "высокий приоритет"
+
+    def test_medium(self) -> None:
+        assert _format_priority_label(3) == "средний приоритет"
+
+    def test_low(self) -> None:
+        assert _format_priority_label(1) == "низкий приоритет"
+
+    def test_none(self) -> None:
+        assert _format_priority_label(0) == ""
+
+
+# --- _format_task_context ---
+
+
+class TestFormatTaskContext:
+    def test_with_date_and_priority(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime.datetime.now(tz=tz)
+        tomorrow = now + datetime.timedelta(days=1)
+        task = _make_task(title="X", due_date=tomorrow, priority=5)
+        result = _format_task_context(task, tz)
+        assert "завтра" in result
+        assert "высокий приоритет" in result
+        assert result.startswith(" (")
+        assert result.endswith(")")
+
+    def test_with_date_only(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime.datetime.now(tz=tz)
+        tomorrow = now + datetime.timedelta(days=1)
+        task = _make_task(title="X", due_date=tomorrow, priority=0)
+        result = _format_task_context(task, tz)
+        assert "завтра" in result
+        assert "приоритет" not in result
+
+    def test_with_priority_only(self) -> None:
+        tz = ZoneInfo("UTC")
+        task = _make_task(title="X", priority=3)
+        result = _format_task_context(task, tz)
+        assert "средний приоритет" in result
+
+    def test_empty(self) -> None:
+        tz = ZoneInfo("UTC")
+        task = _make_task(title="X", priority=0)
+        result = _format_task_context(task, tz)
+        assert result == ""
