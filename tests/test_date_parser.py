@@ -90,7 +90,7 @@ class TestExtractDatesFromNlu:
         """Yandex NLU: 'завтра' not in entity range but semantics included."""
         from aliceio.types import DateTimeEntity, Entity, TokensEntity
 
-        # "добавь задачу кино на завтра с 19:00 до 21:30"  # noqa: RUF003
+        # "добавь задачу кино на завтра с 19:00 до 21:30"
         nlu = MagicMock()
         nlu.tokens = [
             "добавь",

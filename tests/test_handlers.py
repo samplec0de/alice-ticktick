@@ -271,7 +271,7 @@ async def test_create_task_strips_reminder_suffix_from_name() -> None:
             "reminder_unit": {"value": "минут"},
         }
     }
-    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
     assert created_payload.title == "встреча"
 
@@ -287,7 +287,7 @@ async def test_create_task_strips_reminder_suffix_without_value() -> None:
             "reminder_unit": {"value": "час"},
         }
     }
-    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
     assert created_payload.title == "позвонить врачу"
 
@@ -327,7 +327,7 @@ async def test_create_task_with_time_range() -> None:
     """Create task with start and end time via NLU entities (hybrid approach)."""
     from aliceio.types import DateTimeEntity, Entity, TokensEntity
 
-    # Simulates "добавь задачу кино на завтра с 19:00 до 21:30"  # noqa: RUF003
+    # Simulates "добавь задачу кино на завтра с 19:00 до 21:30"
     # Tokens below match the utterance above
     # NLU entities: 2 DATETIME entities after command tokens (indices 0-1)
     entity_start = Entity(
@@ -1197,7 +1197,7 @@ async def test_delete_other_handles_da_as_confirm() -> None:
     message = _make_message(command="да")
     message.nlu = MagicMock()
     message.nlu.tokens = ["да"]
-    response = await on_delete_other(message, state)
+    await on_delete_other(message, state)
     # handle_delete_confirm deletes the task; with mocks it will either succeed
     # or raise error that gets caught. Key: state.clear was called (not re-prompted).
     state.clear.assert_called_once()
@@ -1628,7 +1628,7 @@ async def test_create_task_ejednevno_creates_daily_rrule() -> None:
             # rec_freq НЕ заполнен NLU (баг)
         }
     }
-    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=DAILY"
 
@@ -1641,10 +1641,8 @@ async def test_create_task_ezhenedelno_creates_weekly_rrule() -> None:
     message.nlu.entities = []
     message.nlu.intents = {}
     factory = _make_mock_client()
-    intent_data: dict[str, Any] = {
-        "slots": {"task_name": {"value": "уборка"}}
-    }
-    response = await handle_create_task(message, intent_data, ticktick_client_factory=factory)
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "уборка"}}}
+    await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=WEEKLY"
 
@@ -1663,7 +1661,7 @@ async def test_create_recurring_task_ejednevno_creates_daily_rrule() -> None:
             # rec_freq НЕ заполнен NLU (баг)
         }
     }
-    response = await handle_create_recurring_task(message, intent_data, ticktick_client_factory=factory)
+    await handle_create_recurring_task(message, intent_data, ticktick_client_factory=factory)
     payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=DAILY"
 

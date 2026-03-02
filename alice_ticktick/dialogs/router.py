@@ -81,6 +81,7 @@ def _try_parse_checklist_command(command: str) -> tuple[str, str] | None:
         return m.group(1).strip(), m.group(2).strip()
     return None
 
+
 router = Router(name="main")
 
 

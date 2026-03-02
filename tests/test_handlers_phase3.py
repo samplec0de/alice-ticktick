@@ -608,16 +608,20 @@ class TestChecklistDispatchFromCreateTask:
         from alice_ticktick.dialogs.intents import CREATE_TASK
         from alice_ticktick.dialogs.router import on_create_task
 
-        task = _make_task(title="Список покупок")
-        mock_factory = _make_mock_client(tasks=[task])
-
         message = _make_message()
         message.command = "добавь пункт молоко в чеклист задачи покупки"
         message.nlu = MagicMock()
-        message.nlu.tokens = ["добавь", "пункт", "молоко", "в", "чеклист", "задачи", "покупки"]
-        message.nlu.intents = {
-            CREATE_TASK: {"slots": {"task_name": {"value": "пункт молоко в чеклист задачи покупки"}}}
-        }
+        message.nlu.tokens = [
+            "добавь",
+            "пункт",
+            "молоко",
+            "в",
+            "чеклист",
+            "задачи",
+            "покупки",
+        ]
+        task_name_val = "пункт молоко в чеклист задачи покупки"
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": task_name_val}}}}
         message.nlu.entities = []
 
         intent_data = message.nlu.intents[CREATE_TASK]
@@ -629,11 +633,10 @@ class TestChecklistDispatchFromCreateTask:
             new_callable=AsyncMock,
             return_value=MagicMock(text="ok"),
         ) as mock_handler:
-            response = await on_create_task(message, intent_data, event_update)
+            await on_create_task(message, intent_data, event_update)
             mock_handler.assert_called_once()
-            # Check the fake intent_data passed to handle_add_checklist_item
             call_kwargs = mock_handler.call_args
-            fake_intent = call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs[1].get("intent_data")
+            fake_intent = call_kwargs[0][1]
             assert fake_intent is not None
             item_name = fake_intent["slots"]["item_name"]["value"]
             task_name = fake_intent["slots"]["task_name"]["value"]
@@ -651,9 +654,7 @@ class TestChecklistDispatchFromCreateTask:
         message.command = "создай задачу купить хлеб"
         message.nlu = MagicMock()
         message.nlu.tokens = ["создай", "задачу", "купить", "хлеб"]
-        message.nlu.intents = {
-            CREATE_TASK: {"slots": {"task_name": {"value": "купить хлеб"}}}
-        }
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": "купить хлеб"}}}}
         message.nlu.entities = []
 
         intent_data = message.nlu.intents[CREATE_TASK]
@@ -665,7 +666,7 @@ class TestChecklistDispatchFromCreateTask:
             new_callable=AsyncMock,
             return_value=MagicMock(text="Готово!"),
         ) as mock_create:
-            response = await on_create_task(message, intent_data, event_update)
+            await on_create_task(message, intent_data, event_update)
             mock_create.assert_called_once()
 
     async def test_multi_word_item_and_task(self) -> None:
@@ -679,13 +680,18 @@ class TestChecklistDispatchFromCreateTask:
         message.command = "добавь пункт купить мыло в чеклист задачи сменить полотенца"
         message.nlu = MagicMock()
         message.nlu.tokens = [
-            "добавь", "пункт", "купить", "мыло", "в", "чеклист", "задачи", "сменить", "полотенца"
+            "добавь",
+            "пункт",
+            "купить",
+            "мыло",
+            "в",
+            "чеклист",
+            "задачи",
+            "сменить",
+            "полотенца",
         ]
-        message.nlu.intents = {
-            CREATE_TASK: {
-                "slots": {"task_name": {"value": "пункт купить мыло в чеклист задачи сменить полотенца"}}
-            }
-        }
+        task_name_val = "пункт купить мыло в чеклист задачи сменить полотенца"
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": task_name_val}}}}
         message.nlu.entities = []
 
         intent_data = message.nlu.intents[CREATE_TASK]
@@ -697,7 +703,7 @@ class TestChecklistDispatchFromCreateTask:
             new_callable=AsyncMock,
             return_value=MagicMock(text="ok"),
         ) as mock_handler:
-            response = await on_create_task(message, intent_data, event_update)
+            await on_create_task(message, intent_data, event_update)
             mock_handler.assert_called_once()
             call_kwargs = mock_handler.call_args
             fake_intent = call_kwargs[0][1]

@@ -50,19 +50,30 @@ logger = logging.getLogger(__name__)
 ALICE_RESPONSE_MAX_LENGTH = 1024
 
 # Стоп-слова: NLU захватывает слово "задачу" как task_name при "создай задачу"
-_TASK_NAME_STOPWORDS = frozenset({
-    "задачу", "задача", "задачи", "задаче",
-    "напоминание", "напоминания",
-})
+_TASK_NAME_STOPWORDS = frozenset(
+    {
+        "задачу",
+        "задача",
+        "задачи",
+        "задаче",
+        "напоминание",
+        "напоминания",
+    }
+)
 
 _REMINDER_SUFFIX_RE = re.compile(
     r"\s+с\s+напоминанием\s+за\s+(?:\d+\s+)?(?:минуту|минуты|минут|час|часа|часов|день|дня|дней)\s*$",
     re.IGNORECASE,
 )
 
-_FIXED_RECURRENCE_TOKENS = frozenset({
-    "ежедневно", "еженедельно", "ежемесячно", "ежегодно",
-})
+_FIXED_RECURRENCE_TOKENS = frozenset(
+    {
+        "ежедневно",
+        "еженедельно",
+        "ежемесячно",
+        "ежегодно",
+    }
+)
 
 
 def _infer_rec_freq_from_tokens(

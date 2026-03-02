@@ -45,6 +45,8 @@ select = [
 ]
 ignore = [
     "RUF001",  # ambiguous unicode — expected for Russian text
+    "RUF002",  # ambiguous unicode in docstring — expected for Russian text
+    "RUF003",  # ambiguous unicode in comment — expected for Russian text
 ]
 
 [tool.pytest.ini_options]
