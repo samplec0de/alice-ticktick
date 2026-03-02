@@ -68,6 +68,11 @@ NO_TASKS_FOR_DATE = "На {date} задач нет."
 TASKS_FOR_DATE = "На {date} {count}:\n{tasks}"
 NO_TASKS_TODAY = "На сегодня задач нет. Можно отдыхать!"
 
+# Filter by priority
+TASKS_FOR_DATE_WITH_PRIORITY = "На {date} с {priority}: {count}:\n{tasks}"
+NO_TASKS_FOR_DATE_WITH_PRIORITY = "На {date} задач с {priority} нет."
+NO_TASKS_TODAY_WITH_PRIORITY = "На сегодня задач с {priority} нет."
+
 # Overdue tasks
 NO_OVERDUE = "Просроченных задач нет. Отличная работа!"
 OVERDUE_TASKS_HEADER = "Просроченных задач: {count}:\n{tasks}"
