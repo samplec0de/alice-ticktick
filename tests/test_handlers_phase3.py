@@ -464,6 +464,7 @@ class TestCheckItem:
         response = await handle_check_item(message, data, mock_factory)
         assert "Молоко" in response.text
         assert "выполненным" in response.text
+        assert "Список покупок" in response.text
 
         client = mock_factory.return_value.__aenter__.return_value
         call_args = client.update_task.call_args[0][0]
