@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import datetime
 import logging
 import re
@@ -1029,6 +1030,22 @@ async def handle_edit_task(
     if not slots.task_name:
         return Response(text=txt.EDIT_NAME_REQUIRED)
 
+    # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
+    user_tz = _get_user_tz(event_update)
+    now_local = datetime.datetime.now(tz=user_tz)
+    nlu_dates = _extract_nlu_dates(message, user_tz)
+    nlu_has_date = nlu_dates is not None and nlu_dates.start_date is not None
+
+    # Defence: grammar "(в $NewName)?" splits task names containing "в"
+    # (e.g. "сходить в озон" → task_name="сходить", new_name="озон на сегодня").
+    # If the verb is NOT "переименуй" and new_name is set, merge it back into
+    # task_name so fuzzy search works on the full name.
+    tokens = message.nlu.tokens if message.nlu else []
+    is_rename_verb = len(tokens) > 0 and tokens[0] in {"переименуй"}
+    if slots.new_name is not None and not is_rename_verb:
+        merged_name = f"{slots.task_name} в {slots.new_name}"
+        slots = dataclasses.replace(slots, task_name=merged_name, new_name=None)
+
     # Check that at least one change is specified
     has_priority = slots.new_priority is not None
     has_name = slots.new_name is not None
@@ -1038,11 +1055,6 @@ async def handle_edit_task(
     has_remove_recurrence = slots.remove_recurrence
     has_remove_reminder = slots.remove_reminder
 
-    # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
-    user_tz = _get_user_tz(event_update)
-    now_local = datetime.datetime.now(tz=user_tz)
-    nlu_dates = _extract_nlu_dates(message, user_tz)
-    nlu_has_date = nlu_dates is not None and nlu_dates.start_date is not None
     has_date = slots.new_date is not None or nlu_has_date
 
     if (
@@ -1068,14 +1080,15 @@ async def handle_edit_task(
         return Response(text=txt.API_ERROR)
 
     active_tasks = [t for t in all_tasks if t.status == 0]
+    task_name: str = slots.task_name  # type: ignore[assignment]  # guaranteed by early return
     if not active_tasks:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+        return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
 
     titles = [t.title for t in active_tasks]
-    match_result = find_best_match(slots.task_name, titles)
+    match_result = find_best_match(task_name, titles)
 
     if match_result is None:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+        return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
 
     best_match, match_idx = match_result
     matched_task = active_tasks[match_idx]
