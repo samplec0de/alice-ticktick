@@ -14,6 +14,7 @@ from alice_ticktick.dialogs.handlers import (
     ALICE_RESPONSE_MAX_LENGTH,
     _auth_required_response,
     _format_priority_label,
+    _format_priority_short,
     _format_task_context,
     _reset_project_cache,
     _truncate_response,
@@ -398,6 +399,39 @@ async def test_create_task_with_priority() -> None:
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
     assert "Важное дело" in response.text
+
+
+async def test_create_task_with_priority_confirms() -> None:
+    """Create task with priority shows priority in confirmation."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Важный отчёт"},
+            "priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=[_make_task()])
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Важный отчёт" in response.text
+    assert "приоритет" in response.text.lower()
+    assert "высокий" in response.text.lower()
+
+
+async def test_create_task_with_date_and_priority_confirms() -> None:
+    """Create task with date + priority shows both."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Отчёт"},
+            "priority": {"value": "средний"},
+            "date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=[_make_task()])
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Отчёт" in response.text
+    assert "завтра" in response.text
+    assert "средний" in response.text.lower()
 
 
 async def test_create_task_api_error() -> None:
@@ -2066,3 +2100,194 @@ class TestFormatTaskContext:
         task = _make_task(title="X", priority=0)
         result = _format_task_context(task, tz)
         assert result == ""
+
+
+# --- edit_task detailed confirmation tests ---
+
+
+async def test_edit_task_reschedule_confirms_date() -> None:
+    """Edit task with date change confirms the new date."""
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко"},
+            "new_date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "Купить молоко" in response.text
+    assert "дата" in response.text.lower()
+    assert "завтра" in response.text
+
+
+async def test_edit_task_change_priority_confirms() -> None:
+    """Edit task with priority change confirms the new priority."""
+    tasks = [_make_task(title="Купить молоко")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "купить молоко"},
+            "new_priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "Купить молоко" in response.text
+    assert "приоритет" in response.text.lower()
+    assert "высокий" in response.text.lower()
+
+
+async def test_edit_task_multiple_changes_confirms_all() -> None:
+    """Edit with date+priority confirms both changes."""
+    tasks = [_make_task(title="Отчёт")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_date": {"value": {"day": 1, "day_is_relative": True}},
+            "new_priority": {"value": "высокий"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "дата" in response.text.lower()
+    assert "приоритет" in response.text.lower()
+
+
+# --- Complete task context ---
+
+
+async def test_complete_task_confirms_with_context() -> None:
+    """Complete task shows date and priority in confirmation."""
+    tz = ZoneInfo("UTC")
+    tomorrow = datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)
+    tasks = [_make_task(title="Купить молоко", due_date=tomorrow, priority=1)]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "купить молоко"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_complete_task(message, intent_data, mock_factory)
+    assert "Купить молоко" in response.text
+    assert "завтра" in response.text
+    assert "низкий приоритет" in response.text
+    assert "выполненной" in response.text
+
+
+# --- Delete task context ---
+
+
+async def test_delete_task_confirm_shows_context() -> None:
+    """Delete confirmation shows task date."""
+    tz = ZoneInfo("UTC")
+    tomorrow = datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)
+    tasks = [_make_task(title="Старый отчёт", due_date=tomorrow)]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "старый отчёт"}},
+    }
+    state = AsyncMock()
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_delete_task(message, intent_data, state, mock_factory)
+    assert "Старый отчёт" in response.text
+    assert "завтра" in response.text
+    assert "Удалить" in response.text
+
+
+async def test_delete_confirm_success_shows_context() -> None:
+    """Delete confirm success message shows task context."""
+    message = _make_message()
+    state = _make_mock_state(
+        data={
+            "task_id": "t1",
+            "project_id": "p1",
+            "task_name": "Купить молоко",
+            "task_context": " (завтра, низкий приоритет)",
+        }
+    )
+    mock_factory = _make_mock_client()
+    response = await handle_delete_confirm(message, state, mock_factory)
+    assert "удалена" in response.text
+    assert "Купить молоко" in response.text
+    assert "завтра" in response.text
+    assert "низкий приоритет" in response.text
+
+
+# --- edit_task: rename and priority removal ---
+
+
+async def test_edit_task_rename_confirms_new_title() -> None:
+    """Edit task with name change confirms the new title."""
+    tasks = [_make_task(title="Старое название")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "старое название"},
+            "new_name": {"value": "Новое название"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+    assert "название" in response.text.lower()
+    assert "Новое название" in response.text
+
+
+async def test_edit_task_remove_priority_confirms() -> None:
+    """Edit task with priority set to none shows 'приоритет убран'."""
+    tasks = [_make_task(title="Задача", priority=5)]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "задача"},
+            "new_priority": {"value": "без приоритета"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+    assert "приоритет убран" in response.text
+
+
+# --- _format_priority_short ---
+
+
+class TestFormatPriorityShort:
+    def test_high(self) -> None:
+        assert _format_priority_short(5) == "высокий"
+
+    def test_medium(self) -> None:
+        assert _format_priority_short(3) == "средний"
+
+    def test_low(self) -> None:
+        assert _format_priority_short(1) == "низкий"
+
+    def test_none(self) -> None:
+        assert _format_priority_short(0) == ""
+
+
+# --- Search: description truncation ---
+
+
+async def test_search_task_description_truncated_when_too_long() -> None:
+    """Very long description is truncated with ellipsis."""
+    long_desc = "А" * 2000
+    tasks = [
+        Task(
+            id="t1",
+            title="Задача",
+            projectId="p1",
+            content=long_desc,
+            priority=0,
+            status=0,
+        ),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {"query": {"value": "задача"}}}
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_search_task(message, intent_data, mock_factory)
+    assert len(response.text) <= 1024
+    assert "Описание:" in response.text
+    assert response.text.rstrip().endswith("…")

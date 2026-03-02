@@ -148,6 +148,12 @@ def _format_priority_label(priority: int) -> str:
     )
 
 
+def _format_priority_short(priority: int) -> str:
+    """Format priority as short adjective: 'высокий', 'средний', 'низкий' or ''."""
+    label = _format_priority_label(priority)
+    return label.replace(" приоритет", "") if label else ""
+
+
 def _format_task_context(task: Task, tz: ZoneInfo) -> str:
     """Format task date+priority as ' (завтра, высокий приоритет)' or ''."""
     parts: list[str] = []
@@ -484,9 +490,7 @@ async def handle_create_task(
             text=txt.TASK_CREATED_WITH_REMINDER.format(name=task_name, reminder=rem_display)
         )
 
-    priority_display = _format_priority_label(priority_value)
-    # Remove " приоритет" suffix for inline use
-    priority_short = priority_display.replace(" приоритет", "") if priority_display else ""
+    priority_short = _format_priority_short(priority_value)
 
     if project_name_display:
         if date_display:
@@ -802,7 +806,6 @@ def _build_search_response(
     # 3. Checklist
     if best_task.items and budget > 30:
         checklist_header = "Чеклист:"
-        parts.append(checklist_header)
         budget -= len(checklist_header) + 1
 
         shown = 0
@@ -811,22 +814,31 @@ def _build_search_response(
             mark = "[x]" if item.status == 1 else "[ ]"
             line = f"{i}. {mark} {item.title}"
             if len(line) + 1 <= budget:
-                parts.append(line)
-                budget -= len(line) + 1
                 shown += 1
                 remaining -= 1
+                budget -= len(line) + 1
             else:
                 break
 
-        if remaining > 0 and shown > 0:
-            more_line = txt.SEARCH_CHECKLIST_MORE.format(count=remaining)
-            parts.append(more_line)
-            budget -= len(more_line) + 1
+        if shown == 0:
+            # No items fit — skip checklist section entirely
+            budget += len(checklist_header) + 1
+        else:
+            parts.append(checklist_header)
+            for i, item in enumerate(best_task.items[:shown], 1):
+                mark = "[x]" if item.status == 1 else "[ ]"
+                parts.append(f"{i}. {mark} {item.title}")
+
+            if remaining > 0:
+                more_line = txt.SEARCH_CHECKLIST_MORE.format(count=remaining)
+                if len(more_line) + 1 <= budget:
+                    parts.append(more_line)
+                    budget -= len(more_line) + 1
 
     # 4. Other matches
     if other_tasks and budget > 20:
-        parts.append(txt.SEARCH_ALSO_FOUND.strip())
-        budget -= len(txt.SEARCH_ALSO_FOUND.strip()) + 1
+        parts.append(txt.SEARCH_ALSO_FOUND)
+        budget -= len(txt.SEARCH_ALSO_FOUND) + 1
 
         for i, task in enumerate(other_tasks, 2):
             line = _format_task_line(i, task)
@@ -1111,9 +1123,9 @@ async def handle_edit_task(
     if new_due_date is not None:
         changes.append(f"дата изменена на {_format_date(new_due_date, user_tz)}")
     if new_priority_value is not None:
-        prio_label = _format_priority_label(new_priority_value)
-        if prio_label:
-            changes.append(f"приоритет — {prio_label.replace(' приоритет', '')}")
+        prio_short = _format_priority_short(new_priority_value)
+        if prio_short:
+            changes.append(f"приоритет — {prio_short}")
         else:
             changes.append("приоритет убран")
     if new_title is not None:
