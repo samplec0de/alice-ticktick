@@ -59,6 +59,10 @@ class CreateTaskSlots:
     rec_monthday: int | None = None
     reminder_value: int | None = None
     reminder_unit: str | None = None
+    duration_value: int | None = None
+    duration_unit: str | None = None
+    range_start: YandexDateTime | None = None
+    range_end: YandexDateTime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +144,10 @@ def extract_create_task_slots(intent_data: dict[str, Any]) -> CreateTaskSlots:
         rec_monthday=_as_int(_get_slot_value(intent_data, "rec_monthday")),
         reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),
         reminder_unit=_get_slot_value(intent_data, "reminder_unit"),
+        duration_value=_as_int(_get_slot_value(intent_data, "duration_value")),
+        duration_unit=_get_slot_value(intent_data, "duration_unit"),
+        range_start=_get_slot_value(intent_data, "range_start"),
+        range_end=_get_slot_value(intent_data, "range_end"),
     )
 
 

@@ -37,3 +37,53 @@ class TestParseDuration:
     def test_minutes_declensions(self) -> None:
         for word in ("минута", "минуту", "минуты", "минут"):
             assert parse_duration(15, word) == datetime.timedelta(minutes=15)
+
+
+from alice_ticktick.dialogs.intents import extract_create_task_slots
+
+
+class TestCreateTaskSlotsExtraction:
+    def test_duration_slots_extracted(self) -> None:
+        intent_data = {
+            "slots": {
+                "task_name": {"value": "совещание"},
+                "date": {"value": {"day": 1, "day_is_relative": True}},
+                "duration_value": {"value": 2},
+                "duration_unit": {"value": "часа"},
+            }
+        }
+        slots = extract_create_task_slots(intent_data)
+        assert slots.task_name == "совещание"
+        assert slots.duration_value == 2
+        assert slots.duration_unit == "часа"
+
+    def test_duration_unit_only(self) -> None:
+        intent_data = {
+            "slots": {
+                "task_name": {"value": "ланч"},
+                "duration_unit": {"value": "час"},
+            }
+        }
+        slots = extract_create_task_slots(intent_data)
+        assert slots.duration_value is None
+        assert slots.duration_unit == "час"
+
+    def test_range_slots_extracted(self) -> None:
+        intent_data = {
+            "slots": {
+                "task_name": {"value": "митинг"},
+                "range_start": {"value": {"hour": 14}},
+                "range_end": {"value": {"hour": 16}},
+            }
+        }
+        slots = extract_create_task_slots(intent_data)
+        assert slots.range_start == {"hour": 14}
+        assert slots.range_end == {"hour": 16}
+
+    def test_no_duration_fields_default_none(self) -> None:
+        intent_data = {"slots": {"task_name": {"value": "тест"}}}
+        slots = extract_create_task_slots(intent_data)
+        assert slots.duration_value is None
+        assert slots.duration_unit is None
+        assert slots.range_start is None
+        assert slots.range_end is None
