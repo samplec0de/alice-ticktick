@@ -933,7 +933,10 @@ async def test_edit_task_change_priority() -> None:
 
 async def test_edit_task_rename() -> None:
     tasks = [_make_task(title="Купить молоко")]
-    message = _make_message()
+    message = _make_message(command="переименуй задачу купить молоко в купить кефир")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["переименуй", "задачу", "купить", "молоко", "в", "купить", "кефир"]
+    message.nlu.entities = []
     intent_data: dict[str, Any] = {
         "slots": {
             "task_name": {"value": "купить молоко"},
@@ -947,6 +950,49 @@ async def test_edit_task_rename() -> None:
     client = mock_factory.return_value.__aenter__.return_value
     call_args = client.update_task.call_args[0][0]
     assert call_args.title == "Купить кефир"
+
+
+async def test_edit_task_reschedule_with_v_in_name() -> None:
+    """'Перенеси задачу сходить в озон на сегодня' must NOT rename."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    tasks = [_make_task(title="Сходить в Озон")]
+    message = _make_message(command="перенеси задачу сходить в озон на сегодня")
+    message.nlu = MagicMock()
+    message.nlu.tokens = [
+        "перенеси",
+        "задачу",
+        "сходить",
+        "в",
+        "озон",
+        "на",
+        "сегодня",
+    ]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=5, end=7),
+            value=DateTimeEntity(day=0, day_is_relative=True),
+        ),
+    ]
+    # Grammar splits: task_name="сходить", new_name="озон на сегодня"
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "сходить"},
+            "new_name": {"value": "озон на сегодня"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+
+    # Must NOT rename — title should be None (unchanged)
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.title is None
+    # Must reschedule (NLU date detected)
+    assert call_args.due_date is not None
+    # Confirmation should mention the right task
+    assert "Сходить в Озон" in response.text
 
 
 async def test_edit_task_not_found() -> None:
@@ -2221,7 +2267,10 @@ async def test_delete_confirm_success_shows_context() -> None:
 async def test_edit_task_rename_confirms_new_title() -> None:
     """Edit task with name change confirms the new title."""
     tasks = [_make_task(title="Старое название")]
-    message = _make_message()
+    message = _make_message(command="переименуй задачу старое название в новое название")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["переименуй", "задачу", "старое", "название", "в", "новое", "название"]
+    message.nlu.entities = []
     intent_data: dict[str, Any] = {
         "slots": {
             "task_name": {"value": "старое название"},
