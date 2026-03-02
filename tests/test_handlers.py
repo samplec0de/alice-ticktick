@@ -1480,6 +1480,21 @@ def test_extract_edit_task_slots_fixed_rec_freq_fallback() -> None:
     assert slots.rec_freq == "ежедневно"
 
 
+def test_extract_edit_task_slots_rec_freq_preferred_over_fixed() -> None:
+    """When both rec_freq and fixed_rec_freq are set, rec_freq wins."""
+    from alice_ticktick.dialogs.intents import extract_edit_task_slots
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "зарядка"},
+            "rec_freq": {"value": "понедельник"},
+            "fixed_rec_freq": {"value": "ежедневно"},
+        },
+    }
+    slots = extract_edit_task_slots(intent_data)
+    assert slots.rec_freq == "понедельник"
+
+
 def test_extract_edit_task_slots_with_project() -> None:
     """Verify new_project is extracted from edit_task intent."""
     from alice_ticktick.dialogs.intents import extract_edit_task_slots
