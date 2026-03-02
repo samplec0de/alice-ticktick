@@ -507,6 +507,97 @@ async def test_list_tasks_api_error() -> None:
     assert response.text == txt.API_ERROR
 
 
+async def test_list_tasks_filter_by_priority() -> None:
+    """Filter tasks by priority — only high-priority tasks returned."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Важная", priority=5, due_date=today),
+        _make_task(task_id="task-2", title="Обычная", priority=0, due_date=today),
+        _make_task(task_id="task-3", title="Ещё важная", priority=5, due_date=today),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"priority": {"value": "высокий"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "Важная" in response.text
+    assert "Ещё важная" in response.text
+    assert "Обычная" not in response.text
+    assert "высокий приоритет" in response.text
+
+
+async def test_list_tasks_filter_by_priority_no_matches() -> None:
+    """Filter by priority when no tasks match — specific empty message."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Обычная", priority=0, due_date=today),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"priority": {"value": "высокий"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "высокий приоритет" in response.text
+    assert "нет" in response.text
+
+
+async def test_list_tasks_filter_by_priority_with_date() -> None:
+    """Filter tasks by priority + specific date."""
+    tomorrow = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=1)
+    tomorrow_dt = datetime.datetime.combine(
+        tomorrow,
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Срочная", priority=5, due_date=tomorrow_dt),
+        _make_task(task_id="task-2", title="Несрочная", priority=1, due_date=tomorrow_dt),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "date": {"value": {"day": 1, "day_is_relative": True}},
+            "priority": {"value": "срочный"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "Срочная" in response.text
+    assert "Несрочная" not in response.text
+    assert "завтра" in response.text
+
+
+async def test_list_tasks_unknown_priority_ignored() -> None:
+    """Unknown priority string — ignore filter, show all tasks."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Задача 1", priority=5, due_date=today),
+        _make_task(task_id="task-2", title="Задача 2", priority=0, due_date=today),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"priority": {"value": "абракадабра"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "Задача 1" in response.text
+    assert "Задача 2" in response.text
+
+
 # --- Overdue tasks ---
 
 

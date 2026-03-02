@@ -779,7 +779,26 @@ async def handle_list_tasks(
         and t.status == 0
     ]
 
+    # Apply priority filter if provided
+    priority_filter = parse_priority(slots.priority) if slots.priority else None
+    priority_label = (
+        _format_priority_label(priority_filter) if priority_filter is not None else None
+    )
+
+    if priority_filter is not None:
+        day_tasks = [t for t in day_tasks if t.priority == priority_filter]
+
     if not day_tasks:
+        if priority_label:
+            if target_day == datetime.datetime.now(tz=user_tz).date():
+                return Response(
+                    text=txt.NO_TASKS_TODAY_WITH_PRIORITY.format(priority=priority_label)
+                )
+            return Response(
+                text=txt.NO_TASKS_FOR_DATE_WITH_PRIORITY.format(
+                    date=date_display, priority=priority_label
+                )
+            )
         if target_day == datetime.datetime.now(tz=user_tz).date():
             return Response(text=txt.NO_TASKS_TODAY)
         return Response(text=txt.NO_TASKS_FOR_DATE.format(date=date_display))
@@ -787,6 +806,18 @@ async def handle_list_tasks(
     count_str = txt.pluralize_tasks(len(day_tasks))
     lines = [_format_task_line(i + 1, t) for i, t in enumerate(day_tasks[:5])]
     task_list = "\n".join(lines)
+
+    if priority_label:
+        return Response(
+            text=_truncate_response(
+                txt.TASKS_FOR_DATE_WITH_PRIORITY.format(
+                    date=date_display,
+                    priority=priority_label,
+                    count=count_str,
+                    tasks=task_list,
+                )
+            )
+        )
 
     return Response(
         text=_truncate_response(
