@@ -17,6 +17,7 @@ from alice_ticktick.dialogs.handlers import (
     handle_add_subtask,
     handle_check_item,
     handle_complete_task,
+    handle_create_project,
     handle_create_recurring_task,
     handle_create_task,
     handle_delete_checklist_item,
@@ -26,9 +27,11 @@ from alice_ticktick.dialogs.handlers import (
     handle_edit_task,
     handle_goodbye,
     handle_help,
+    handle_list_projects,
     handle_list_subtasks,
     handle_list_tasks,
     handle_overdue_tasks,
+    handle_project_tasks,
     handle_search_task,
     handle_show_checklist,
     handle_unknown,
@@ -40,14 +43,17 @@ from alice_ticktick.dialogs.intents import (
     ADD_SUBTASK,
     CHECK_ITEM,
     COMPLETE_TASK,
+    CREATE_PROJECT,
     CREATE_RECURRING_TASK,
     CREATE_TASK,
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
     EDIT_TASK,
+    LIST_PROJECTS,
     LIST_SUBTASKS,
     LIST_TASKS,
     OVERDUE_TASKS,
+    PROJECT_TASKS,
     SEARCH_TASK,
     SHOW_CHECKLIST,
 )
@@ -170,6 +176,29 @@ async def on_create_task(
                     message, fake_intent_data, event_update=event_update
                 )
     return await handle_create_task(message, intent_data, event_update=event_update)
+
+
+# --- Project intents BEFORE generic list_tasks ---
+@router.message(IntentFilter(LIST_PROJECTS))
+async def on_list_projects(message: Message, event_update: Update) -> Response:
+    """Handle list_projects intent."""
+    return await handle_list_projects(message, event_update=event_update)
+
+
+@router.message(IntentFilter(PROJECT_TASKS))
+async def on_project_tasks(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
+    """Handle project_tasks intent."""
+    return await handle_project_tasks(message, intent_data, event_update=event_update)
+
+
+@router.message(IntentFilter(CREATE_PROJECT))
+async def on_create_project(
+    message: Message, intent_data: dict[str, Any], event_update: Update
+) -> Response:
+    """Handle create_project intent."""
+    return await handle_create_project(message, intent_data, event_update=event_update)
 
 
 # --- Specific "покажи..." intents BEFORE generic list_tasks ---

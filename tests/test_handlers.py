@@ -134,6 +134,7 @@ async def test_handle_welcome() -> None:
     response = await handle_welcome(message)
     assert response.text == txt.WELCOME
     assert response.tts == txt.WELCOME_TTS
+    assert "Слушаю" in response.tts
 
 
 async def test_handle_help() -> None:
@@ -278,11 +279,11 @@ async def test_create_task_strips_reminder_suffix_from_name() -> None:
     }
     await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
-    assert created_payload.title == "встреча"
+    assert created_payload.title == "Встреча"
 
 
 async def test_create_task_strips_reminder_suffix_without_value() -> None:
-    """'позвонить врачу с напоминанием за час' -> 'позвонить врачу'."""
+    """'позвонить врачу с напоминанием за час' -> 'Позвонить врачу'."""
     message = _make_message(command="создай задачу позвонить врачу с напоминанием за час")
     message.nlu = None
     factory = _make_mock_client()
@@ -294,7 +295,7 @@ async def test_create_task_strips_reminder_suffix_without_value() -> None:
     }
     await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
-    assert created_payload.title == "позвонить врачу"
+    assert created_payload.title == "Позвонить врачу"
 
 
 async def test_create_task_success() -> None:
@@ -435,6 +436,20 @@ async def test_create_task_with_date_and_priority_confirms() -> None:
     assert "средний" in response.text.lower()
 
 
+async def test_create_task_capitalizes_first_letter() -> None:
+    """Task name should have its first letter capitalized."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "купить молоко"}},
+    }
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Купить молоко" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.title == "Купить молоко"
+
+
 async def test_create_task_api_error() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {
@@ -505,6 +520,97 @@ async def test_list_tasks_api_error() -> None:
     )
     response = await handle_list_tasks(message, intent_data, mock_factory)
     assert response.text == txt.API_ERROR
+
+
+async def test_list_tasks_filter_by_priority() -> None:
+    """Filter tasks by priority — only high-priority tasks returned."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Важная", priority=5, due_date=today),
+        _make_task(task_id="task-2", title="Обычная", priority=0, due_date=today),
+        _make_task(task_id="task-3", title="Ещё важная", priority=5, due_date=today),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"priority": {"value": "высокий"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "Важная" in response.text
+    assert "Ещё важная" in response.text
+    assert "Обычная" not in response.text
+    assert "высокий приоритет" in response.text
+
+
+async def test_list_tasks_filter_by_priority_no_matches() -> None:
+    """Filter by priority when no tasks match — specific empty message."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Обычная", priority=0, due_date=today),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"priority": {"value": "высокий"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "высокий приоритет" in response.text
+    assert "нет" in response.text
+
+
+async def test_list_tasks_filter_by_priority_with_date() -> None:
+    """Filter tasks by priority + specific date."""
+    tomorrow = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=1)
+    tomorrow_dt = datetime.datetime.combine(
+        tomorrow,
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Срочная", priority=5, due_date=tomorrow_dt),
+        _make_task(task_id="task-2", title="Несрочная", priority=1, due_date=tomorrow_dt),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "date": {"value": {"day": 1, "day_is_relative": True}},
+            "priority": {"value": "срочный"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "Срочная" in response.text
+    assert "Несрочная" not in response.text
+    assert "завтра" in response.text
+
+
+async def test_list_tasks_unknown_priority_ignored() -> None:
+    """Unknown priority string — ignore filter, show all tasks."""
+    today = datetime.datetime.combine(
+        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.time(),
+        tzinfo=datetime.UTC,
+    )
+    tasks = [
+        _make_task(title="Задача 1", priority=5, due_date=today),
+        _make_task(task_id="task-2", title="Задача 2", priority=0, due_date=today),
+    ]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"priority": {"value": "абракадабра"}},
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert "Задача 1" in response.text
+    assert "Задача 2" in response.text
 
 
 # --- Overdue tasks ---
@@ -1774,7 +1880,7 @@ async def test_create_daily_recurring() -> None:
     message = _make_message(command="создай задачу зарядка каждый день")
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
-    assert "зарядка" in response.text
+    assert "Зарядка" in response.text
     assert "создана" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
@@ -1791,7 +1897,7 @@ async def test_create_weekly_monday() -> None:
     message = _make_message(command="создай задачу стендап каждый понедельник")
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
-    assert "стендап" in response.text
+    assert "Стендап" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
@@ -1824,7 +1930,7 @@ async def test_create_with_reminder() -> None:
     message = _make_message(command="создай задачу встреча с напоминанием за 30 минут")
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
-    assert "встреча" in response.text
+    assert "Встреча" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.reminders == ["TRIGGER:-PT30M"]
@@ -1877,7 +1983,7 @@ async def test_create_recurring_delegates() -> None:
     message = _make_message(command="напоминай каждый понедельник проверить отчёт")
     mock_factory = _make_mock_client()
     response = await handle_create_recurring_task(message, intent_data, mock_factory)
-    assert "проверить отчёт" in response.text
+    assert "Проверить отчёт" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
@@ -2283,6 +2389,28 @@ async def test_edit_task_rename_confirms_new_title() -> None:
     assert "обновлена" in response.text
     assert "название" in response.text.lower()
     assert "Новое название" in response.text
+
+
+async def test_edit_task_rename_capitalizes_first_letter() -> None:
+    """Rename should capitalize the first letter of the new name."""
+    tasks = [_make_task(title="Старое название")]
+    message = _make_message(command="переименуй задачу старое название в новое название")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["переименуй", "задачу", "старое", "название", "в", "новое", "название"]
+    message.nlu.entities = []
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "старое название"},
+            "new_name": {"value": "новое название"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+    assert "Новое название" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.update_task.call_args[0][0]
+    assert payload.title == "Новое название"
 
 
 async def test_edit_task_remove_priority_confirms() -> None:

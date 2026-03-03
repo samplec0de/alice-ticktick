@@ -1,11 +1,19 @@
 root:
     %lemma
+    (какие | покажи | что) (у меня)? $Priority (задачи | задач | дела) (на | в | за)? $Date?
     (какие | покажи | что) (у меня)? (задачи | задач | дела | запланировано)? (на | в | за)? $Date
+    (какие | покажи | что) (задачи | задач | дела) с $Priority приоритет (на | в | за)? $Date?
 
 slots:
     date:
         source: $Date
         type: YANDEX.DATETIME
+    priority:
+        source: $Priority
+        type: YANDEX.STRING
 
 $Date:
     $YANDEX.DATETIME
+
+$Priority:
+    .+

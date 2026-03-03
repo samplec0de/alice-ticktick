@@ -369,7 +369,9 @@ async def handle_create_task(
     due_date_str: str | None = None
     is_all_day: bool | None = None
     date_display: str | None = None
-    task_name = slots.task_name
+    task_name = (
+        slots.task_name[:1].upper() + slots.task_name[1:] if slots.task_name else slots.task_name
+    )
 
     # Обрезать суффикс "с напоминанием за N единиц" из названия задачи
     if slots.reminder_unit is not None:
@@ -638,7 +640,7 @@ async def handle_create_task(
         return Response(
             text=txt.TASK_CREATED_WITH_PRIORITY.format(name=task_name, priority=priority_short)
         )
-    return Response(text=txt.TASK_CREATED.format(name=slots.task_name))
+    return Response(text=txt.TASK_CREATED.format(name=task_name))
 
 
 async def handle_create_recurring_task(
@@ -779,7 +781,26 @@ async def handle_list_tasks(
         and t.status == 0
     ]
 
+    # Apply priority filter if provided
+    priority_filter = parse_priority(slots.priority) if slots.priority else None
+    priority_label = (
+        _format_priority_label(priority_filter) if priority_filter is not None else None
+    )
+
+    if priority_filter is not None:
+        day_tasks = [t for t in day_tasks if t.priority == priority_filter]
+
     if not day_tasks:
+        if priority_label:
+            if target_day == datetime.datetime.now(tz=user_tz).date():
+                return Response(
+                    text=txt.NO_TASKS_TODAY_WITH_PRIORITY.format(priority=priority_label)
+                )
+            return Response(
+                text=txt.NO_TASKS_FOR_DATE_WITH_PRIORITY.format(
+                    date=date_display, priority=priority_label
+                )
+            )
         if target_day == datetime.datetime.now(tz=user_tz).date():
             return Response(text=txt.NO_TASKS_TODAY)
         return Response(text=txt.NO_TASKS_FOR_DATE.format(date=date_display))
@@ -787,6 +808,18 @@ async def handle_list_tasks(
     count_str = txt.pluralize_tasks(len(day_tasks))
     lines = [_format_task_line(i + 1, t) for i, t in enumerate(day_tasks[:5])]
     task_list = "\n".join(lines)
+
+    if priority_label:
+        return Response(
+            text=_truncate_response(
+                txt.TASKS_FOR_DATE_WITH_PRIORITY.format(
+                    date=date_display,
+                    priority=priority_label,
+                    count=count_str,
+                    tasks=task_list,
+                )
+            )
+        )
 
     return Response(
         text=_truncate_response(
@@ -1093,7 +1126,9 @@ async def handle_edit_task(
     matched_task = active_tasks[match_idx]
 
     # Build update payload
-    new_title: str | None = slots.new_name if has_name else None
+    new_title: str | None = (
+        slots.new_name[:1].upper() + slots.new_name[1:] if has_name and slots.new_name else None
+    )
 
     new_start_date: datetime.datetime | None = None
     new_due_date: datetime.datetime | None = None
@@ -1754,6 +1789,124 @@ async def handle_delete_checklist_item(
     return Response(
         text=txt.CHECKLIST_ITEM_DELETED.format(item=matched_item_title, task=best_match)
     )
+
+
+async def handle_list_projects(
+    message: Message,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle list_projects intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            projects = await client.get_projects()
+    except Exception:
+        logger.exception("Failed to list projects")
+        return Response(text=txt.API_ERROR)
+
+    if not projects:
+        return Response(text=txt.NO_PROJECTS)
+
+    lines = [f"{i + 1}. {p.name}" for i, p in enumerate(projects)]
+    n = len(projects)
+    if n % 10 == 1 and n % 100 != 11:
+        count_str = f"{n} проект"
+    elif n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        count_str = f"{n} проекта"
+    else:
+        count_str = f"{n} проектов"
+    return Response(text=txt.PROJECTS_LIST.format(count=count_str, projects="\n".join(lines)))
+
+
+async def handle_project_tasks(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle project_tasks intent — show tasks from a specific project."""
+    from alice_ticktick.dialogs.intents import extract_project_tasks_slots
+
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    slots = extract_project_tasks_slots(intent_data)
+    if not slots.project_name:
+        return Response(text=txt.PROJECT_TASKS_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            projects = await client.get_projects()
+            project = _find_project_by_name(projects, slots.project_name)
+            if project is None:
+                names = ", ".join(p.name for p in projects) if projects else "—"
+                return Response(
+                    text=txt.PROJECT_NOT_FOUND.format(name=slots.project_name, projects=names)
+                )
+            tasks = await client.get_tasks(project.id)
+    except Exception:
+        logger.exception("Failed to get project tasks")
+        return Response(text=txt.API_ERROR)
+
+    active = [t for t in tasks if t.status == 0]
+    if not active:
+        return Response(text=txt.PROJECT_NO_TASKS.format(project=project.name))
+
+    user_tz = _get_user_tz(event_update)
+    lines: list[str] = []
+    for i, task in enumerate(active[:10]):
+        line = f"{i + 1}. {task.title}"
+        parts: list[str] = []
+        if task.due_date:
+            parts.append(_format_date(task.due_date, user_tz))
+        prio = _format_priority_short(task.priority)
+        if prio:
+            parts.append(prio)
+        if parts:
+            line += f" — {', '.join(parts)}"
+        lines.append(line)
+
+    count = txt.pluralize_tasks(len(active))
+    text = txt.PROJECT_TASKS_HEADER.format(
+        project=project.name, count=count, tasks="\n".join(lines)
+    )
+    return Response(text=_truncate_response(text))
+
+
+async def handle_create_project(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle create_project intent."""
+    from alice_ticktick.dialogs.intents import extract_create_project_slots
+
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    slots = extract_create_project_slots(intent_data)
+    if not slots.project_name:
+        return Response(text=txt.PROJECT_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            await client.create_project(slots.project_name)
+            _invalidate_task_cache()
+    except Exception:
+        logger.exception("Failed to create project")
+        return Response(text=txt.PROJECT_CREATE_ERROR)
+
+    return Response(text=txt.PROJECT_CREATED.format(name=slots.project_name))
 
 
 async def handle_unknown(message: Message) -> Response:

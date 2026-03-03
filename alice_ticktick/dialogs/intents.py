@@ -24,6 +24,9 @@ CHECK_ITEM = "check_item"
 DELETE_CHECKLIST_ITEM = "delete_checklist_item"
 CREATE_RECURRING_TASK = "create_recurring_task"
 ADD_REMINDER = "add_reminder"
+LIST_PROJECTS = "list_projects"
+PROJECT_TASKS = "project_tasks"
+CREATE_PROJECT = "create_project"
 
 ALL_INTENTS = frozenset(
     {
@@ -42,6 +45,9 @@ ALL_INTENTS = frozenset(
         DELETE_CHECKLIST_ITEM,
         CREATE_RECURRING_TASK,
         ADD_REMINDER,
+        LIST_PROJECTS,
+        PROJECT_TASKS,
+        CREATE_PROJECT,
     }
 )
 
@@ -70,6 +76,7 @@ class ListTasksSlots:
     """Extracted slots for list_tasks intent."""
 
     date: YandexDateTime | None = None
+    priority: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +162,7 @@ def extract_list_tasks_slots(intent_data: dict[str, Any]) -> ListTasksSlots:
     """Extract slots from list_tasks intent."""
     return ListTasksSlots(
         date=_get_slot_value(intent_data, "date"),
+        priority=_get_slot_value(intent_data, "priority"),
     )
 
 
@@ -316,6 +324,20 @@ class AddReminderSlots:
     reminder_unit: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectTasksSlots:
+    """Extracted slots for project_tasks intent."""
+
+    project_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CreateProjectSlots:
+    """Extracted slots for create_project intent."""
+
+    project_name: str | None = None
+
+
 def extract_create_recurring_task_slots(
     intent_data: dict[str, Any],
 ) -> CreateRecurringTaskSlots:
@@ -337,4 +359,18 @@ def extract_add_reminder_slots(intent_data: dict[str, Any]) -> AddReminderSlots:
         task_name=_get_slot_value(intent_data, "task_name"),
         reminder_value=_as_int(_get_slot_value(intent_data, "reminder_value")),
         reminder_unit=_get_slot_value(intent_data, "reminder_unit"),
+    )
+
+
+def extract_project_tasks_slots(intent_data: dict[str, Any]) -> ProjectTasksSlots:
+    """Extract slots from project_tasks intent."""
+    return ProjectTasksSlots(
+        project_name=_get_slot_value(intent_data, "project_name"),
+    )
+
+
+def extract_create_project_slots(intent_data: dict[str, Any]) -> CreateProjectSlots:
+    """Extract slots from create_project intent."""
+    return CreateProjectSlots(
+        project_name=_get_slot_value(intent_data, "project_name"),
     )

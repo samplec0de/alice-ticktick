@@ -97,6 +97,12 @@ class TickTickClient:
         _raise_for_status(response)
         return [Project.model_validate(p) for p in response.json()]
 
+    async def create_project(self, name: str) -> Project:
+        """Create a new project."""
+        response = await self._client.post("/project", json={"name": name})
+        _raise_for_status(response)
+        return Project.model_validate(response.json())
+
     # -- Inbox --
 
     async def get_inbox_tasks(self) -> list[Task]:

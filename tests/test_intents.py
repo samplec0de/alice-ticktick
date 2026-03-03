@@ -11,26 +11,31 @@ from alice_ticktick.dialogs.intents import (
     ALL_INTENTS,
     CHECK_ITEM,
     COMPLETE_TASK,
+    CREATE_PROJECT,
     CREATE_RECURRING_TASK,
     CREATE_TASK,
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
     EDIT_TASK,
+    LIST_PROJECTS,
     LIST_SUBTASKS,
     LIST_TASKS,
     OVERDUE_TASKS,
+    PROJECT_TASKS,
     SEARCH_TASK,
     SHOW_CHECKLIST,
     extract_add_checklist_item_slots,
     extract_add_subtask_slots,
     extract_check_item_slots,
     extract_complete_task_slots,
+    extract_create_project_slots,
     extract_create_task_slots,
     extract_delete_checklist_item_slots,
     extract_delete_task_slots,
     extract_edit_task_slots,
     extract_list_subtasks_slots,
     extract_list_tasks_slots,
+    extract_project_tasks_slots,
     extract_search_task_slots,
     extract_show_checklist_slots,
 )
@@ -53,9 +58,12 @@ class TestIntentConstants:
         assert DELETE_CHECKLIST_ITEM in ALL_INTENTS
         assert CREATE_RECURRING_TASK in ALL_INTENTS
         assert ADD_REMINDER in ALL_INTENTS
+        assert LIST_PROJECTS in ALL_INTENTS
+        assert PROJECT_TASKS in ALL_INTENTS
+        assert CREATE_PROJECT in ALL_INTENTS
 
     def test_all_intents_count(self) -> None:
-        assert len(ALL_INTENTS) == 15
+        assert len(ALL_INTENTS) == 18
 
 
 class TestCreateTaskSlots:
@@ -101,6 +109,31 @@ class TestListTasksSlots:
         data: dict[str, Any] = {"slots": {}}
         slots = extract_list_tasks_slots(data)
         assert slots.date is None
+
+    def test_with_priority(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "priority": {"type": "YANDEX.STRING", "value": "высокий"},
+            },
+        }
+        slots = extract_list_tasks_slots(data)
+        assert slots.priority == "высокий"
+
+    def test_with_date_and_priority(self) -> None:
+        data: dict[str, Any] = {
+            "slots": {
+                "date": {"type": "YANDEX.DATETIME", "value": {"day": 5, "month": 3}},
+                "priority": {"type": "YANDEX.STRING", "value": "срочный"},
+            },
+        }
+        slots = extract_list_tasks_slots(data)
+        assert slots.date == {"day": 5, "month": 3}
+        assert slots.priority == "срочный"
+
+    def test_no_priority(self) -> None:
+        data: dict[str, Any] = {"slots": {}}
+        slots = extract_list_tasks_slots(data)
+        assert slots.priority is None
 
 
 class TestCompleteTaskSlots:
@@ -315,3 +348,36 @@ class TestDeleteChecklistItemSlots:
         slots = extract_delete_checklist_item_slots(data)
         assert slots.item_name is None
         assert slots.task_name is None
+
+
+class TestProjectIntentConstants:
+    def test_list_projects_intent_id(self) -> None:
+        assert LIST_PROJECTS == "list_projects"
+
+    def test_project_tasks_intent_id(self) -> None:
+        assert PROJECT_TASKS == "project_tasks"
+
+    def test_create_project_intent_id(self) -> None:
+        assert CREATE_PROJECT == "create_project"
+
+
+class TestProjectTasksSlots:
+    def test_extract_project_tasks_slots(self) -> None:
+        data: dict[str, Any] = {"slots": {"project_name": {"value": "Работа"}}}
+        slots = extract_project_tasks_slots(data)
+        assert slots.project_name == "Работа"
+
+    def test_extract_project_tasks_slots_empty(self) -> None:
+        slots = extract_project_tasks_slots({"slots": {}})
+        assert slots.project_name is None
+
+
+class TestCreateProjectSlots:
+    def test_extract_create_project_slots(self) -> None:
+        data: dict[str, Any] = {"slots": {"project_name": {"value": "Travel"}}}
+        slots = extract_create_project_slots(data)
+        assert slots.project_name == "Travel"
+
+    def test_extract_create_project_slots_empty(self) -> None:
+        slots = extract_create_project_slots({"slots": {}})
+        assert slots.project_name is None
