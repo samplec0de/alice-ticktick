@@ -87,6 +87,21 @@ async def test_list_projects_empty() -> None:
     assert response.text == txt.NO_PROJECTS
 
 
+async def test_list_projects_filters_closed() -> None:
+    projects = [
+        _make_project(project_id="p1", name="Работа"),
+        Project(id="p2", name="Архив", closed=True),
+        _make_project(project_id="p3", name="Дом"),
+    ]
+    message = _make_message()
+    response = await handle_list_projects(
+        message, ticktick_client_factory=_make_mock_client(projects=projects)
+    )
+    assert "Работа" in response.text
+    assert "Дом" in response.text
+    assert "Архив" not in response.text
+
+
 async def test_list_projects_api_error() -> None:
     factory = _make_mock_client()
     factory.return_value.__aenter__.return_value.get_projects = AsyncMock(

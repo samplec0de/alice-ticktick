@@ -51,6 +51,7 @@ class Project(BaseModel):
 
     id: str
     name: str
+    closed: bool | None = None
 
 
 class TaskCreate(BaseModel):
