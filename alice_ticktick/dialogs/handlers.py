@@ -1876,6 +1876,35 @@ async def handle_project_tasks(
     return Response(text=_truncate_response(text))
 
 
+async def handle_create_project(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle create_project intent."""
+    from alice_ticktick.dialogs.intents import extract_create_project_slots
+
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    slots = extract_create_project_slots(intent_data)
+    if not slots.project_name:
+        return Response(text=txt.PROJECT_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            await client.create_project(slots.project_name)
+            _invalidate_task_cache()
+    except Exception:
+        logger.exception("Failed to create project")
+        return Response(text=txt.PROJECT_CREATE_ERROR)
+
+    return Response(text=txt.PROJECT_CREATED.format(name=slots.project_name))
+
+
 async def handle_unknown(message: Message) -> Response:
     """Handle unrecognized commands."""
     return Response(text=txt.UNKNOWN)

@@ -10,6 +10,7 @@ import pytest
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.handlers import (
     _reset_project_cache,
+    handle_create_project,
     handle_list_projects,
     handle_project_tasks,
 )
@@ -181,3 +182,51 @@ async def test_project_tasks_api_error() -> None:
         ticktick_client_factory=factory,
     )
     assert response.text == txt.API_ERROR
+
+
+# --- handle_create_project ---
+
+
+async def test_create_project_no_auth() -> None:
+    message = _make_message(access_token=None)
+    response = await handle_create_project(
+        message, _make_intent_data("Test"),
+        ticktick_client_factory=_make_mock_client(),
+    )
+    assert txt.AUTH_REQUIRED_NO_LINKING in response.text
+
+
+async def test_create_project_no_name() -> None:
+    message = _make_message()
+    response = await handle_create_project(
+        message, _make_intent_data(),
+        ticktick_client_factory=_make_mock_client(),
+    )
+    assert response.text == txt.PROJECT_NAME_REQUIRED
+
+
+async def test_create_project_success() -> None:
+    created = _make_project(project_id="p-new", name="Travel")
+    factory = _make_mock_client()
+    factory.return_value.__aenter__.return_value.create_project = AsyncMock(
+        return_value=created
+    )
+    message = _make_message()
+    response = await handle_create_project(
+        message, _make_intent_data("Travel"),
+        ticktick_client_factory=factory,
+    )
+    assert response.text == txt.PROJECT_CREATED.format(name="Travel")
+
+
+async def test_create_project_api_error() -> None:
+    factory = _make_mock_client()
+    factory.return_value.__aenter__.return_value.create_project = AsyncMock(
+        side_effect=Exception("fail")
+    )
+    message = _make_message()
+    response = await handle_create_project(
+        message, _make_intent_data("X"),
+        ticktick_client_factory=factory,
+    )
+    assert response.text == txt.PROJECT_CREATE_ERROR
