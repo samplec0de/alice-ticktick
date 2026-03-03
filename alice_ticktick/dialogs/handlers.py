@@ -213,7 +213,8 @@ async def _get_cached_projects(client: TickTickClient) -> list[Project]:
     if _cached_projects is not None and now - _cached_projects_ts < _PROJECT_CACHE_TTL:
         return list(_cached_projects)
 
-    projects = await client.get_projects()
+    all_projects = await client.get_projects()
+    projects = [p for p in all_projects if not p.closed]
     _cached_projects = projects
     _cached_projects_ts = time.monotonic()
     return projects
@@ -1808,6 +1809,8 @@ async def handle_list_projects(
     except Exception:
         logger.exception("Failed to list projects")
         return Response(text=txt.API_ERROR)
+
+    projects = [p for p in projects if not p.closed]
 
     if not projects:
         return Response(text=txt.NO_PROJECTS)
