@@ -370,9 +370,7 @@ async def handle_create_task(
     is_all_day: bool | None = None
     date_display: str | None = None
     task_name = (
-        slots.task_name[:1].upper() + slots.task_name[1:]
-        if slots.task_name
-        else slots.task_name
+        slots.task_name[:1].upper() + slots.task_name[1:] if slots.task_name else slots.task_name
     )
 
     # Обрезать суффикс "с напоминанием за N единиц" из названия задачи
@@ -1129,9 +1127,7 @@ async def handle_edit_task(
 
     # Build update payload
     new_title: str | None = (
-        slots.new_name[:1].upper() + slots.new_name[1:]
-        if has_name and slots.new_name
-        else None
+        slots.new_name[:1].upper() + slots.new_name[1:] if has_name and slots.new_name else None
     )
 
     new_start_date: datetime.datetime | None = None
