@@ -134,6 +134,7 @@ async def test_handle_welcome() -> None:
     response = await handle_welcome(message)
     assert response.text == txt.WELCOME
     assert response.tts == txt.WELCOME_TTS
+    assert "Слушаю" in response.tts
 
 
 async def test_handle_help() -> None:
