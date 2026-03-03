@@ -39,7 +39,9 @@ def _make_project(*, project_id: str = "proj-1", name: str = "Inbox") -> Project
     return Project(id=project_id, name=name)
 
 
-def _make_mock_client(projects: list[Project] | None = None, tasks: list[Any] | None = None) -> type:
+def _make_mock_client(
+    projects: list[Project] | None = None, tasks: list[Any] | None = None
+) -> type:
     if projects is None:
         projects = [_make_project()]
     client = AsyncMock()
@@ -96,12 +98,21 @@ async def test_list_projects_api_error() -> None:
 
 
 def _make_task(
-    *, task_id: str = "t1", title: str = "Test", project_id: str = "p1",
-    priority: int = 0, status: int = 0, due_date: Any = None,
+    *,
+    task_id: str = "t1",
+    title: str = "Test",
+    project_id: str = "p1",
+    priority: int = 0,
+    status: int = 0,
+    due_date: Any = None,
 ) -> Task:
     return Task(
-        id=task_id, title=title, projectId=project_id,
-        priority=priority, status=status, dueDate=due_date,
+        id=task_id,
+        title=title,
+        projectId=project_id,
+        priority=priority,
+        status=status,
+        dueDate=due_date,
     )
 
 
@@ -118,7 +129,8 @@ def _make_intent_data(project_name: str | None = None) -> dict[str, Any]:
 async def test_project_tasks_no_auth() -> None:
     message = _make_message(access_token=None)
     response = await handle_project_tasks(
-        message, _make_intent_data("Работа"),
+        message,
+        _make_intent_data("Работа"),
         ticktick_client_factory=_make_mock_client(),
     )
     assert txt.AUTH_REQUIRED_NO_LINKING in response.text
@@ -127,7 +139,8 @@ async def test_project_tasks_no_auth() -> None:
 async def test_project_tasks_no_name() -> None:
     message = _make_message()
     response = await handle_project_tasks(
-        message, _make_intent_data(),
+        message,
+        _make_intent_data(),
         ticktick_client_factory=_make_mock_client(),
     )
     assert response.text == txt.PROJECT_TASKS_NAME_REQUIRED
@@ -137,7 +150,8 @@ async def test_project_tasks_not_found() -> None:
     projects = [_make_project(project_id="p1", name="Дом")]
     message = _make_message()
     response = await handle_project_tasks(
-        message, _make_intent_data("Несуществующий"),
+        message,
+        _make_intent_data("Несуществующий"),
         ticktick_client_factory=_make_mock_client(projects=projects),
     )
     assert "не найден" in response.text
@@ -152,7 +166,8 @@ async def test_project_tasks_success() -> None:
     factory = _make_mock_client(projects=projects, tasks=tasks)
     message = _make_message()
     response = await handle_project_tasks(
-        message, _make_intent_data("Работа"),
+        message,
+        _make_intent_data("Работа"),
         ticktick_client_factory=factory,
     )
     assert "Отчёт" in response.text
@@ -165,7 +180,8 @@ async def test_project_tasks_empty() -> None:
     factory = _make_mock_client(projects=projects, tasks=[])
     message = _make_message()
     response = await handle_project_tasks(
-        message, _make_intent_data("Работа"),
+        message,
+        _make_intent_data("Работа"),
         ticktick_client_factory=factory,
     )
     assert response.text == txt.PROJECT_NO_TASKS.format(project="Работа")
@@ -178,7 +194,8 @@ async def test_project_tasks_api_error() -> None:
     )
     message = _make_message()
     response = await handle_project_tasks(
-        message, _make_intent_data("X"),
+        message,
+        _make_intent_data("X"),
         ticktick_client_factory=factory,
     )
     assert response.text == txt.API_ERROR
@@ -190,7 +207,8 @@ async def test_project_tasks_api_error() -> None:
 async def test_create_project_no_auth() -> None:
     message = _make_message(access_token=None)
     response = await handle_create_project(
-        message, _make_intent_data("Test"),
+        message,
+        _make_intent_data("Test"),
         ticktick_client_factory=_make_mock_client(),
     )
     assert txt.AUTH_REQUIRED_NO_LINKING in response.text
@@ -199,7 +217,8 @@ async def test_create_project_no_auth() -> None:
 async def test_create_project_no_name() -> None:
     message = _make_message()
     response = await handle_create_project(
-        message, _make_intent_data(),
+        message,
+        _make_intent_data(),
         ticktick_client_factory=_make_mock_client(),
     )
     assert response.text == txt.PROJECT_NAME_REQUIRED
@@ -208,12 +227,11 @@ async def test_create_project_no_name() -> None:
 async def test_create_project_success() -> None:
     created = _make_project(project_id="p-new", name="Travel")
     factory = _make_mock_client()
-    factory.return_value.__aenter__.return_value.create_project = AsyncMock(
-        return_value=created
-    )
+    factory.return_value.__aenter__.return_value.create_project = AsyncMock(return_value=created)
     message = _make_message()
     response = await handle_create_project(
-        message, _make_intent_data("Travel"),
+        message,
+        _make_intent_data("Travel"),
         ticktick_client_factory=factory,
     )
     assert response.text == txt.PROJECT_CREATED.format(name="Travel")
@@ -226,7 +244,8 @@ async def test_create_project_api_error() -> None:
     )
     message = _make_message()
     response = await handle_create_project(
-        message, _make_intent_data("X"),
+        message,
+        _make_intent_data("X"),
         ticktick_client_factory=factory,
     )
     assert response.text == txt.PROJECT_CREATE_ERROR
