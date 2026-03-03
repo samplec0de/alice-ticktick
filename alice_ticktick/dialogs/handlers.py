@@ -1819,6 +1819,63 @@ async def handle_list_projects(
     return Response(text=txt.PROJECTS_LIST.format(count=count_str, projects="\n".join(lines)))
 
 
+async def handle_project_tasks(
+    message: Message,
+    intent_data: dict[str, Any],
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle project_tasks intent — show tasks from a specific project."""
+    from alice_ticktick.dialogs.intents import extract_project_tasks_slots
+
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    slots = extract_project_tasks_slots(intent_data)
+    if not slots.project_name:
+        return Response(text=txt.PROJECT_TASKS_NAME_REQUIRED)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            projects = await client.get_projects()
+            project = _find_project_by_name(projects, slots.project_name)
+            if project is None:
+                names = ", ".join(p.name for p in projects) if projects else "—"
+                return Response(
+                    text=txt.PROJECT_NOT_FOUND.format(name=slots.project_name, projects=names)
+                )
+            tasks = await client.get_tasks(project.id)
+    except Exception:
+        logger.exception("Failed to get project tasks")
+        return Response(text=txt.API_ERROR)
+
+    active = [t for t in tasks if t.status == 0]
+    if not active:
+        return Response(text=txt.PROJECT_NO_TASKS.format(project=project.name))
+
+    user_tz = _get_user_tz(event_update)
+    lines: list[str] = []
+    for i, task in enumerate(active[:10]):
+        line = f"{i + 1}. {task.title}"
+        parts: list[str] = []
+        if task.due_date:
+            parts.append(_format_date(task.due_date, user_tz))
+        prio = _format_priority_short(task.priority)
+        if prio:
+            parts.append(prio)
+        if parts:
+            line += f" — {', '.join(parts)}"
+        lines.append(line)
+
+    count = txt.pluralize_tasks(len(active))
+    text = txt.PROJECT_TASKS_HEADER.format(
+        project=project.name, count=count, tasks="\n".join(lines)
+    )
+    return Response(text=_truncate_response(text))
+
+
 async def handle_unknown(message: Message) -> Response:
     """Handle unrecognized commands."""
     return Response(text=txt.UNKNOWN)
