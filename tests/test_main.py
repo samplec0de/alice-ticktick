@@ -51,7 +51,7 @@ async def test_handler_new_session() -> None:
     result = await handler(event, None)
     assert "response" in result
     assert result["response"]["text"] == "Слушаю!"
-    assert result["response"]["tts"] == '<speaker audio="alice-sounds-things-bell-1"> Слушаю!'
+    assert result["response"]["tts"] == "Слушаю!"
 
 
 async def test_handler_unknown_command() -> None:
