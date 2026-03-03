@@ -47,16 +47,24 @@
 const models = window.monaco.editor.getModels();
 const grammarModel = models[models.length - 1];
 
-// Записать новую грамматику
-grammarModel.setValue(NEW_GRAMMAR_STRING);
+// Записать новую грамматику через pushEditOperations (надёжнее setValue)
+const fullRange = grammarModel.getFullModelRange();
+grammarModel.pushEditOperations([], [{
+  range: fullRange,
+  text: NEW_GRAMMAR_STRING
+}], () => null);
 ```
+
+**ВАЖНО: используй `pushEditOperations()`, а НЕ `setValue()`!**
+`setValue()` модифицирует данные модели, но React НЕ подхватывает изменения — при сохранении вернётся старая грамматика. `pushEditOperations()` корректно триггерит React state sync.
 
 **Особенности**:
 - `models[0]` — пустая модель (entities editor снизу), НЕ трогай
 - `models[models.length - 1]` — грамматика (Monaco editor сверху)
+- Индексы моделей могут меняться между сессиями — всегда проверяй `models.map((m,i) => ({i, v: m.getValue().substring(0,50)}))`
 - Грамматика — многострочная строка с отступами в 4 пробела
 - Используй template literals (backticks) для передачи многострочного текста
-- После `setValue()` проверь результат: `grammarModel.getValue().substring(0, 100)`
+- После записи проверь результат: `grammarModel.getValue().substring(0, 100)`
 
 **Fallback (если JS API не работает):** попроси пользователя вручную вставить грамматику (Cmd+A, Cmd+V).
 
@@ -143,19 +151,22 @@ textareas[2].dispatchEvent(new Event('change', { bubbles: true }));
 | delete_checklist_item | Удаление пункта чеклиста |
 | create_recurring_task | Создание повторяющейся задачи |
 | add_reminder | Добавление напоминания |
+| list_projects | Список проектов |
+| project_tasks | Задачи проекта |
+| create_project | Создание проекта |
 
 ## Типичные ошибки и решения
 
 | Проблема | Решение |
 |----------|---------|
-| Печать "type" вызывает Tab-автодополнение | НИКОГДА не печатай в Monaco! Используй `model.setValue()` |
+| Печать "type" вызывает Tab-автодополнение | НИКОГДА не печатай в Monaco! Используй `model.pushEditOperations()` |
 | `models[0]` содержит не грамматику, а entities | Используй `models[models.length - 1]` — ПОСЛЕДНЮЮ модель |
 | Textarea React state не обновляется после `nativeInputValueSetter` | React может игнорировать программные изменения. Попробуй подход B (focus + selectAll + type) или подход C (ручной) |
 | `$YANDEX.STRING` в грамматике | НЕВАЛИДНО! Используй `.+` для произвольных строк. `YANDEX.STRING` — только как `type:` в `slots:` |
 | Нонтерминал с фиксированными словами не матчится | **КРИТИЧЕСКИ ВАЖНО**: Пользовательские нонтерминалы с перечислением слов (`$Priority: срочный \| важный`) НЕ РАБОТАЮТ! `%lemma` не распространяется на нонтерминалы. Используй `$Priority: .+` и валидируй значения в Python-коде |
 | `$YANDEX.DATETIME` не распознаёт «эту неделю» | «эту неделю» — не валидное YANDEX.DATETIME. Поддерживаются: «сегодня», «завтра», «послезавтра», конкретные даты, дни недели |
-| Грамматика ревертится после Monaco `setValue()` | Клик по другому элементу может вызвать React re-render. **Сразу после setValue() кликай "Сохранить"** — не трогай другие элементы между ними |
-| Грамматика не сохранилась | Убедись, что кнопка "Сохранить" была нажата СРАЗУ после `setValue()`. Используй `setTimeout(() => btn.click(), 100)` в том же JS-вызове |
+| Грамматика ревертится после Monaco `setValue()` | **НЕ используй `setValue()`!** Используй `pushEditOperations()` — он корректно синхронизирует React state. После записи можно безопасно кликать другие элементы |
+| Грамматика не сохранилась | Используй `pushEditOperations()` вместо `setValue()`. React не подхватывает изменения через `setValue()` |
 | Тесты дают <100% | Грамматика содержит ошибку — не сохраняй, исправь сначала |
 | `execCommand('insertText')` возвращает false | Этот подход не работает в Яндекс Диалогах, не используй |
 | Грамматика ревертится при любом клике | Скорее всего ты в **«Опубликованная версия»** (read-only)! Переключись на **«Черновик»** в левом меню |
