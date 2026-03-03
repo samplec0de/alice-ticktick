@@ -17,9 +17,11 @@ from alice_ticktick.dialogs.intents import (
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
     EDIT_TASK,
+    EVENING_BRIEFING,
     LIST_PROJECTS,
     LIST_SUBTASKS,
     LIST_TASKS,
+    MORNING_BRIEFING,
     OVERDUE_TASKS,
     PROJECT_TASKS,
     SEARCH_TASK,
@@ -61,9 +63,11 @@ class TestIntentConstants:
         assert LIST_PROJECTS in ALL_INTENTS
         assert PROJECT_TASKS in ALL_INTENTS
         assert CREATE_PROJECT in ALL_INTENTS
+        assert MORNING_BRIEFING in ALL_INTENTS
+        assert EVENING_BRIEFING in ALL_INTENTS
 
     def test_all_intents_count(self) -> None:
-        assert len(ALL_INTENTS) == 18
+        assert len(ALL_INTENTS) == 20
 
 
 class TestCreateTaskSlots:
