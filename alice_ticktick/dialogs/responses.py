@@ -2,9 +2,9 @@
 
 # Welcome / help
 WELCOME = "Слушаю!"
-WELCOME_TTS = '<speaker audio="alice-sounds-things-bell-1">'
+WELCOME_TTS = '<speaker audio="alice-sounds-things-bell-1"> Слушаю!'
 WELCOME_BACK = "С возвращением!"
-WELCOME_BACK_TTS = '<speaker audio="alice-sounds-things-bell-1">'
+WELCOME_BACK_TTS = '<speaker audio="alice-sounds-things-bell-1"> С возвращением!'
 HELP = (
     "Я умею:\n"
     "- Создать: «создай задачу купить молоко на завтра»\n"
@@ -19,6 +19,7 @@ HELP = (
     "- Завершить: «отметь задачу купить молоко»\n"
     "- Напоминание: «напомни о задаче за 30 минут»\n"
     "- Подзадача: «добавь подзадачу к задаче»\n"
+    "- Проекты: «какие у меня проекты?», «задачи проекта Работа», «создай проект»\n"
     "- Чеклист: «добавь пункт в чеклист задачи»"
 )
 
@@ -152,6 +153,16 @@ REMINDER_PARSE_ERROR = (
 REMINDER_ERROR = "Не удалось добавить напоминание. Попробуйте ещё раз."
 
 PROJECT_NOT_FOUND = 'Проект "{name}" не найден. Ваши проекты: {projects}.'
+
+# Projects
+PROJECTS_LIST = "Ваши проекты ({count}):\n{projects}"
+NO_PROJECTS = "У вас пока нет проектов."
+PROJECT_TASKS_HEADER = "Задачи проекта «{project}» ({count}):\n{tasks}"
+PROJECT_NO_TASKS = "В проекте «{project}» задач нет."
+PROJECT_CREATED = "Проект «{name}» создан."
+PROJECT_NAME_REQUIRED = "Как назвать проект? Скажите название."
+PROJECT_CREATE_ERROR = "Не удалось создать проект. Попробуйте ещё раз."
+PROJECT_TASKS_NAME_REQUIRED = "Какой проект показать? Скажите название."
 
 # Unknown
 UNKNOWN = "Не поняла команду. Скажите «помощь», чтобы узнать, что я умею."
