@@ -2,9 +2,9 @@
 
 # Welcome / help
 WELCOME = "Слушаю!"
-WELCOME_TTS = '<speaker audio="alice-sounds-things-bell-1"> Слушаю!'
+WELCOME_TTS = "Слушаю!"
 WELCOME_BACK = "С возвращением!"
-WELCOME_BACK_TTS = '<speaker audio="alice-sounds-things-bell-1"> С возвращением!'
+WELCOME_BACK_TTS = "С возвращением!"
 HELP = (
     "Я умею:\n"
     "- Создать: «создай задачу купить молоко на завтра»\n"

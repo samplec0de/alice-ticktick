@@ -1,0 +1,11 @@
+root:
+    %lemma
+    (создай|добавь|новый|сделай) (проект|список|папку|папка) $ProjectName
+
+slots:
+    project_name:
+        source: $ProjectName
+        type: YANDEX.STRING
+
+$ProjectName:
+    .+
