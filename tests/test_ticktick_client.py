@@ -242,6 +242,22 @@ class TestUpdateTask:
             )
 
 
+class TestCreateProject:
+    """Test create_project method."""
+
+    @pytest.mark.asyncio
+    async def test_creates_project(self) -> None:
+        response_data = {"id": "proj-new", "name": "Travel"}
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(json_data=response_data))
+            with patch.object(client._client, "post", mock):
+                project = await client.create_project("Travel")
+
+            assert project.id == "proj-new"
+            assert project.name == "Travel"
+            mock.assert_called_once_with("/project", json={"name": "Travel"})
+
+
 class TestDeleteTask:
     """Test delete_task method."""
 
