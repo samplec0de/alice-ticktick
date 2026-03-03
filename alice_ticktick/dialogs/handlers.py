@@ -369,7 +369,11 @@ async def handle_create_task(
     due_date_str: str | None = None
     is_all_day: bool | None = None
     date_display: str | None = None
-    task_name = slots.task_name
+    task_name = (
+        slots.task_name[:1].upper() + slots.task_name[1:]
+        if slots.task_name
+        else slots.task_name
+    )
 
     # Обрезать суффикс "с напоминанием за N единиц" из названия задачи
     if slots.reminder_unit is not None:
@@ -638,7 +642,7 @@ async def handle_create_task(
         return Response(
             text=txt.TASK_CREATED_WITH_PRIORITY.format(name=task_name, priority=priority_short)
         )
-    return Response(text=txt.TASK_CREATED.format(name=slots.task_name))
+    return Response(text=txt.TASK_CREATED.format(name=task_name))
 
 
 async def handle_create_recurring_task(
@@ -1124,7 +1128,11 @@ async def handle_edit_task(
     matched_task = active_tasks[match_idx]
 
     # Build update payload
-    new_title: str | None = slots.new_name if has_name else None
+    new_title: str | None = (
+        slots.new_name[:1].upper() + slots.new_name[1:]
+        if has_name and slots.new_name
+        else None
+    )
 
     new_start_date: datetime.datetime | None = None
     new_due_date: datetime.datetime | None = None

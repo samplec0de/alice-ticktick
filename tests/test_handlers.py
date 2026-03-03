@@ -279,11 +279,11 @@ async def test_create_task_strips_reminder_suffix_from_name() -> None:
     }
     await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
-    assert created_payload.title == "встреча"
+    assert created_payload.title == "Встреча"
 
 
 async def test_create_task_strips_reminder_suffix_without_value() -> None:
-    """'позвонить врачу с напоминанием за час' -> 'позвонить врачу'."""
+    """'позвонить врачу с напоминанием за час' -> 'Позвонить врачу'."""
     message = _make_message(command="создай задачу позвонить врачу с напоминанием за час")
     message.nlu = None
     factory = _make_mock_client()
@@ -295,7 +295,7 @@ async def test_create_task_strips_reminder_suffix_without_value() -> None:
     }
     await handle_create_task(message, intent_data, ticktick_client_factory=factory)
     created_payload = factory.return_value.__aenter__.return_value.create_task.call_args[0][0]
-    assert created_payload.title == "позвонить врачу"
+    assert created_payload.title == "Позвонить врачу"
 
 
 async def test_create_task_success() -> None:
@@ -434,6 +434,20 @@ async def test_create_task_with_date_and_priority_confirms() -> None:
     assert "Отчёт" in response.text
     assert "завтра" in response.text
     assert "средний" in response.text.lower()
+
+
+async def test_create_task_capitalizes_first_letter() -> None:
+    """Task name should have its first letter capitalized."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"value": "купить молоко"}},
+    }
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Купить молоко" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.title == "Купить молоко"
 
 
 async def test_create_task_api_error() -> None:
@@ -1866,7 +1880,7 @@ async def test_create_daily_recurring() -> None:
     message = _make_message(command="создай задачу зарядка каждый день")
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
-    assert "зарядка" in response.text
+    assert "Зарядка" in response.text
     assert "создана" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
@@ -1883,7 +1897,7 @@ async def test_create_weekly_monday() -> None:
     message = _make_message(command="создай задачу стендап каждый понедельник")
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
-    assert "стендап" in response.text
+    assert "Стендап" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
@@ -1916,7 +1930,7 @@ async def test_create_with_reminder() -> None:
     message = _make_message(command="создай задачу встреча с напоминанием за 30 минут")
     mock_factory = _make_mock_client()
     response = await handle_create_task(message, intent_data, mock_factory)
-    assert "встреча" in response.text
+    assert "Встреча" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.reminders == ["TRIGGER:-PT30M"]
@@ -1969,7 +1983,7 @@ async def test_create_recurring_delegates() -> None:
     message = _make_message(command="напоминай каждый понедельник проверить отчёт")
     mock_factory = _make_mock_client()
     response = await handle_create_recurring_task(message, intent_data, mock_factory)
-    assert "проверить отчёт" in response.text
+    assert "Проверить отчёт" in response.text
     client = mock_factory.return_value.__aenter__.return_value
     payload = client.create_task.call_args[0][0]
     assert payload.repeat_flag == "RRULE:FREQ=WEEKLY;BYDAY=MO"
@@ -2375,6 +2389,28 @@ async def test_edit_task_rename_confirms_new_title() -> None:
     assert "обновлена" in response.text
     assert "название" in response.text.lower()
     assert "Новое название" in response.text
+
+
+async def test_edit_task_rename_capitalizes_first_letter() -> None:
+    """Rename should capitalize the first letter of the new name."""
+    tasks = [_make_task(title="Старое название")]
+    message = _make_message(command="переименуй задачу старое название в новое название")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["переименуй", "задачу", "старое", "название", "в", "новое", "название"]
+    message.nlu.entities = []
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "старое название"},
+            "new_name": {"value": "новое название"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, mock_factory)
+    assert "обновлена" in response.text
+    assert "Новое название" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.update_task.call_args[0][0]
+    assert payload.title == "Новое название"
 
 
 async def test_edit_task_remove_priority_confirms() -> None:
