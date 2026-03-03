@@ -1787,6 +1787,38 @@ async def handle_delete_checklist_item(
     )
 
 
+async def handle_list_projects(
+    message: Message,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle list_projects intent."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        return _auth_required_response(event_update)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            projects = await client.get_projects()
+    except Exception:
+        logger.exception("Failed to list projects")
+        return Response(text=txt.API_ERROR)
+
+    if not projects:
+        return Response(text=txt.NO_PROJECTS)
+
+    lines = [f"{i + 1}. {p.name}" for i, p in enumerate(projects)]
+    n = len(projects)
+    if n % 10 == 1 and n % 100 != 11:
+        count_str = f"{n} проект"
+    elif n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        count_str = f"{n} проекта"
+    else:
+        count_str = f"{n} проектов"
+    return Response(text=txt.PROJECTS_LIST.format(count=count_str, projects="\n".join(lines)))
+
+
 async def handle_unknown(message: Message) -> Response:
     """Handle unrecognized commands."""
     return Response(text=txt.UNKNOWN)
