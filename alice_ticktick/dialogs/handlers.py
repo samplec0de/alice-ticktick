@@ -1981,21 +1981,15 @@ async def handle_morning_briefing(
     today_tasks = [
         t
         for t in all_tasks
-        if t.status == 0
-        and t.due_date is not None
-        and _to_user_date(t.due_date, user_tz) == today
+        if t.status == 0 and t.due_date is not None and _to_user_date(t.due_date, user_tz) == today
     ]
     overdue_tasks = [
         t
         for t in all_tasks
-        if t.status == 0
-        and t.due_date is not None
-        and _to_user_date(t.due_date, user_tz) < today
+        if t.status == 0 and t.due_date is not None and _to_user_date(t.due_date, user_tz) < today
     ]
 
-    text = _build_morning_briefing_text(
-        today_tasks=today_tasks, overdue_tasks=overdue_tasks
-    )
+    text = _build_morning_briefing_text(today_tasks=today_tasks, overdue_tasks=overdue_tasks)
     return Response(text=_truncate_response(text))
 
 
