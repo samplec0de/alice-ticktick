@@ -176,6 +176,48 @@ def _truncate_response(text: str) -> str:
     return text[: ALICE_RESPONSE_MAX_LENGTH - 1] + "…"
 
 
+def _build_morning_briefing_text(
+    today_tasks: list[Task],
+    overdue_tasks: list[Task],
+    tz: ZoneInfo,
+) -> str:
+    """Build morning briefing text from today's and overdue tasks."""
+    overdue_count = len(overdue_tasks)
+
+    if not today_tasks:
+        if overdue_count:
+            return txt.MORNING_BRIEFING_NO_TASKS_OVERDUE.format(
+                overdue_count=txt.pluralize_tasks(overdue_count)
+            )
+        return txt.MORNING_BRIEFING_NO_TASKS
+
+    count_str = txt.pluralize_tasks(len(today_tasks))
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(today_tasks[:5])]
+    task_list = "\n".join(lines)
+
+    if overdue_count:
+        return txt.MORNING_BRIEFING_TASKS_OVERDUE.format(
+            count=count_str,
+            tasks=task_list,
+            overdue_count=txt.pluralize_tasks(overdue_count),
+        )
+    return txt.MORNING_BRIEFING_TASKS.format(count=count_str, tasks=task_list)
+
+
+def _build_evening_briefing_text(
+    tomorrow_tasks: list[Task],
+    tz: ZoneInfo,
+) -> str:
+    """Build evening briefing text from tomorrow's tasks."""
+    if not tomorrow_tasks:
+        return txt.EVENING_BRIEFING_NO_TASKS
+
+    count_str = txt.pluralize_tasks(len(tomorrow_tasks))
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(tomorrow_tasks[:5])]
+    task_list = "\n".join(lines)
+    return txt.EVENING_BRIEFING_TASKS.format(count=count_str, tasks=task_list)
+
+
 _cached_projects: list[Project] | None = None
 _cached_projects_ts: float = 0.0
 _PROJECT_CACHE_TTL = 60.0  # seconds
@@ -1915,3 +1957,80 @@ async def handle_create_project(
 async def handle_unknown(message: Message) -> Response:
     """Handle unrecognized commands."""
     return Response(text=txt.UNKNOWN)
+
+
+async def handle_morning_briefing(
+    message: Message,
+    ticktick_client_factory: Any = None,
+) -> Response:
+    """Handle morning briefing intent — show today's tasks and overdue count."""
+    access_token = _get_access_token(message)
+    if not access_token:
+        return _auth_required_response(message)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for morning briefing")
+        return Response(text=txt.API_ERROR)
+
+    tz = ZoneInfo("Europe/Moscow")
+    now = datetime.datetime.now(tz)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + datetime.timedelta(days=1)
+
+    today_tasks = [
+        t
+        for t in all_tasks
+        if t.status == 0
+        and t.due_date is not None
+        and today_start <= t.due_date.astimezone(tz) < today_end
+    ]
+    overdue_tasks = [
+        t
+        for t in all_tasks
+        if t.status == 0 and t.due_date is not None and t.due_date.astimezone(tz) < today_start
+    ]
+
+    text = _build_morning_briefing_text(
+        today_tasks=today_tasks, overdue_tasks=overdue_tasks, tz=tz
+    )
+    return Response(text=_truncate_response(text))
+
+
+async def handle_evening_briefing(
+    message: Message,
+    ticktick_client_factory: Any = None,
+) -> Response:
+    """Handle evening briefing intent — show tomorrow's tasks."""
+    access_token = _get_access_token(message)
+    if not access_token:
+        return _auth_required_response(message)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for evening briefing")
+        return Response(text=txt.API_ERROR)
+
+    tz = ZoneInfo("Europe/Moscow")
+    now = datetime.datetime.now(tz)
+    tomorrow_start = (now + datetime.timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    tomorrow_end = tomorrow_start + datetime.timedelta(days=1)
+
+    tomorrow_tasks = [
+        t
+        for t in all_tasks
+        if t.status == 0
+        and t.due_date is not None
+        and tomorrow_start <= t.due_date.astimezone(tz) < tomorrow_end
+    ]
+
+    text = _build_evening_briefing_text(tomorrow_tasks=tomorrow_tasks, tz=tz)
+    return Response(text=_truncate_response(text))
