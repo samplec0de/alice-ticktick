@@ -32,12 +32,14 @@ from alice_ticktick.dialogs.intents import (
     extract_show_checklist_slots,
 )
 from alice_ticktick.dialogs.nlp import (
+    DateRange,
     build_rrule,
     build_trigger,
     find_best_match,
     find_matches,
     format_recurrence,
     format_reminder,
+    parse_date_range,
     parse_duration,
     parse_priority,
     parse_yandex_datetime,
@@ -167,6 +169,40 @@ def _format_task_context(task: Task, tz: ZoneInfo) -> str:
     if not parts:
         return ""
     return " (" + ", ".join(parts) + ")"
+
+
+def _apply_task_filters(
+    tasks: list[Task],
+    *,
+    date_filter: datetime.date | DateRange | None = None,
+    priority_filter: TaskPriority | None = None,
+    user_tz: ZoneInfo,
+) -> list[Task]:
+    """Filter active tasks by date (single day or range) and/or priority."""
+    result = [t for t in tasks if t.status == 0]
+
+    if date_filter is not None:
+        if isinstance(date_filter, DateRange):
+            result = [
+                t
+                for t in result
+                if t.due_date is not None
+                and date_filter.date_from
+                <= _to_user_date(t.due_date, user_tz)
+                <= date_filter.date_to
+            ]
+        else:
+            result = [
+                t
+                for t in result
+                if t.due_date is not None
+                and _to_user_date(t.due_date, user_tz) == date_filter
+            ]
+
+    if priority_filter is not None:
+        result = [t for t in result if t.priority == priority_filter]
+
+    return result
 
 
 def _truncate_response(text: str) -> str:
