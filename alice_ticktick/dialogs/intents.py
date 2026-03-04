@@ -124,6 +124,13 @@ class DeleteTaskSlots:
     task_name: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class OverdueTasksSlots:
+    """Extracted slots for overdue_tasks intent."""
+
+    priority: str | None = None
+
+
 def _get_slot_value(intent_data: dict[str, Any], slot_name: str) -> Any:
     """Extract a slot value from intent data."""
     slots = intent_data.get("slots", {})
@@ -212,6 +219,13 @@ def extract_delete_task_slots(intent_data: dict[str, Any]) -> DeleteTaskSlots:
     """Extract slots from delete_task intent."""
     return DeleteTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
+    )
+
+
+def extract_overdue_tasks_slots(intent_data: dict[str, Any]) -> OverdueTasksSlots:
+    """Extract slots from overdue_tasks intent."""
+    return OverdueTasksSlots(
+        priority=_get_slot_value(intent_data, "priority"),
     )
 
 

@@ -995,13 +995,22 @@ async def handle_list_tasks(
 
 async def handle_overdue_tasks(
     message: Message,
+    intent_data: dict[str, Any] | None = None,
     ticktick_client_factory: type[TickTickClient] | None = None,
     event_update: Update | None = None,
 ) -> Response:
     """Handle overdue_tasks intent."""
+    from alice_ticktick.dialogs.intents import extract_overdue_tasks_slots
+
     access_token = _get_access_token(message)
     if access_token is None:
         return _auth_required_response(event_update)
+
+    slots = extract_overdue_tasks_slots(intent_data or {})
+    priority_filter = parse_priority(slots.priority) if slots.priority else None
+    priority_label = (
+        _format_priority_label(priority_filter) if priority_filter is not None else None
+    )
 
     user_tz = _get_user_tz(event_update)
     factory = ticktick_client_factory or TickTickClient
@@ -1014,19 +1023,29 @@ async def handle_overdue_tasks(
         logger.exception("Failed to get overdue tasks")
         return Response(text=txt.API_ERROR)
 
-    overdue = [
-        t
-        for t in all_tasks
-        if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today and t.status == 0
-    ]
+    overdue = _apply_task_filters(
+        [t for t in all_tasks if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today],
+        priority_filter=priority_filter,
+        user_tz=user_tz,
+    )
 
     if not overdue:
+        if priority_label:
+            return Response(text=txt.NO_OVERDUE_WITH_PRIORITY.format(priority=priority_label))
         return Response(text=txt.NO_OVERDUE)
 
     count_str = txt.pluralize_tasks(len(overdue))
     lines = [_format_task_line(i + 1, t) for i, t in enumerate(overdue[:5])]
     task_list = "\n".join(lines)
 
+    if priority_label:
+        return Response(
+            text=_truncate_response(
+                txt.OVERDUE_WITH_PRIORITY.format(
+                    priority=priority_label, count=count_str, tasks=task_list
+                )
+            )
+        )
     return Response(
         text=_truncate_response(
             txt.OVERDUE_TASKS_HEADER.format(

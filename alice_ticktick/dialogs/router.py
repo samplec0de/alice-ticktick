@@ -237,9 +237,13 @@ async def on_list_tasks(
 
 
 @router.message(IntentFilter(OVERDUE_TASKS))
-async def on_overdue_tasks(message: Message, event_update: Update) -> Response:
+async def on_overdue_tasks(
+    message: Message,
+    intent_data: dict[str, Any],
+    event_update: Update,
+) -> Response:
     """Handle overdue_tasks intent."""
-    return await handle_overdue_tasks(message, event_update=event_update)
+    return await handle_overdue_tasks(message, intent_data, event_update=event_update)
 
 
 # --- Specific "отметь..." intent BEFORE generic complete_task ---

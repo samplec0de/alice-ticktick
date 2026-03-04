@@ -387,3 +387,93 @@ class TestProjectTasksFiltering:
         assert "Срочная в неделю" in response.text
         assert "Обычная в неделю" not in response.text
         assert "Срочная не в неделю" not in response.text
+
+from alice_ticktick.dialogs.handlers import handle_overdue_tasks
+
+
+class TestOverdueTasksFiltering:
+    async def test_overdue_with_high_priority(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Срочная просроченная",
+                due_date=datetime.datetime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.HIGH,
+            ),
+            _make_task(
+                task_id="t2",
+                title="Обычная просроченная",
+                due_date=datetime.datetime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.NONE,
+            ),
+        ]
+        intent_data = {"slots": {"priority": {"value": "высокий"}}}
+        message = _make_message()
+        event_update = MagicMock()
+        event_update.meta.timezone = "UTC"
+        event_update.meta.interfaces = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            response = await handle_overdue_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks),
+                event_update=event_update,
+            )
+        assert "Срочная просроченная" in response.text
+        assert "Обычная просроченная" not in response.text
+
+    async def test_overdue_with_priority_no_match(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Обычная просроченная",
+                due_date=datetime.datetime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.NONE,
+            ),
+        ]
+        intent_data = {"slots": {"priority": {"value": "высокий"}}}
+        message = _make_message()
+        event_update = MagicMock()
+        event_update.meta.timezone = "UTC"
+        event_update.meta.interfaces = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            response = await handle_overdue_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks),
+                event_update=event_update,
+            )
+        assert "нет" in response.text.lower()
+
+    async def test_overdue_without_priority_filter(self) -> None:
+        """Без priority-слота — показываем все просроченные (регрессия)."""
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Просроченная",
+                due_date=datetime.datetime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.NONE,
+            ),
+        ]
+        intent_data = {"slots": {}}
+        message = _make_message()
+        event_update = MagicMock()
+        event_update.meta.timezone = "UTC"
+        event_update.meta.interfaces = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            response = await handle_overdue_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks),
+                event_update=event_update,
+            )
+        assert "Просроченная" in response.text

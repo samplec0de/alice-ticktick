@@ -93,6 +93,8 @@ NO_TASKS_FOR_MONTH_WITH_PRIORITY = "В этом месяце задач с {prio
 # Overdue tasks
 NO_OVERDUE = "Просроченных задач нет. Отличная работа!"
 OVERDUE_TASKS_HEADER = "Просроченных задач: {count}:\n{tasks}"
+OVERDUE_WITH_PRIORITY = "Просроченных с {priority}: {count}:\n{tasks}"
+NO_OVERDUE_WITH_PRIORITY = "Просроченных задач с {priority} нет."
 
 # Complete task
 TASK_COMPLETED = 'Задача "{name}"{context} отмечена выполненной.'
