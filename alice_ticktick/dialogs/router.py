@@ -25,11 +25,13 @@ from alice_ticktick.dialogs.handlers import (
     handle_delete_reject,
     handle_delete_task,
     handle_edit_task,
+    handle_evening_briefing,
     handle_goodbye,
     handle_help,
     handle_list_projects,
     handle_list_subtasks,
     handle_list_tasks,
+    handle_morning_briefing,
     handle_overdue_tasks,
     handle_project_tasks,
     handle_search_task,
@@ -49,9 +51,11 @@ from alice_ticktick.dialogs.intents import (
     DELETE_CHECKLIST_ITEM,
     DELETE_TASK,
     EDIT_TASK,
+    EVENING_BRIEFING,
     LIST_PROJECTS,
     LIST_SUBTASKS,
     LIST_TASKS,
+    MORNING_BRIEFING,
     OVERDUE_TASKS,
     PROJECT_TASKS,
     SEARCH_TASK,
@@ -102,6 +106,18 @@ async def on_new_session(message: Message) -> Response:
 async def on_help(message: Message) -> Response:
     """Handle help and 'what can you do' requests."""
     return await handle_help(message)
+
+
+@router.message(IntentFilter(MORNING_BRIEFING))
+async def on_morning_briefing(message: Message, event_update: Update) -> Response:
+    """Handle morning_briefing intent."""
+    return await handle_morning_briefing(message, event_update=event_update)
+
+
+@router.message(IntentFilter(EVENING_BRIEFING))
+async def on_evening_briefing(message: Message, event_update: Update) -> Response:
+    """Handle evening_briefing intent."""
+    return await handle_evening_briefing(message, event_update=event_update)
 
 
 # --- Specific "добавь..." intents BEFORE generic create_task ---
