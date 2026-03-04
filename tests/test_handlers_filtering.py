@@ -122,3 +122,136 @@ class TestApplyTaskFilters:
         result = _apply_task_filters(tasks, user_tz=UTC)
         assert len(result) == 1
         assert result[0].id == "t1"
+
+
+import unittest.mock as mock
+from unittest.mock import AsyncMock, MagicMock
+
+from alice_ticktick.dialogs.handlers import handle_list_tasks, _reset_project_cache
+from alice_ticktick.dialogs import responses as txt
+from alice_ticktick.ticktick.models import Project
+
+
+def _make_message(*, access_token: str | None = "test-token") -> MagicMock:
+    message = MagicMock()
+    message.command = ""
+    message.session.new = False
+    if access_token is not None:
+        message.user = MagicMock()
+        message.user.access_token = access_token
+    else:
+        message.user = None
+    message.nlu = None
+    return message
+
+
+def _make_client_factory(tasks: list, projects: list | None = None) -> type:
+    client = AsyncMock()
+    client.get_projects = AsyncMock(return_value=projects or [Project(id="p1", name="Test")])
+    client.get_tasks = AsyncMock(return_value=tasks)
+    client.get_inbox_tasks = AsyncMock(return_value=[])
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(return_value=client)
+    factory.return_value.__aexit__ = AsyncMock(return_value=None)
+    return factory
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache() -> None:
+    _reset_project_cache()
+
+
+class TestListTasksWithDateRange:
+    async def test_list_tasks_this_week(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Задача в эту неделю",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.NONE,
+            ),
+            _make_task(
+                task_id="t2",
+                title="Следующая неделя",
+                due_date=datetime.datetime(2026, 3, 10, 12, 0, tzinfo=datetime.UTC),
+            ),
+        ]
+        intent_data = {"slots": {"date_range": {"value": "this_week"}}}
+        message = _make_message()
+        event_update = MagicMock()
+        event_update.meta.timezone = "UTC"
+        event_update.meta.interfaces = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            response = await handle_list_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks),
+                event_update=event_update,
+            )
+        assert "Задача в эту неделю" in response.text
+
+    async def test_list_tasks_this_week_no_tasks(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Следующая неделя",
+                due_date=datetime.datetime(2026, 3, 10, 12, 0, tzinfo=datetime.UTC),
+            ),
+        ]
+        intent_data = {"slots": {"date_range": {"value": "this_week"}}}
+        message = _make_message()
+        event_update = MagicMock()
+        event_update.meta.timezone = "UTC"
+        event_update.meta.interfaces = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            response = await handle_list_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks),
+                event_update=event_update,
+            )
+        assert "нет" in response.text.lower()
+
+    async def test_list_tasks_this_week_with_priority(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Высокий приоритет",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.HIGH,
+            ),
+            _make_task(
+                task_id="t2",
+                title="Нет приоритета",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.NONE,
+            ),
+        ]
+        intent_data = {
+            "slots": {
+                "date_range": {"value": "this_week"},
+                "priority": {"value": "высокий"},
+            }
+        }
+        message = _make_message()
+        event_update = MagicMock()
+        event_update.meta.timezone = "UTC"
+        event_update.meta.interfaces = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            response = await handle_list_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks),
+                event_update=event_update,
+            )
+        assert "Высокий приоритет" in response.text
+        assert "Нет приоритета" not in response.text

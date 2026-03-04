@@ -81,6 +81,7 @@ class ListTasksSlots:
 
     date: YandexDateTime | None = None
     priority: str | None = None
+    date_range: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +168,7 @@ def extract_list_tasks_slots(intent_data: dict[str, Any]) -> ListTasksSlots:
     return ListTasksSlots(
         date=_get_slot_value(intent_data, "date"),
         priority=_get_slot_value(intent_data, "priority"),
+        date_range=_get_slot_value(intent_data, "date_range"),
     )
 
 

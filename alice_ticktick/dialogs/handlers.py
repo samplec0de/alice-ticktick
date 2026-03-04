@@ -840,7 +840,85 @@ async def handle_list_tasks(
     user_tz = _get_user_tz(event_update)
     slots = extract_list_tasks_slots(intent_data)
 
-    # Determine target date (in user timezone)
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to list tasks")
+        return Response(text=txt.API_ERROR)
+
+    # Date range path (week/month) — early return
+    if slots.date_range:
+        date_range_filter = parse_date_range(
+            slots.date_range,
+            now=datetime.datetime.now(tz=user_tz).date(),
+            tz=user_tz,
+        )
+        priority_filter = parse_priority(slots.priority) if slots.priority else None
+        priority_label = (
+            _format_priority_label(priority_filter) if priority_filter is not None else None
+        )
+
+        filtered = _apply_task_filters(
+            all_tasks,
+            date_filter=date_range_filter,
+            priority_filter=priority_filter,
+            user_tz=user_tz,
+        )
+
+        _range_txt_map = {
+            "this_week": (
+                txt.TASKS_FOR_WEEK,
+                txt.TASKS_FOR_WEEK_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_WEEK,
+                txt.NO_TASKS_FOR_WEEK_WITH_PRIORITY,
+            ),
+            "next_week": (
+                txt.TASKS_FOR_NEXT_WEEK,
+                txt.TASKS_FOR_NEXT_WEEK_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_NEXT_WEEK,
+                txt.NO_TASKS_FOR_NEXT_WEEK_WITH_PRIORITY,
+            ),
+            "this_month": (
+                txt.TASKS_FOR_MONTH,
+                txt.TASKS_FOR_MONTH_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_MONTH,
+                txt.NO_TASKS_FOR_MONTH_WITH_PRIORITY,
+            ),
+        }
+        tmpl_found, tmpl_found_p, tmpl_none, tmpl_none_p = _range_txt_map.get(
+            slots.date_range,
+            (
+                txt.TASKS_FOR_WEEK,
+                txt.TASKS_FOR_WEEK_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_WEEK,
+                txt.NO_TASKS_FOR_WEEK_WITH_PRIORITY,
+            ),
+        )
+
+        if not filtered:
+            if priority_label:
+                return Response(text=tmpl_none_p.format(priority=priority_label))
+            return Response(text=tmpl_none)
+
+        count_str = txt.pluralize_tasks(len(filtered))
+        lines = [_format_task_line(i + 1, t) for i, t in enumerate(filtered[:5])]
+        task_list = "\n".join(lines)
+
+        if priority_label:
+            return Response(
+                text=_truncate_response(
+                    tmpl_found_p.format(
+                        priority=priority_label, count=count_str, tasks=task_list
+                    )
+                )
+            )
+        return Response(
+            text=_truncate_response(tmpl_found.format(count=count_str, tasks=task_list))
+        )
+
+    # Single-day path
     if slots.date:
         try:
             target_date = parse_yandex_datetime(slots.date)
@@ -854,14 +932,6 @@ async def handle_list_tasks(
         target_day = datetime.datetime.now(tz=user_tz).date()
 
     date_display = _format_date(target_day, user_tz)
-
-    factory = ticktick_client_factory or TickTickClient
-    try:
-        async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
-    except Exception:
-        logger.exception("Failed to list tasks")
-        return Response(text=txt.API_ERROR)
 
     # Filter tasks for the target date (convert due_date to user timezone)
     day_tasks = [
