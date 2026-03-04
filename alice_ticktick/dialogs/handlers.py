@@ -1961,12 +1961,13 @@ async def handle_unknown(message: Message) -> Response:
 
 async def handle_morning_briefing(
     message: Message,
-    ticktick_client_factory: Any = None,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle morning briefing intent — show today's tasks and overdue count."""
     access_token = _get_access_token(message)
     if not access_token:
-        return _auth_required_response(message)
+        return _auth_required_response(event_update)
 
     factory = ticktick_client_factory or TickTickClient
     try:
@@ -1976,7 +1977,7 @@ async def handle_morning_briefing(
         logger.exception("Failed to fetch tasks for morning briefing")
         return Response(text=txt.API_ERROR)
 
-    tz = ZoneInfo("Europe/Moscow")
+    tz = _get_user_tz(event_update)
     now = datetime.datetime.now(tz)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + datetime.timedelta(days=1)
@@ -2002,12 +2003,13 @@ async def handle_morning_briefing(
 
 async def handle_evening_briefing(
     message: Message,
-    ticktick_client_factory: Any = None,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
 ) -> Response:
     """Handle evening briefing intent — show tomorrow's tasks."""
     access_token = _get_access_token(message)
     if not access_token:
-        return _auth_required_response(message)
+        return _auth_required_response(event_update)
 
     factory = ticktick_client_factory or TickTickClient
     try:
@@ -2017,7 +2019,7 @@ async def handle_evening_briefing(
         logger.exception("Failed to fetch tasks for evening briefing")
         return Response(text=txt.API_ERROR)
 
-    tz = ZoneInfo("Europe/Moscow")
+    tz = _get_user_tz(event_update)
     now = datetime.datetime.now(tz)
     tomorrow_start = (now + datetime.timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0

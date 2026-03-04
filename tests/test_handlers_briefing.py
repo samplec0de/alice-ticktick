@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import datetime
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
@@ -13,13 +13,10 @@ from alice_ticktick.dialogs.handlers import (
     _build_evening_briefing_text,
     _build_morning_briefing_text,
     _reset_project_cache,
-    handle_evening_briefing,  # noqa: F401
-    handle_morning_briefing,  # noqa: F401
+    handle_evening_briefing,
+    handle_morning_briefing,
 )
 from alice_ticktick.ticktick.models import Project, Task
-
-if TYPE_CHECKING:
-    import datetime
 
 
 @pytest.fixture(autouse=True)
@@ -126,3 +123,101 @@ def test_evening_briefing_text_caps_at_five() -> None:
     tomorrow = [_make_task(task_id=str(i), title=f"T{i}") for i in range(10)]
     result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, tz=UTC)
     assert "T6" not in result
+
+
+# --- handle_morning_briefing ---
+
+
+async def test_morning_briefing_auth_required() -> None:
+    msg = _make_message(access_token=None)
+    response = await handle_morning_briefing(msg)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+
+
+async def test_morning_briefing_no_tasks() -> None:
+    msg = _make_message()
+    factory = _make_mock_client([])
+    response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
+    assert "Доброе утро" in response.text
+    assert "задач нет" in response.text
+
+
+async def test_morning_briefing_with_today_tasks() -> None:
+    tz = ZoneInfo("UTC")
+    today = datetime.datetime.now(tz=tz).replace(hour=12, microsecond=0)
+    tasks = [_make_task(title="Задача сегодня", due_date=today)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
+    assert "Задача сегодня" in response.text
+    assert "Доброе утро" in response.text
+
+
+async def test_morning_briefing_with_overdue() -> None:
+    tz = ZoneInfo("UTC")
+    yesterday = datetime.datetime.now(tz=tz) - datetime.timedelta(days=1)
+    yesterday = yesterday.replace(hour=12, microsecond=0)
+    tasks = [_make_task(title="Просроченная", due_date=yesterday)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
+    assert "просроч" in response.text.lower()
+    assert "задач нет" in response.text  # today has no tasks
+
+
+async def test_morning_briefing_api_error() -> None:
+    msg = _make_message()
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(side_effect=Exception("API down"))
+    factory.return_value.__aexit__ = AsyncMock(return_value=None)
+    response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
+    assert response.text == txt.API_ERROR
+
+
+# --- handle_evening_briefing ---
+
+
+async def test_evening_briefing_auth_required() -> None:
+    msg = _make_message(access_token=None)
+    response = await handle_evening_briefing(msg)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+
+
+async def test_evening_briefing_no_tasks() -> None:
+    msg = _make_message()
+    factory = _make_mock_client([])
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert "Итоги дня" in response.text
+    assert "задач нет" in response.text
+
+
+async def test_evening_briefing_with_tomorrow_tasks() -> None:
+    tz = ZoneInfo("UTC")
+    tomorrow = (datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)).replace(
+        hour=12, microsecond=0
+    )
+    tasks = [_make_task(title="Завтрашняя задача", due_date=tomorrow)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert "Завтрашняя задача" in response.text
+    assert "Итоги дня" in response.text
+
+
+async def test_evening_briefing_ignores_today_tasks() -> None:
+    tz = ZoneInfo("UTC")
+    today = datetime.datetime.now(tz=tz).replace(hour=12, microsecond=0)
+    tasks = [_make_task(title="Сегодняшняя задача", due_date=today)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert "задач нет" in response.text  # tomorrow is empty
+
+
+async def test_evening_briefing_api_error() -> None:
+    msg = _make_message()
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(side_effect=Exception("API down"))
+    factory.return_value.__aexit__ = AsyncMock(return_value=None)
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert response.text == txt.API_ERROR
