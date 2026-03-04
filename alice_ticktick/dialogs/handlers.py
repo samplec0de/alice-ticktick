@@ -176,6 +176,46 @@ def _truncate_response(text: str) -> str:
     return text[: ALICE_RESPONSE_MAX_LENGTH - 1] + "…"
 
 
+def _build_morning_briefing_text(
+    today_tasks: list[Task],
+    overdue_tasks: list[Task],
+) -> str:
+    """Build morning briefing text from today's and overdue tasks."""
+    overdue_count = len(overdue_tasks)
+
+    if not today_tasks:
+        if overdue_count:
+            return txt.MORNING_BRIEFING_NO_TASKS_OVERDUE.format(
+                overdue_count=txt.pluralize_tasks(overdue_count)
+            )
+        return txt.MORNING_BRIEFING_NO_TASKS
+
+    count_str = txt.pluralize_tasks(len(today_tasks))
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(today_tasks[:5])]
+    task_list = "\n".join(lines)
+
+    if overdue_count:
+        return txt.MORNING_BRIEFING_TASKS_OVERDUE.format(
+            count=count_str,
+            tasks=task_list,
+            overdue_count=txt.pluralize_tasks(overdue_count),
+        )
+    return txt.MORNING_BRIEFING_TASKS.format(count=count_str, tasks=task_list)
+
+
+def _build_evening_briefing_text(
+    tomorrow_tasks: list[Task],
+) -> str:
+    """Build evening briefing text from tomorrow's tasks."""
+    if not tomorrow_tasks:
+        return txt.EVENING_BRIEFING_NO_TASKS
+
+    count_str = txt.pluralize_tasks(len(tomorrow_tasks))
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(tomorrow_tasks[:5])]
+    task_list = "\n".join(lines)
+    return txt.EVENING_BRIEFING_TASKS.format(count=count_str, tasks=task_list)
+
+
 _cached_projects: list[Project] | None = None
 _cached_projects_ts: float = 0.0
 _PROJECT_CACHE_TTL = 60.0  # seconds
@@ -1915,3 +1955,72 @@ async def handle_create_project(
 async def handle_unknown(message: Message) -> Response:
     """Handle unrecognized commands."""
     return Response(text=txt.UNKNOWN)
+
+
+async def handle_morning_briefing(
+    message: Message,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle morning briefing intent — show today's tasks and overdue count."""
+    access_token = _get_access_token(message)
+    if not access_token:
+        return _auth_required_response(event_update)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for morning briefing")
+        return Response(text=txt.API_ERROR)
+
+    user_tz = _get_user_tz(event_update)
+    today = datetime.datetime.now(tz=user_tz).date()
+
+    today_tasks = [
+        t
+        for t in all_tasks
+        if t.status == 0 and t.due_date is not None and _to_user_date(t.due_date, user_tz) == today
+    ]
+    overdue_tasks = [
+        t
+        for t in all_tasks
+        if t.status == 0 and t.due_date is not None and _to_user_date(t.due_date, user_tz) < today
+    ]
+
+    text = _build_morning_briefing_text(today_tasks=today_tasks, overdue_tasks=overdue_tasks)
+    return Response(text=_truncate_response(text))
+
+
+async def handle_evening_briefing(
+    message: Message,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle evening briefing intent — show tomorrow's tasks."""
+    access_token = _get_access_token(message)
+    if not access_token:
+        return _auth_required_response(event_update)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to fetch tasks for evening briefing")
+        return Response(text=txt.API_ERROR)
+
+    user_tz = _get_user_tz(event_update)
+    tomorrow = (datetime.datetime.now(tz=user_tz) + datetime.timedelta(days=1)).date()
+
+    tomorrow_tasks = [
+        t
+        for t in all_tasks
+        if t.due_date is not None
+        and _to_user_date(t.due_date, user_tz) == tomorrow
+        and t.status == 0
+    ]
+
+    text = _build_evening_briefing_text(tomorrow_tasks=tomorrow_tasks)
+    return Response(text=_truncate_response(text))

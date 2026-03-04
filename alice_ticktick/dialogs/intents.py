@@ -27,6 +27,8 @@ ADD_REMINDER = "add_reminder"
 LIST_PROJECTS = "list_projects"
 PROJECT_TASKS = "project_tasks"
 CREATE_PROJECT = "create_project"
+MORNING_BRIEFING = "morning_briefing"
+EVENING_BRIEFING = "evening_briefing"
 
 ALL_INTENTS = frozenset(
     {
@@ -48,6 +50,8 @@ ALL_INTENTS = frozenset(
         LIST_PROJECTS,
         PROJECT_TASKS,
         CREATE_PROJECT,
+        MORNING_BRIEFING,
+        EVENING_BRIEFING,
     }
 )
 
