@@ -1,12 +1,32 @@
 root:
     %lemma
-    (покажи|какие|что) (задачи|задача|дела|дело) (проекта|проект|списка|список|папки|папка|из проекта|в проекте|из списка|в списке) $ProjectName
-    (покажи|какие|что) (в проекте|в списке|в папке|из проекта|из списка|из папки) $ProjectName
+    (покажи|какие|что) (задачи|задача|дела|дело) (проекта|проект|списка|список|папки|папка|из проекта|в проекте|из списка|в списке) $ProjectName $DateRange? $Priority?
+    (покажи|какие|что) (задачи|задача|дела|дело) (проекта|проект|списка|список|папки|папка|из проекта|в проекте|из списка|в списке) $ProjectName $Date? $Priority?
+    (покажи|какие|что) (в проекте|в списке|в папке|из проекта|из списка|из папки) $ProjectName $DateRange? $Priority?
+    (покажи|какие|что) (в проекте|в списке|в папке|из проекта|из списка|из папки) $ProjectName $Date? $Priority?
 
 slots:
     project_name:
         source: $ProjectName
         type: YANDEX.STRING
+    date:
+        source: $Date
+        type: YANDEX.DATETIME
+    date_range:
+        source: $DateRange
+        type: YANDEX.STRING
+    priority:
+        source: $Priority
+        type: YANDEX.STRING
 
 $ProjectName:
+    .+
+
+$Date:
+    $YANDEX.DATETIME
+
+$DateRange:
+    .+
+
+$Priority:
     .+
