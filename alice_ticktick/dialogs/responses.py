@@ -175,7 +175,13 @@ MORNING_BRIEFING_TASKS_OVERDUE = (
     "Доброе утро! На сегодня {count}:\n{tasks}\nПросрочено: {overdue_count}."
 )
 EVENING_BRIEFING_NO_TASKS = "Итоги дня! На завтра задач нет. Хорошего вечера!"
+EVENING_BRIEFING_NO_TASKS_OVERDUE = (
+    "Итоги дня! На завтра задач нет, но есть {overdue_count} просроченных. Хорошего вечера!"
+)
 EVENING_BRIEFING_TASKS = "Итоги дня! На завтра {count}:\n{tasks}\nХорошего вечера!"
+EVENING_BRIEFING_TASKS_OVERDUE = (
+    "Итоги дня! На завтра {count}:\n{tasks}\nПросрочено: {overdue_count}. Хорошего вечера!"
+)
 
 # Unknown
 UNKNOWN = "Не поняла команду. Скажите «помощь», чтобы узнать, что я умею."

@@ -108,20 +108,35 @@ def test_morning_briefing_text_caps_at_five() -> None:
 
 
 def test_evening_briefing_text_no_tasks() -> None:
-    result = _build_evening_briefing_text(tomorrow_tasks=[])
+    result = _build_evening_briefing_text(tomorrow_tasks=[], overdue_tasks=[])
     assert result == txt.EVENING_BRIEFING_NO_TASKS
+
+
+def test_evening_briefing_text_no_tasks_with_overdue() -> None:
+    overdue = [_make_task(title="A"), _make_task(task_id="t2", title="B")]
+    result = _build_evening_briefing_text(tomorrow_tasks=[], overdue_tasks=overdue)
+    assert "2" in result
+    assert "просроч" in result.lower()
 
 
 def test_evening_briefing_text_with_tasks() -> None:
     tomorrow = [_make_task(title="Завтрашняя задача")]
-    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow)
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, overdue_tasks=[])
     assert "Завтрашняя задача" in result
     assert "завтра" in result.lower()
 
 
+def test_evening_briefing_text_tasks_with_overdue() -> None:
+    tomorrow = [_make_task(title="Завтрашняя задача")]
+    overdue = [_make_task(task_id="t2", title="Старая")]
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, overdue_tasks=overdue)
+    assert "Завтрашняя задача" in result
+    assert "просроч" in result.lower()
+
+
 def test_evening_briefing_text_caps_at_five() -> None:
     tomorrow = [_make_task(task_id=str(i), title=f"T{i}") for i in range(10)]
-    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow)
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, overdue_tasks=[])
     assert "T6" not in result
 
 
@@ -210,6 +225,38 @@ async def test_evening_briefing_ignores_today_tasks() -> None:
     factory = _make_mock_client(tasks)
     response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
     assert "задач нет" in response.text  # tomorrow is empty
+
+
+async def test_evening_briefing_with_overdue() -> None:
+    tz = ZoneInfo("UTC")
+    yesterday = (datetime.datetime.now(tz=tz) - datetime.timedelta(days=1)).replace(
+        hour=12, microsecond=0
+    )
+    tasks = [_make_task(title="Просроченная", due_date=yesterday)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert "просроч" in response.text.lower()
+    assert "задач нет" in response.text  # tomorrow is empty
+
+
+async def test_evening_briefing_tomorrow_and_overdue() -> None:
+    tz = ZoneInfo("UTC")
+    tomorrow = (datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)).replace(
+        hour=12, microsecond=0
+    )
+    yesterday = (datetime.datetime.now(tz=tz) - datetime.timedelta(days=1)).replace(
+        hour=12, microsecond=0
+    )
+    tasks = [
+        _make_task(task_id="t1", title="Завтрашняя", due_date=tomorrow),
+        _make_task(task_id="t2", title="Просроченная", due_date=yesterday),
+    ]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert "Завтрашняя" in response.text
+    assert "просроч" in response.text.lower()
 
 
 async def test_evening_briefing_api_error() -> None:
