@@ -2039,7 +2039,9 @@ async def handle_evening_briefing(
     overdue_tasks = [
         t
         for t in all_tasks
-        if t.status == 0 and t.due_date is not None and _to_user_date(t.due_date, user_tz) < now_date
+        if t.status == 0
+        and t.due_date is not None
+        and _to_user_date(t.due_date, user_tz) < now_date
     ]
 
     text = _build_evening_briefing_text(tomorrow_tasks=tomorrow_tasks, overdue_tasks=overdue_tasks)
