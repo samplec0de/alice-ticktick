@@ -178,6 +178,10 @@ PROJECT_CREATED = "Проект «{name}» создан."
 PROJECT_NAME_REQUIRED = "Как назвать проект? Скажите название."
 PROJECT_CREATE_ERROR = "Не удалось создать проект. Попробуйте ещё раз."
 PROJECT_TASKS_NAME_REQUIRED = "Какой проект показать? Скажите название."
+PROJECT_TASKS_WITH_PRIORITY = 'В проекте "{project}" с {priority}, {count}:\n{tasks}'
+PROJECT_NO_TASKS_WITH_PRIORITY = 'В проекте "{project}" задач с {priority} нет.'
+PROJECT_NO_TASKS_WITH_DATE = 'В проекте "{project}" на {date} задач нет.'
+PROJECT_TASKS_WITH_DATE = 'В проекте "{project}" на {date}, {count}:\n{tasks}'
 
 # Briefing
 MORNING_BRIEFING_NO_TASKS = "Доброе утро! На сегодня задач нет. Можно начать день спокойно."

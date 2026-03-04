@@ -335,6 +335,9 @@ class ProjectTasksSlots:
     """Extracted slots for project_tasks intent."""
 
     project_name: str | None = None
+    date: YandexDateTime | None = None
+    date_range: str | None = None
+    priority: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -372,6 +375,9 @@ def extract_project_tasks_slots(intent_data: dict[str, Any]) -> ProjectTasksSlot
     """Extract slots from project_tasks intent."""
     return ProjectTasksSlots(
         project_name=_get_slot_value(intent_data, "project_name"),
+        date=_get_slot_value(intent_data, "date"),
+        date_range=_get_slot_value(intent_data, "date_range"),
+        priority=_get_slot_value(intent_data, "priority"),
     )
 
 

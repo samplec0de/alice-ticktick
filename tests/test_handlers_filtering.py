@@ -255,3 +255,135 @@ class TestListTasksWithDateRange:
             )
         assert "Высокий приоритет" in response.text
         assert "Нет приоритета" not in response.text
+
+from alice_ticktick.dialogs.handlers import handle_project_tasks
+
+
+class TestProjectTasksFiltering:
+    async def test_project_tasks_with_priority(self) -> None:
+        tasks = [
+            _make_task(task_id="t1", title="Срочный", priority=TaskPriority.HIGH),
+            _make_task(task_id="t2", title="Обычный", priority=TaskPriority.NONE),
+        ]
+        intent_data = {
+            "slots": {
+                "project_name": {"value": "Работа"},
+                "priority": {"value": "высокий"},
+            }
+        }
+        projects = [Project(id="p1", name="Работа")]
+        message = _make_message()
+        response = await handle_project_tasks(
+            message,
+            intent_data,
+            ticktick_client_factory=_make_client_factory(tasks, projects=projects),
+        )
+        assert "Срочный" in response.text
+        assert "Обычный" not in response.text
+
+    async def test_project_tasks_with_date(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Сегодняшняя",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+            ),
+            _make_task(
+                task_id="t2",
+                title="Другая дата",
+                due_date=datetime.datetime(2026, 3, 10, 12, 0, tzinfo=datetime.UTC),
+            ),
+        ]
+        intent_data = {
+            "slots": {
+                "project_name": {"value": "Работа"},
+                "date": {"value": {"year": 2026, "month": 3, "day": 4}},  # абсолютная дата
+            }
+        }
+        projects = [Project(id="p1", name="Работа")]
+        message = _make_message()
+        response = await handle_project_tasks(
+            message,
+            intent_data,
+            ticktick_client_factory=_make_client_factory(tasks, projects=projects),
+        )
+        assert "Сегодняшняя" in response.text
+        assert "Другая дата" not in response.text
+
+    async def test_project_tasks_with_date_range(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="В эту неделю",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+            ),
+            _make_task(
+                task_id="t2",
+                title="Следующая неделя",
+                due_date=datetime.datetime(2026, 3, 10, 12, 0, tzinfo=datetime.UTC),
+            ),
+        ]
+        intent_data = {
+            "slots": {
+                "project_name": {"value": "Работа"},
+                "date_range": {"value": "this_week"},
+            }
+        }
+        projects = [Project(id="p1", name="Работа")]
+        message = _make_message()
+        fixed_range = DateRange(
+            date_from=datetime.date(2026, 3, 2),
+            date_to=datetime.date(2026, 3, 8),
+        )
+        with mock.patch("alice_ticktick.dialogs.handlers.parse_date_range", return_value=fixed_range):
+            response = await handle_project_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks, projects=projects),
+            )
+        assert "В эту неделю" in response.text
+        assert "Следующая неделя" not in response.text
+
+    async def test_project_tasks_combined_date_range_and_priority(self) -> None:
+        tasks = [
+            _make_task(
+                task_id="t1",
+                title="Срочная в неделю",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.HIGH,
+            ),
+            _make_task(
+                task_id="t2",
+                title="Обычная в неделю",
+                due_date=datetime.datetime(2026, 3, 4, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.NONE,
+            ),
+            _make_task(
+                task_id="t3",
+                title="Срочная не в неделю",
+                due_date=datetime.datetime(2026, 3, 10, 12, 0, tzinfo=datetime.UTC),
+                priority=TaskPriority.HIGH,
+            ),
+        ]
+        intent_data = {
+            "slots": {
+                "project_name": {"value": "Работа"},
+                "date_range": {"value": "this_week"},
+                "priority": {"value": "высокий"},
+            }
+        }
+        projects = [Project(id="p1", name="Работа")]
+        message = _make_message()
+        fixed_range = DateRange(
+            date_from=datetime.date(2026, 3, 2),
+            date_to=datetime.date(2026, 3, 8),
+        )
+        with mock.patch("alice_ticktick.dialogs.handlers.parse_date_range", return_value=fixed_range):
+            response = await handle_project_tasks(
+                message,
+                intent_data,
+                ticktick_client_factory=_make_client_factory(tasks, projects=projects),
+            )
+        assert "Срочная в неделю" in response.text
+        assert "Обычная в неделю" not in response.text
+        assert "Срочная не в неделю" not in response.text

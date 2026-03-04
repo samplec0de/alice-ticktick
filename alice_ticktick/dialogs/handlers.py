@@ -2018,11 +2018,44 @@ async def handle_project_tasks(
         logger.exception("Failed to get project tasks")
         return Response(text=txt.API_ERROR)
 
-    active = [t for t in tasks if t.status == 0]
+    user_tz = _get_user_tz(event_update)
+
+    # Build date filter
+    date_filter: datetime.date | DateRange | None = None
+    if slots.date_range:
+        date_filter = parse_date_range(
+            slots.date_range,
+            now=datetime.datetime.now(tz=user_tz).date(),
+            tz=user_tz,
+        )
+    elif slots.date:
+        try:
+            parsed = parse_yandex_datetime(slots.date)
+            date_filter = parsed.date() if isinstance(parsed, datetime.datetime) else parsed
+        except ValueError:
+            pass
+
+    priority_filter = parse_priority(slots.priority) if slots.priority else None
+    priority_label = (
+        _format_priority_label(priority_filter) if priority_filter is not None else None
+    )
+
+    active = _apply_task_filters(
+        tasks,
+        date_filter=date_filter,
+        priority_filter=priority_filter,
+        user_tz=user_tz,
+    )
     if not active:
+        if priority_label:
+            return Response(
+                text=txt.PROJECT_NO_TASKS_WITH_PRIORITY.format(
+                    project=project.name, priority=priority_label
+                )
+            )
         return Response(text=txt.PROJECT_NO_TASKS.format(project=project.name))
 
-    user_tz = _get_user_tz(event_update)
+    count = txt.pluralize_tasks(len(active))
     lines: list[str] = []
     for i, task in enumerate(active[:10]):
         line = f"{i + 1}. {task.title}"
@@ -2036,10 +2069,14 @@ async def handle_project_tasks(
             line += f" — {', '.join(parts)}"
         lines.append(line)
 
-    count = txt.pluralize_tasks(len(active))
-    text = txt.PROJECT_TASKS_HEADER.format(
-        project=project.name, count=count, tasks="\n".join(lines)
-    )
+    if priority_label:
+        text = txt.PROJECT_TASKS_WITH_PRIORITY.format(
+            project=project.name, priority=priority_label, count=count, tasks="\n".join(lines)
+        )
+    else:
+        text = txt.PROJECT_TASKS_HEADER.format(
+            project=project.name, count=count, tasks="\n".join(lines)
+        )
     return Response(text=_truncate_response(text))
 
 
