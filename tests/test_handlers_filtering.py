@@ -58,9 +58,7 @@ class TestApplyTaskFilters:
             _make_task(task_id="t2", due_date=_dt(2026, 3, 5)),
             _make_task(task_id="t3", due_date=None),
         ]
-        result = _apply_task_filters(
-            tasks, date_filter=datetime.date(2026, 3, 4), user_tz=UTC
-        )
+        result = _apply_task_filters(tasks, date_filter=datetime.date(2026, 3, 4), user_tz=UTC)
         assert len(result) == 1
         assert result[0].id == "t1"
 
@@ -84,9 +82,7 @@ class TestApplyTaskFilters:
             _make_task(task_id="t2", priority=TaskPriority.MEDIUM),
             _make_task(task_id="t3", priority=TaskPriority.NONE),
         ]
-        result = _apply_task_filters(
-            tasks, priority_filter=TaskPriority.HIGH, user_tz=UTC
-        )
+        result = _apply_task_filters(tasks, priority_filter=TaskPriority.HIGH, user_tz=UTC)
         assert len(result) == 1
         assert result[0].id == "t1"
 

@@ -195,8 +195,7 @@ def _apply_task_filters(
             result = [
                 t
                 for t in result
-                if t.due_date is not None
-                and _to_user_date(t.due_date, user_tz) == date_filter
+                if t.due_date is not None and _to_user_date(t.due_date, user_tz) == date_filter
             ]
 
     if priority_filter is not None:
@@ -909,9 +908,7 @@ async def handle_list_tasks(
         if priority_label:
             return Response(
                 text=_truncate_response(
-                    tmpl_found_p.format(
-                        priority=priority_label, count=count_str, tasks=task_list
-                    )
+                    tmpl_found_p.format(priority=priority_label, count=count_str, tasks=task_list)
                 )
             )
         return Response(
