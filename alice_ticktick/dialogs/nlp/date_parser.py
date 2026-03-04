@@ -226,3 +226,52 @@ def _datetime_entity_to_slot(entity: object) -> YandexDateTime:
         if rel_val:
             slot[rel_key] = rel_val  # type: ignore[literal-required]
     return slot
+
+
+from zoneinfo import ZoneInfo
+
+
+@dataclass
+class DateRange:
+    """Inclusive date range."""
+
+    date_from: datetime.date
+    date_to: datetime.date
+
+
+def parse_date_range(
+    value: str,
+    *,
+    now: datetime.date | None = None,
+    tz: ZoneInfo | None = None,
+) -> DateRange | None:
+    """Convert a date_range NLU slot value to a DateRange.
+
+    Supported values:
+    - 'this_week'  — Monday to Sunday of the current week
+    - 'next_week'  — Monday to Sunday of the next week
+    - 'this_month' — first to last day of the current month
+
+    Returns None for unknown values.
+    """
+    if now is None:
+        _tz = tz or ZoneInfo("UTC")
+        now = datetime.datetime.now(tz=_tz).date()
+
+    if value == "this_week":
+        monday = now - datetime.timedelta(days=now.weekday())
+        sunday = monday + datetime.timedelta(days=6)
+        return DateRange(date_from=monday, date_to=sunday)
+
+    if value == "next_week":
+        monday = now - datetime.timedelta(days=now.weekday()) + datetime.timedelta(weeks=1)
+        sunday = monday + datetime.timedelta(days=6)
+        return DateRange(date_from=monday, date_to=sunday)
+
+    if value == "this_month":
+        first = now.replace(day=1)
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        last = now.replace(day=last_day)
+        return DateRange(date_from=first, date_to=last)
+
+    return None
