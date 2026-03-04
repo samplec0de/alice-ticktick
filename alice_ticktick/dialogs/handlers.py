@@ -175,7 +175,7 @@ def _apply_task_filters(
     tasks: list[Task],
     *,
     date_filter: datetime.date | DateRange | None = None,
-    priority_filter: TaskPriority | None = None,
+    priority_filter: int | None = None,
     user_tz: ZoneInfo,
 ) -> list[Task]:
     """Filter active tasks by date (single day or range) and/or priority."""
@@ -1023,8 +1023,13 @@ async def handle_overdue_tasks(
         logger.exception("Failed to get overdue tasks")
         return Response(text=txt.API_ERROR)
 
+    candidates = [
+        t
+        for t in all_tasks
+        if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today
+    ]
     overdue = _apply_task_filters(
-        [t for t in all_tasks if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today],
+        candidates,
         priority_filter=priority_filter,
         user_tz=user_tz,
     )

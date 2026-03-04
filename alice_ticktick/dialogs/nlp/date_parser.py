@@ -7,6 +7,7 @@ import contextlib
 import datetime
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypedDict
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from aliceio.types import NLU
@@ -226,9 +227,6 @@ def _datetime_entity_to_slot(entity: object) -> YandexDateTime:
         if rel_val:
             slot[rel_key] = rel_val  # type: ignore[literal-required]
     return slot
-
-
-from zoneinfo import ZoneInfo
 
 
 @dataclass

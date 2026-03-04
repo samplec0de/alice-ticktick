@@ -2,10 +2,15 @@
 
 import datetime
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from alice_ticktick.dialogs.nlp.date_parser import extract_dates_from_nlu, parse_yandex_datetime
+from alice_ticktick.dialogs.nlp.date_parser import (
+    extract_dates_from_nlu,
+    parse_date_range,
+    parse_yandex_datetime,
+)
 
 NOW = datetime.datetime(2026, 3, 1, 10, 0, tzinfo=datetime.UTC)
 
@@ -142,11 +147,6 @@ class TestExtractDatesFromNlu:
         assert result.start_date is not None
         assert result.end_date is None
 
-
-import datetime
-from zoneinfo import ZoneInfo
-
-from alice_ticktick.dialogs.nlp.date_parser import DateRange, parse_date_range
 
 MSK = ZoneInfo("Europe/Moscow")
 

@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import datetime
+import unittest.mock as mock
+from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from alice_ticktick.dialogs.handlers import _apply_task_filters
+from alice_ticktick.dialogs.handlers import (
+    _apply_task_filters,
+    _reset_project_cache,
+    handle_list_tasks,
+    handle_overdue_tasks,
+    handle_project_tasks,
+)
 from alice_ticktick.dialogs.nlp.date_parser import DateRange
-from alice_ticktick.ticktick.models import Task, TaskPriority
+from alice_ticktick.ticktick.models import Project, Task, TaskPriority
 
 UTC = ZoneInfo("UTC")
+
+_NOW = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
 
 
 def _make_task(
@@ -124,14 +134,6 @@ class TestApplyTaskFilters:
         assert result[0].id == "t1"
 
 
-import unittest.mock as mock
-from unittest.mock import AsyncMock, MagicMock
-
-from alice_ticktick.dialogs.handlers import handle_list_tasks, _reset_project_cache
-from alice_ticktick.dialogs import responses as txt
-from alice_ticktick.ticktick.models import Project
-
-
 def _make_message(*, access_token: str | None = "test-token") -> MagicMock:
     message = MagicMock()
     message.command = ""
@@ -184,7 +186,7 @@ class TestListTasksWithDateRange:
         event_update.meta.interfaces.account_linking = None
 
         with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            mock_dt.datetime.now.return_value = _NOW
             response = await handle_list_tasks(
                 message,
                 intent_data,
@@ -209,7 +211,7 @@ class TestListTasksWithDateRange:
         event_update.meta.interfaces.account_linking = None
 
         with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            mock_dt.datetime.now.return_value = _NOW
             response = await handle_list_tasks(
                 message,
                 intent_data,
@@ -246,7 +248,7 @@ class TestListTasksWithDateRange:
         event_update.meta.interfaces.account_linking = None
 
         with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            mock_dt.datetime.now.return_value = _NOW
             response = await handle_list_tasks(
                 message,
                 intent_data,
@@ -255,8 +257,6 @@ class TestListTasksWithDateRange:
             )
         assert "Высокий приоритет" in response.text
         assert "Нет приоритета" not in response.text
-
-from alice_ticktick.dialogs.handlers import handle_project_tasks
 
 
 class TestProjectTasksFiltering:
@@ -335,7 +335,10 @@ class TestProjectTasksFiltering:
             date_from=datetime.date(2026, 3, 2),
             date_to=datetime.date(2026, 3, 8),
         )
-        with mock.patch("alice_ticktick.dialogs.handlers.parse_date_range", return_value=fixed_range):
+        with mock.patch(
+            "alice_ticktick.dialogs.handlers.parse_date_range",
+            return_value=fixed_range,
+        ):
             response = await handle_project_tasks(
                 message,
                 intent_data,
@@ -378,7 +381,10 @@ class TestProjectTasksFiltering:
             date_from=datetime.date(2026, 3, 2),
             date_to=datetime.date(2026, 3, 8),
         )
-        with mock.patch("alice_ticktick.dialogs.handlers.parse_date_range", return_value=fixed_range):
+        with mock.patch(
+            "alice_ticktick.dialogs.handlers.parse_date_range",
+            return_value=fixed_range,
+        ):
             response = await handle_project_tasks(
                 message,
                 intent_data,
@@ -387,8 +393,6 @@ class TestProjectTasksFiltering:
         assert "Срочная в неделю" in response.text
         assert "Обычная в неделю" not in response.text
         assert "Срочная не в неделю" not in response.text
-
-from alice_ticktick.dialogs.handlers import handle_overdue_tasks
 
 
 class TestOverdueTasksFiltering:
@@ -415,7 +419,7 @@ class TestOverdueTasksFiltering:
         event_update.meta.interfaces.account_linking = None
 
         with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            mock_dt.datetime.now.return_value = _NOW
             response = await handle_overdue_tasks(
                 message,
                 intent_data,
@@ -442,7 +446,7 @@ class TestOverdueTasksFiltering:
         event_update.meta.interfaces.account_linking = None
 
         with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            mock_dt.datetime.now.return_value = _NOW
             response = await handle_overdue_tasks(
                 message,
                 intent_data,
@@ -469,7 +473,7 @@ class TestOverdueTasksFiltering:
         event_update.meta.interfaces.account_linking = None
 
         with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = datetime.datetime(2026, 3, 4, 10, 0, tzinfo=datetime.UTC)
+            mock_dt.datetime.now.return_value = _NOW
             response = await handle_overdue_tasks(
                 message,
                 intent_data,
