@@ -71,20 +71,20 @@ UTC = ZoneInfo("UTC")
 
 
 def test_morning_briefing_text_no_tasks_no_overdue() -> None:
-    result = _build_morning_briefing_text(today_tasks=[], overdue_tasks=[], tz=UTC)
+    result = _build_morning_briefing_text(today_tasks=[], overdue_tasks=[])
     assert result == txt.MORNING_BRIEFING_NO_TASKS
 
 
 def test_morning_briefing_text_no_tasks_with_overdue() -> None:
     overdue = [_make_task(title="A"), _make_task(task_id="t2", title="B")]
-    result = _build_morning_briefing_text(today_tasks=[], overdue_tasks=overdue, tz=UTC)
+    result = _build_morning_briefing_text(today_tasks=[], overdue_tasks=overdue)
     assert "2" in result
     assert "просроч" in result.lower()
 
 
 def test_morning_briefing_text_tasks_no_overdue() -> None:
     today = [_make_task(title="Задача 1")]
-    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=[], tz=UTC)
+    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=[])
     assert "Задача 1" in result
     assert "просроч" not in result.lower()
 
@@ -92,7 +92,7 @@ def test_morning_briefing_text_tasks_no_overdue() -> None:
 def test_morning_briefing_text_tasks_with_overdue() -> None:
     today = [_make_task(title="Задача 1")]
     overdue = [_make_task(task_id="t2", title="Старая задача")]
-    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=overdue, tz=UTC)
+    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=overdue)
     assert "Задача 1" in result
     assert "1" in result  # overdue count
     assert "просроч" in result.lower()
@@ -100,7 +100,7 @@ def test_morning_briefing_text_tasks_with_overdue() -> None:
 
 def test_morning_briefing_text_caps_at_five() -> None:
     today = [_make_task(task_id=str(i), title=f"T{i}") for i in range(10)]
-    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=[], tz=UTC)
+    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=[])
     assert "T6" not in result  # только первые 5
 
 
@@ -108,20 +108,20 @@ def test_morning_briefing_text_caps_at_five() -> None:
 
 
 def test_evening_briefing_text_no_tasks() -> None:
-    result = _build_evening_briefing_text(tomorrow_tasks=[], tz=UTC)
+    result = _build_evening_briefing_text(tomorrow_tasks=[])
     assert result == txt.EVENING_BRIEFING_NO_TASKS
 
 
 def test_evening_briefing_text_with_tasks() -> None:
     tomorrow = [_make_task(title="Завтрашняя задача")]
-    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, tz=UTC)
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow)
     assert "Завтрашняя задача" in result
     assert "завтра" in result.lower()
 
 
 def test_evening_briefing_text_caps_at_five() -> None:
     tomorrow = [_make_task(task_id=str(i), title=f"T{i}") for i in range(10)]
-    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, tz=UTC)
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow)
     assert "T6" not in result
 
 
@@ -138,8 +138,7 @@ async def test_morning_briefing_no_tasks() -> None:
     msg = _make_message()
     factory = _make_mock_client([])
     response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
-    assert "Доброе утро" in response.text
-    assert "задач нет" in response.text
+    assert response.text == txt.MORNING_BRIEFING_NO_TASKS
 
 
 async def test_morning_briefing_with_today_tasks() -> None:
@@ -187,8 +186,7 @@ async def test_evening_briefing_no_tasks() -> None:
     msg = _make_message()
     factory = _make_mock_client([])
     response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
-    assert "Итоги дня" in response.text
-    assert "задач нет" in response.text
+    assert response.text == txt.EVENING_BRIEFING_NO_TASKS
 
 
 async def test_evening_briefing_with_tomorrow_tasks() -> None:

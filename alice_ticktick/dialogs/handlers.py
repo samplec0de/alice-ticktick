@@ -179,7 +179,6 @@ def _truncate_response(text: str) -> str:
 def _build_morning_briefing_text(
     today_tasks: list[Task],
     overdue_tasks: list[Task],
-    tz: ZoneInfo,
 ) -> str:
     """Build morning briefing text from today's and overdue tasks."""
     overdue_count = len(overdue_tasks)
@@ -206,7 +205,6 @@ def _build_morning_briefing_text(
 
 def _build_evening_briefing_text(
     tomorrow_tasks: list[Task],
-    tz: ZoneInfo,
 ) -> str:
     """Build evening briefing text from tomorrow's tasks."""
     if not tomorrow_tasks:
@@ -1977,26 +1975,26 @@ async def handle_morning_briefing(
         logger.exception("Failed to fetch tasks for morning briefing")
         return Response(text=txt.API_ERROR)
 
-    tz = _get_user_tz(event_update)
-    now = datetime.datetime.now(tz)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + datetime.timedelta(days=1)
+    user_tz = _get_user_tz(event_update)
+    today = datetime.datetime.now(tz=user_tz).date()
 
     today_tasks = [
         t
         for t in all_tasks
         if t.status == 0
         and t.due_date is not None
-        and today_start <= t.due_date.astimezone(tz) < today_end
+        and _to_user_date(t.due_date, user_tz) == today
     ]
     overdue_tasks = [
         t
         for t in all_tasks
-        if t.status == 0 and t.due_date is not None and t.due_date.astimezone(tz) < today_start
+        if t.status == 0
+        and t.due_date is not None
+        and _to_user_date(t.due_date, user_tz) < today
     ]
 
     text = _build_morning_briefing_text(
-        today_tasks=today_tasks, overdue_tasks=overdue_tasks, tz=tz
+        today_tasks=today_tasks, overdue_tasks=overdue_tasks
     )
     return Response(text=_truncate_response(text))
 
@@ -2019,20 +2017,16 @@ async def handle_evening_briefing(
         logger.exception("Failed to fetch tasks for evening briefing")
         return Response(text=txt.API_ERROR)
 
-    tz = _get_user_tz(event_update)
-    now = datetime.datetime.now(tz)
-    tomorrow_start = (now + datetime.timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    tomorrow_end = tomorrow_start + datetime.timedelta(days=1)
+    user_tz = _get_user_tz(event_update)
+    tomorrow = (datetime.datetime.now(tz=user_tz) + datetime.timedelta(days=1)).date()
 
     tomorrow_tasks = [
         t
         for t in all_tasks
-        if t.status == 0
-        and t.due_date is not None
-        and tomorrow_start <= t.due_date.astimezone(tz) < tomorrow_end
+        if t.due_date is not None
+        and _to_user_date(t.due_date, user_tz) == tomorrow
+        and t.status == 0
     ]
 
-    text = _build_evening_briefing_text(tomorrow_tasks=tomorrow_tasks, tz=tz)
+    text = _build_evening_briefing_text(tomorrow_tasks=tomorrow_tasks)
     return Response(text=_truncate_response(text))
