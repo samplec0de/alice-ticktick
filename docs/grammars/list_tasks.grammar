@@ -3,17 +3,26 @@ root:
     (какие | покажи | что) (у меня)? $Priority (задачи | задач | дела) (на | в | за)? $Date?
     (какие | покажи | что) (у меня)? (задачи | задач | дела | запланировано)? (на | в | за)? $Date
     (какие | покажи | что) (задачи | задач | дела) с $Priority приоритет (на | в | за)? $Date?
+    (какие | покажи | что) (у меня)? $Priority? (задачи | задач | дела) $DateRange
+    (какие | покажи | что) (у меня)? (задачи | задач | дела | запланировано)? $DateRange
+    покажи $DateRange $Priority? (задачи | задач | дела)?
 
 slots:
     date:
         source: $Date
         type: YANDEX.DATETIME
+    date_range:
+        source: $DateRange
+        type: YANDEX.STRING
     priority:
         source: $Priority
         type: YANDEX.STRING
 
 $Date:
     $YANDEX.DATETIME
+
+$DateRange:
+    .+
 
 $Priority:
     .+

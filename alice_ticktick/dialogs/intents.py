@@ -81,6 +81,7 @@ class ListTasksSlots:
 
     date: YandexDateTime | None = None
     priority: str | None = None
+    date_range: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +122,13 @@ class DeleteTaskSlots:
     """Extracted slots for delete_task intent."""
 
     task_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OverdueTasksSlots:
+    """Extracted slots for overdue_tasks intent."""
+
+    priority: str | None = None
 
 
 def _get_slot_value(intent_data: dict[str, Any], slot_name: str) -> Any:
@@ -167,6 +175,7 @@ def extract_list_tasks_slots(intent_data: dict[str, Any]) -> ListTasksSlots:
     return ListTasksSlots(
         date=_get_slot_value(intent_data, "date"),
         priority=_get_slot_value(intent_data, "priority"),
+        date_range=_get_slot_value(intent_data, "date_range"),
     )
 
 
@@ -210,6 +219,13 @@ def extract_delete_task_slots(intent_data: dict[str, Any]) -> DeleteTaskSlots:
     """Extract slots from delete_task intent."""
     return DeleteTaskSlots(
         task_name=_get_slot_value(intent_data, "task_name"),
+    )
+
+
+def extract_overdue_tasks_slots(intent_data: dict[str, Any]) -> OverdueTasksSlots:
+    """Extract slots from overdue_tasks intent."""
+    return OverdueTasksSlots(
+        priority=_get_slot_value(intent_data, "priority"),
     )
 
 
@@ -333,6 +349,9 @@ class ProjectTasksSlots:
     """Extracted slots for project_tasks intent."""
 
     project_name: str | None = None
+    date: YandexDateTime | None = None
+    date_range: str | None = None
+    priority: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,6 +389,9 @@ def extract_project_tasks_slots(intent_data: dict[str, Any]) -> ProjectTasksSlot
     """Extract slots from project_tasks intent."""
     return ProjectTasksSlots(
         project_name=_get_slot_value(intent_data, "project_name"),
+        date=_get_slot_value(intent_data, "date"),
+        date_range=_get_slot_value(intent_data, "date_range"),
+        priority=_get_slot_value(intent_data, "priority"),
     )
 
 

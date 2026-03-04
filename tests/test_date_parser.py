@@ -2,10 +2,15 @@
 
 import datetime
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from alice_ticktick.dialogs.nlp.date_parser import extract_dates_from_nlu, parse_yandex_datetime
+from alice_ticktick.dialogs.nlp.date_parser import (
+    extract_dates_from_nlu,
+    parse_date_range,
+    parse_yandex_datetime,
+)
 
 NOW = datetime.datetime(2026, 3, 1, 10, 0, tzinfo=datetime.UTC)
 
@@ -141,3 +146,50 @@ class TestExtractDatesFromNlu:
         assert result.task_name == "купить молоко"
         assert result.start_date is not None
         assert result.end_date is None
+
+
+MSK = ZoneInfo("Europe/Moscow")
+
+
+class TestDateRange:
+    def test_this_week_monday(self) -> None:
+        # 2026-03-02 — понедельник
+        now = datetime.date(2026, 3, 2)
+        result = parse_date_range("this_week", now=now, tz=MSK)
+        assert result is not None
+        assert result.date_from == datetime.date(2026, 3, 2)
+        assert result.date_to == datetime.date(2026, 3, 8)
+
+    def test_this_week_wednesday(self) -> None:
+        # 2026-03-04 — среда, неделя всё равно Пн–Вс
+        now = datetime.date(2026, 3, 4)
+        result = parse_date_range("this_week", now=now, tz=MSK)
+        assert result is not None
+        assert result.date_from == datetime.date(2026, 3, 2)
+        assert result.date_to == datetime.date(2026, 3, 8)
+
+    def test_next_week(self) -> None:
+        now = datetime.date(2026, 3, 4)
+        result = parse_date_range("next_week", now=now, tz=MSK)
+        assert result is not None
+        assert result.date_from == datetime.date(2026, 3, 9)
+        assert result.date_to == datetime.date(2026, 3, 15)
+
+    def test_this_month(self) -> None:
+        now = datetime.date(2026, 3, 15)
+        result = parse_date_range("this_month", now=now, tz=MSK)
+        assert result is not None
+        assert result.date_from == datetime.date(2026, 3, 1)
+        assert result.date_to == datetime.date(2026, 3, 31)
+
+    def test_this_month_february(self) -> None:
+        # Февраль 2026 — 28 дней
+        now = datetime.date(2026, 2, 10)
+        result = parse_date_range("this_month", now=now, tz=MSK)
+        assert result is not None
+        assert result.date_to == datetime.date(2026, 2, 28)
+
+    def test_unknown_value(self) -> None:
+        now = datetime.date(2026, 3, 4)
+        result = parse_date_range("unknown_value", now=now, tz=MSK)
+        assert result is None

@@ -619,7 +619,7 @@ async def test_list_tasks_unknown_priority_ignored() -> None:
 async def test_overdue_tasks_none() -> None:
     message = _make_message()
     mock_factory = _make_mock_client(tasks=[])
-    response = await handle_overdue_tasks(message, mock_factory)
+    response = await handle_overdue_tasks(message, ticktick_client_factory=mock_factory)
     assert response.text == txt.NO_OVERDUE
 
 
@@ -632,7 +632,7 @@ async def test_overdue_tasks_found() -> None:
     tasks = [_make_task(title="Просроченная", due_date=yesterday)]
     message = _make_message()
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_overdue_tasks(message, mock_factory)
+    response = await handle_overdue_tasks(message, ticktick_client_factory=mock_factory)
     assert "Просроченная" in response.text
 
 
@@ -642,7 +642,7 @@ async def test_overdue_tasks_api_error() -> None:
     mock_factory.return_value.__aenter__ = AsyncMock(
         side_effect=Exception("API error"),
     )
-    response = await handle_overdue_tasks(message, mock_factory)
+    response = await handle_overdue_tasks(message, ticktick_client_factory=mock_factory)
     assert response.text == txt.API_ERROR
 
 

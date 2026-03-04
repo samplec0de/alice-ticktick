@@ -32,12 +32,14 @@ from alice_ticktick.dialogs.intents import (
     extract_show_checklist_slots,
 )
 from alice_ticktick.dialogs.nlp import (
+    DateRange,
     build_rrule,
     build_trigger,
     find_best_match,
     find_matches,
     format_recurrence,
     format_reminder,
+    parse_date_range,
     parse_duration,
     parse_priority,
     parse_yandex_datetime,
@@ -167,6 +169,39 @@ def _format_task_context(task: Task, tz: ZoneInfo) -> str:
     if not parts:
         return ""
     return " (" + ", ".join(parts) + ")"
+
+
+def _apply_task_filters(
+    tasks: list[Task],
+    *,
+    date_filter: datetime.date | DateRange | None = None,
+    priority_filter: int | None = None,
+    user_tz: ZoneInfo,
+) -> list[Task]:
+    """Filter active tasks by date (single day or range) and/or priority."""
+    result = [t for t in tasks if t.status == 0]
+
+    if date_filter is not None:
+        if isinstance(date_filter, DateRange):
+            result = [
+                t
+                for t in result
+                if t.due_date is not None
+                and date_filter.date_from
+                <= _to_user_date(t.due_date, user_tz)
+                <= date_filter.date_to
+            ]
+        else:
+            result = [
+                t
+                for t in result
+                if t.due_date is not None and _to_user_date(t.due_date, user_tz) == date_filter
+            ]
+
+    if priority_filter is not None:
+        result = [t for t in result if t.priority == priority_filter]
+
+    return result
 
 
 def _truncate_response(text: str) -> str:
@@ -804,7 +839,83 @@ async def handle_list_tasks(
     user_tz = _get_user_tz(event_update)
     slots = extract_list_tasks_slots(intent_data)
 
-    # Determine target date (in user timezone)
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            all_tasks = await _gather_all_tasks(client)
+    except Exception:
+        logger.exception("Failed to list tasks")
+        return Response(text=txt.API_ERROR)
+
+    # Date range path (week/month) — early return
+    if slots.date_range:
+        date_range_filter = parse_date_range(
+            slots.date_range,
+            now=datetime.datetime.now(tz=user_tz).date(),
+            tz=user_tz,
+        )
+        priority_filter = parse_priority(slots.priority) if slots.priority else None
+        priority_label = (
+            _format_priority_label(priority_filter) if priority_filter is not None else None
+        )
+
+        filtered = _apply_task_filters(
+            all_tasks,
+            date_filter=date_range_filter,
+            priority_filter=priority_filter,
+            user_tz=user_tz,
+        )
+
+        _range_txt_map = {
+            "this_week": (
+                txt.TASKS_FOR_WEEK,
+                txt.TASKS_FOR_WEEK_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_WEEK,
+                txt.NO_TASKS_FOR_WEEK_WITH_PRIORITY,
+            ),
+            "next_week": (
+                txt.TASKS_FOR_NEXT_WEEK,
+                txt.TASKS_FOR_NEXT_WEEK_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_NEXT_WEEK,
+                txt.NO_TASKS_FOR_NEXT_WEEK_WITH_PRIORITY,
+            ),
+            "this_month": (
+                txt.TASKS_FOR_MONTH,
+                txt.TASKS_FOR_MONTH_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_MONTH,
+                txt.NO_TASKS_FOR_MONTH_WITH_PRIORITY,
+            ),
+        }
+        tmpl_found, tmpl_found_p, tmpl_none, tmpl_none_p = _range_txt_map.get(
+            slots.date_range,
+            (
+                txt.TASKS_FOR_WEEK,
+                txt.TASKS_FOR_WEEK_WITH_PRIORITY,
+                txt.NO_TASKS_FOR_WEEK,
+                txt.NO_TASKS_FOR_WEEK_WITH_PRIORITY,
+            ),
+        )
+
+        if not filtered:
+            if priority_label:
+                return Response(text=tmpl_none_p.format(priority=priority_label))
+            return Response(text=tmpl_none)
+
+        count_str = txt.pluralize_tasks(len(filtered))
+        lines = [_format_task_line(i + 1, t) for i, t in enumerate(filtered[:5])]
+        task_list = "\n".join(lines)
+
+        if priority_label:
+            return Response(
+                text=_truncate_response(
+                    tmpl_found_p.format(priority=priority_label, count=count_str, tasks=task_list)
+                )
+            )
+        return Response(
+            text=_truncate_response(tmpl_found.format(count=count_str, tasks=task_list))
+        )
+
+    # Single-day path
     if slots.date:
         try:
             target_date = parse_yandex_datetime(slots.date)
@@ -818,14 +929,6 @@ async def handle_list_tasks(
         target_day = datetime.datetime.now(tz=user_tz).date()
 
     date_display = _format_date(target_day, user_tz)
-
-    factory = ticktick_client_factory or TickTickClient
-    try:
-        async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
-    except Exception:
-        logger.exception("Failed to list tasks")
-        return Response(text=txt.API_ERROR)
 
     # Filter tasks for the target date (convert due_date to user timezone)
     day_tasks = [
@@ -889,13 +992,22 @@ async def handle_list_tasks(
 
 async def handle_overdue_tasks(
     message: Message,
+    intent_data: dict[str, Any] | None = None,
     ticktick_client_factory: type[TickTickClient] | None = None,
     event_update: Update | None = None,
 ) -> Response:
     """Handle overdue_tasks intent."""
+    from alice_ticktick.dialogs.intents import extract_overdue_tasks_slots
+
     access_token = _get_access_token(message)
     if access_token is None:
         return _auth_required_response(event_update)
+
+    slots = extract_overdue_tasks_slots(intent_data or {})
+    priority_filter = parse_priority(slots.priority) if slots.priority else None
+    priority_label = (
+        _format_priority_label(priority_filter) if priority_filter is not None else None
+    )
 
     user_tz = _get_user_tz(event_update)
     factory = ticktick_client_factory or TickTickClient
@@ -908,19 +1020,34 @@ async def handle_overdue_tasks(
         logger.exception("Failed to get overdue tasks")
         return Response(text=txt.API_ERROR)
 
-    overdue = [
+    candidates = [
         t
         for t in all_tasks
-        if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today and t.status == 0
+        if t.due_date is not None and _to_user_date(t.due_date, user_tz) < today
     ]
+    overdue = _apply_task_filters(
+        candidates,
+        priority_filter=priority_filter,
+        user_tz=user_tz,
+    )
 
     if not overdue:
+        if priority_label:
+            return Response(text=txt.NO_OVERDUE_WITH_PRIORITY.format(priority=priority_label))
         return Response(text=txt.NO_OVERDUE)
 
     count_str = txt.pluralize_tasks(len(overdue))
     lines = [_format_task_line(i + 1, t) for i, t in enumerate(overdue[:5])]
     task_list = "\n".join(lines)
 
+    if priority_label:
+        return Response(
+            text=_truncate_response(
+                txt.OVERDUE_WITH_PRIORITY.format(
+                    priority=priority_label, count=count_str, tasks=task_list
+                )
+            )
+        )
     return Response(
         text=_truncate_response(
             txt.OVERDUE_TASKS_HEADER.format(
@@ -1912,11 +2039,44 @@ async def handle_project_tasks(
         logger.exception("Failed to get project tasks")
         return Response(text=txt.API_ERROR)
 
-    active = [t for t in tasks if t.status == 0]
+    user_tz = _get_user_tz(event_update)
+
+    # Build date filter
+    date_filter: datetime.date | DateRange | None = None
+    if slots.date_range:
+        date_filter = parse_date_range(
+            slots.date_range,
+            now=datetime.datetime.now(tz=user_tz).date(),
+            tz=user_tz,
+        )
+    elif slots.date:
+        try:
+            parsed = parse_yandex_datetime(slots.date)
+            date_filter = parsed.date() if isinstance(parsed, datetime.datetime) else parsed
+        except ValueError:
+            pass
+
+    priority_filter = parse_priority(slots.priority) if slots.priority else None
+    priority_label = (
+        _format_priority_label(priority_filter) if priority_filter is not None else None
+    )
+
+    active = _apply_task_filters(
+        tasks,
+        date_filter=date_filter,
+        priority_filter=priority_filter,
+        user_tz=user_tz,
+    )
     if not active:
+        if priority_label:
+            return Response(
+                text=txt.PROJECT_NO_TASKS_WITH_PRIORITY.format(
+                    project=project.name, priority=priority_label
+                )
+            )
         return Response(text=txt.PROJECT_NO_TASKS.format(project=project.name))
 
-    user_tz = _get_user_tz(event_update)
+    count = txt.pluralize_tasks(len(active))
     lines: list[str] = []
     for i, task in enumerate(active[:10]):
         line = f"{i + 1}. {task.title}"
@@ -1930,10 +2090,14 @@ async def handle_project_tasks(
             line += f" — {', '.join(parts)}"
         lines.append(line)
 
-    count = txt.pluralize_tasks(len(active))
-    text = txt.PROJECT_TASKS_HEADER.format(
-        project=project.name, count=count, tasks="\n".join(lines)
-    )
+    if priority_label:
+        text = txt.PROJECT_TASKS_WITH_PRIORITY.format(
+            project=project.name, priority=priority_label, count=count, tasks="\n".join(lines)
+        )
+    else:
+        text = txt.PROJECT_TASKS_HEADER.format(
+            project=project.name, count=count, tasks="\n".join(lines)
+        )
     return Response(text=_truncate_response(text))
 
 
