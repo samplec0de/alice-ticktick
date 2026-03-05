@@ -32,35 +32,34 @@ AUTH_REQUIRED_NO_LINKING = (
 )
 
 # Create task
-TASK_CREATED = 'Готово! Задача "{name}" создана.'
-TASK_CREATED_WITH_DATE = 'Готово! Задача "{name}" создана на {date}.'
-TASK_CREATED_WITH_PRIORITY = 'Готово! Задача "{name}" создана, приоритет — {priority}.'
+TASK_CREATED = "Готово! Задача «{name}» создана."
+TASK_CREATED_WITH_DATE = "Готово! Задача «{name}» создана на {date}."
+TASK_CREATED_WITH_PRIORITY = "Готово! Задача «{name}» создана, приоритет — {priority}."
 TASK_CREATED_WITH_DATE_AND_PRIORITY = (
-    'Готово! Задача "{name}" создана на {date}, приоритет — {priority}.'
+    "Готово! Задача «{name}» создана на {date}, приоритет — {priority}."
 )
-TASK_CREATED_IN_PROJECT = 'Готово! Задача "{name}" создана в проекте "{project}".'
+TASK_CREATED_IN_PROJECT = "Готово! Задача «{name}» создана в проекте «{project}»."
 TASK_CREATED_IN_PROJECT_WITH_DATE = (
-    'Готово! Задача "{name}" создана в проекте "{project}" на {date}.'
+    "Готово! Задача «{name}» создана в проекте «{project}» на {date}."
 )
-TASK_CREATED_RECURRING = 'Готово! Задача "{name}" создана, {recurrence}.'
-TASK_CREATED_WITH_REMINDER = 'Готово! Задача "{name}" создана с напоминанием {reminder}.'
+TASK_CREATED_RECURRING = "Готово! Задача «{name}» создана, {recurrence}."
+TASK_CREATED_WITH_REMINDER = "Готово! Задача «{name}» создана с напоминанием {reminder}."
 TASK_CREATED_RECURRING_WITH_REMINDER = (
-    'Готово! Задача "{name}" создана, {recurrence}, напоминание {reminder}.'
+    "Готово! Задача «{name}» создана, {recurrence}, напоминание {reminder}."
 )
 # Create task with duration/range
-TASK_CREATED_WITH_DURATION = 'Добавила! "{name}" на {date}, {start_time} до {end_time}.'
+TASK_CREATED_WITH_DURATION = "Готово! «{name}» на {date}, {start_time} до {end_time}."
 TASK_CREATED_WITH_DURATION_AND_PRIORITY = (
-    'Добавила! "{name}" на {date}, {start_time} до {end_time}, приоритет — {priority}.'
+    "Готово! «{name}» на {date}, {start_time} до {end_time}, приоритет — {priority}."
 )
 TASK_CREATED_WITH_DURATION_RECURRING = (
-    'Добавила! "{name}" на {date}, {start_time} до {end_time}, {recurrence}.'
+    "Готово! «{name}» на {date}, {start_time} до {end_time}, {recurrence}."
 )
 TASK_CREATED_WITH_DURATION_AND_REMINDER = (
-    'Добавила! "{name}" на {date}, {start_time} до {end_time}, напоминание {reminder}.'
+    "Готово! «{name}» на {date}, {start_time} до {end_time}, напоминание {reminder}."
 )
 TASK_CREATED_WITH_DURATION_RECURRING_AND_REMINDER = (
-    'Добавила! "{name}" на {date}, {start_time} до {end_time},'
-    " {recurrence}, напоминание {reminder}."
+    "Готово! «{name}» на {date}, {start_time} до {end_time}, {recurrence}, напоминание {reminder}."
 )
 DURATION_MISSING_START_TIME = "Во сколько начинается? Скажите время."
 TASK_NAME_REQUIRED = "Как назвать задачу? Скажите название."
@@ -92,19 +91,19 @@ NO_TASKS_FOR_MONTH_WITH_PRIORITY = "В этом месяце задач с {prio
 
 # Overdue tasks
 NO_OVERDUE = "Просроченных задач нет. Отличная работа!"
-OVERDUE_TASKS_HEADER = "Просроченных задач: {count}:\n{tasks}"
-OVERDUE_WITH_PRIORITY = "Просроченных с {priority}: {count}:\n{tasks}"
+OVERDUE_TASKS_HEADER = "Просроченных — {count}:\n{tasks}"
+OVERDUE_WITH_PRIORITY = "Просроченных с {priority} — {count}:\n{tasks}"
 NO_OVERDUE_WITH_PRIORITY = "Просроченных задач с {priority} нет."
 
 # Complete task
-TASK_COMPLETED = 'Задача "{name}"{context} отмечена выполненной.'
-TASK_NOT_FOUND = 'Задача "{name}" не найдена. Попробуйте сказать точнее.'
+TASK_COMPLETED = "Задача «{name}»{context} отмечена выполненной."
+TASK_NOT_FOUND = "Задача «{name}» не найдена. Попробуйте сказать точнее."
 COMPLETE_NAME_REQUIRED = "Какую задачу отметить выполненной? Скажите название."
 COMPLETE_ERROR = "Не удалось завершить задачу. Попробуйте ещё раз."
 
 # Search
 SEARCH_QUERY_REQUIRED = "Какую задачу найти? Скажите название или часть названия."
-SEARCH_NO_RESULTS = 'По запросу "{query}" ничего не найдено.'
+SEARCH_NO_RESULTS = "По запросу «{query}» ничего не найдено."
 SEARCH_BEST_MATCH = "Лучшее совпадение — «{name}»{context}:"
 SEARCH_BEST_MATCH_SINGLE = "Найдена задача «{name}»{context}:"
 SEARCH_DESCRIPTION = "Описание: {description}"
@@ -114,28 +113,28 @@ SEARCH_CHECKLIST_MORE = "…и ещё {count}"
 # Edit
 EDIT_NAME_REQUIRED = "Какую задачу изменить? Скажите название."
 EDIT_NO_CHANGES = (
-    "Не поняла, что изменить. Скажите, например: "
+    "Не удалось понять, что изменить. Скажите, например: "
     "«перенеси на завтра» или «поменяй приоритет на высокий»."
 )
-TASK_MOVED = 'Задача "{name}" перемещена в проект "{project}".'
-TASK_ALREADY_IN_PROJECT = 'Задача "{name}" уже в проекте "{project}".'
-EDIT_SUCCESS = 'Задача "{name}" обновлена: {changes}.'
-EDIT_SUCCESS_NO_DETAILS = 'Задача "{name}" обновлена.'
+TASK_MOVED = "Задача «{name}» перемещена в проект «{project}»."
+TASK_ALREADY_IN_PROJECT = "Задача «{name}» уже в проекте «{project}»."
+EDIT_SUCCESS = "Задача «{name}» обновлена: {changes}."
+EDIT_SUCCESS_NO_DETAILS = "Задача «{name}» обновлена."
 EDIT_ERROR = "Не удалось обновить задачу. Попробуйте ещё раз."
 
 # Recurrence/reminder edit
-RECURRENCE_UPDATED = 'Повторение задачи "{name}" изменено: {recurrence}.'
-RECURRENCE_REMOVED = 'Повторение задачи "{name}" убрано.'
-REMINDER_UPDATED = 'Напоминание задачи "{name}" изменено: {reminder}.'
-REMINDER_REMOVED = 'Напоминание задачи "{name}" убрано.'
+RECURRENCE_UPDATED = "Повторение задачи «{name}» изменено: {recurrence}."
+RECURRENCE_REMOVED = "Повторение задачи «{name}» убрано."
+REMINDER_UPDATED = "Напоминание задачи «{name}» изменено: {reminder}."
+REMINDER_REMOVED = "Напоминание задачи «{name}» убрано."
 
 # Delete
 DELETE_NAME_REQUIRED = "Какую задачу удалить? Скажите название."
-DELETE_CONFIRM = 'Удалить задачу "{name}"{context}? Скажите да или нет.'
-DELETE_SUCCESS = 'Задача "{name}"{context} удалена.'
-DELETE_CANCELLED = "Отменила удаление."
+DELETE_CONFIRM = "Удалить задачу «{name}»{context}? Скажите да или нет."
+DELETE_SUCCESS = "Задача «{name}»{context} удалена."
+DELETE_CANCELLED = "Удаление отменено."
 DELETE_ERROR = "Не удалось удалить задачу. Попробуйте ещё раз."
-DELETE_CONFIRM_PROMPT = 'Скажите "да" для удаления или "нет" для отмены.'
+DELETE_CONFIRM_PROMPT = "Скажите «да» для удаления или «нет» для отмены."
 
 # Subtasks
 SUBTASK_PARENT_REQUIRED = "Назовите задачу, к которой нужно добавить подзадачу."
@@ -149,7 +148,7 @@ LIST_SUBTASKS_NAME_REQUIRED = "Назовите задачу, подзадачи
 # Checklists
 CHECKLIST_TASK_REQUIRED = "Назовите задачу для чеклиста."
 CHECKLIST_ITEM_REQUIRED = "Что добавить в чеклист?"
-CHECKLIST_ITEM_ADDED = "Добавила «{item}» в чеклист задачи «{task}». Всего пунктов: {count}."
+CHECKLIST_ITEM_ADDED = "«{item}» добавлен в чеклист задачи «{task}». Всего пунктов: {count}."
 CHECKLIST_ITEM_ERROR = "Не удалось добавить пункт в чеклист."
 CHECKLIST_EMPTY = "Чеклист задачи «{name}» пуст."
 CHECKLIST_HEADER = "Чеклист задачи «{name}»:\n{items}"
@@ -161,15 +160,15 @@ CHECKLIST_CHECK_ERROR = "Не удалось отметить пункт."
 SHOW_CHECKLIST_NAME_REQUIRED = "Назовите задачу, чеклист которой показать."
 
 # Add reminder to existing task
-REMINDER_ADDED = 'Напоминание {reminder} добавлено к задаче "{name}".'
+REMINDER_ADDED = "Напоминание {reminder} добавлено к задаче «{name}»."
 REMINDER_TASK_REQUIRED = "К какой задаче добавить напоминание?"
 REMINDER_VALUE_REQUIRED = "За сколько напомнить? Скажите, например, «за 30 минут» или «за час»."
 REMINDER_PARSE_ERROR = (
-    "Не поняла время напоминания. Скажите, например, «за 30 минут» или «за час»."
+    "Не удалось распознать время напоминания. Скажите, например, «за 30 минут» или «за час»."
 )
 REMINDER_ERROR = "Не удалось добавить напоминание. Попробуйте ещё раз."
 
-PROJECT_NOT_FOUND = 'Проект "{name}" не найден. Ваши проекты: {projects}.'
+PROJECT_NOT_FOUND = "Проект «{name}» не найден. Ваши проекты: {projects}."
 
 # Projects
 PROJECTS_LIST = "Ваши проекты ({count}):\n{projects}"
@@ -180,10 +179,10 @@ PROJECT_CREATED = "Проект «{name}» создан."
 PROJECT_NAME_REQUIRED = "Как назвать проект? Скажите название."
 PROJECT_CREATE_ERROR = "Не удалось создать проект. Попробуйте ещё раз."
 PROJECT_TASKS_NAME_REQUIRED = "Какой проект показать? Скажите название."
-PROJECT_TASKS_WITH_PRIORITY = 'В проекте "{project}" с {priority}, {count}:\n{tasks}'
-PROJECT_NO_TASKS_WITH_PRIORITY = 'В проекте "{project}" задач с {priority} нет.'
-PROJECT_NO_TASKS_WITH_DATE = 'В проекте "{project}" на {date} задач нет.'
-PROJECT_TASKS_WITH_DATE = 'В проекте "{project}" на {date}, {count}:\n{tasks}'
+PROJECT_TASKS_WITH_PRIORITY = "В проекте «{project}» с {priority}, {count}:\n{tasks}"
+PROJECT_NO_TASKS_WITH_PRIORITY = "В проекте «{project}» задач с {priority} нет."
+PROJECT_NO_TASKS_WITH_DATE = "В проекте «{project}» на {date} задач нет."
+PROJECT_TASKS_WITH_DATE = "В проекте «{project}» на {date}, {count}:\n{tasks}"
 
 # Briefing
 MORNING_BRIEFING_NO_TASKS = "Доброе утро! На сегодня задач нет. Можно начать день спокойно."
@@ -204,11 +203,24 @@ EVENING_BRIEFING_TASKS_OVERDUE = (
 )
 
 # Unknown
-UNKNOWN = "Не поняла команду. Скажите «помощь», чтобы узнать, что я умею."
+UNKNOWN = "Команда не распознана. Скажите «помощь», чтобы узнать, что я умею."
 
 # Errors
 API_ERROR = "Произошла ошибка при обращении к TickTick. Попробуйте позже."
 GOODBYE = "До встречи! Удачного дня!"
+
+
+_PRIORITY_INSTRUMENTAL = {
+    "высокий приоритет": "высоким приоритетом",
+    "средний приоритет": "средним приоритетом",
+    "низкий приоритет": "низким приоритетом",
+    "срочный приоритет": "срочным приоритетом",
+}
+
+
+def format_priority_instrumental(priority: str) -> str:
+    """Format priority in instrumental case (творительный падеж) for 'с ...'."""
+    return _PRIORITY_INSTRUMENTAL.get(priority, priority)
 
 
 def pluralize_tasks(count: int) -> str:
