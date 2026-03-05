@@ -851,7 +851,9 @@ async def handle_list_tasks(
         )
         priority_filter = parse_priority(slots.priority) if slots.priority else None
         priority_label = (
-            _format_priority_label(priority_filter) if priority_filter is not None else None
+            txt.format_priority_instrumental(_format_priority_label(priority_filter))
+            if priority_filter is not None
+            else None
         )
 
         filtered = _apply_task_filters(
@@ -938,7 +940,9 @@ async def handle_list_tasks(
     # Apply priority filter if provided
     priority_filter = parse_priority(slots.priority) if slots.priority else None
     priority_label = (
-        _format_priority_label(priority_filter) if priority_filter is not None else None
+        txt.format_priority_instrumental(_format_priority_label(priority_filter))
+        if priority_filter is not None
+        else None
     )
 
     if priority_filter is not None:
@@ -1002,7 +1006,9 @@ async def handle_overdue_tasks(
     slots = extract_overdue_tasks_slots(intent_data or {})
     priority_filter = parse_priority(slots.priority) if slots.priority else None
     priority_label = (
-        _format_priority_label(priority_filter) if priority_filter is not None else None
+        txt.format_priority_instrumental(_format_priority_label(priority_filter))
+        if priority_filter is not None
+        else None
     )
 
     user_tz = _get_user_tz(event_update)
@@ -2057,7 +2063,9 @@ async def handle_project_tasks(
 
     priority_filter = parse_priority(slots.priority) if slots.priority else None
     priority_label = (
-        _format_priority_label(priority_filter) if priority_filter is not None else None
+        txt.format_priority_instrumental(_format_priority_label(priority_filter))
+        if priority_filter is not None
+        else None
     )
 
     active = _apply_task_filters(

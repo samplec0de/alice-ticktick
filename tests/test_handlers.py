@@ -543,7 +543,7 @@ async def test_list_tasks_filter_by_priority() -> None:
     assert "Важная" in response.text
     assert "Ещё важная" in response.text
     assert "Обычная" not in response.text
-    assert "высокий приоритет" in response.text
+    assert "высоким приоритетом" in response.text
 
 
 async def test_list_tasks_filter_by_priority_no_matches() -> None:
@@ -562,7 +562,7 @@ async def test_list_tasks_filter_by_priority_no_matches() -> None:
     }
     mock_factory = _make_mock_client(tasks=tasks)
     response = await handle_list_tasks(message, intent_data, mock_factory)
-    assert "высокий приоритет" in response.text
+    assert "высоким приоритетом" in response.text
     assert "нет" in response.text
 
 
@@ -2562,3 +2562,21 @@ async def test_list_tasks_passes_timezone_to_parse_yandex_datetime() -> None:
     response = await handle_list_tasks(message, intent_data, factory, event_update=mock_update)
     # Task due 2026-03-02 00:30 UTC = 2026-03-02 03:30 MSK — should match March 2
     assert "TZ Test Task" in response.text
+
+
+# --- format_priority_instrumental tests ---
+
+
+@pytest.mark.parametrize(
+    "input_val,expected",
+    [
+        ("высокий приоритет", "высоким приоритетом"),
+        ("средний приоритет", "средним приоритетом"),
+        ("низкий приоритет", "низким приоритетом"),
+        ("срочный приоритет", "срочным приоритетом"),
+        ("unknown", "unknown"),
+        ("", ""),
+    ],
+)
+def test_format_priority_instrumental(input_val: str, expected: str) -> None:
+    assert txt.format_priority_instrumental(input_val) == expected
