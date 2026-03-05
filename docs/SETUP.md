@@ -467,7 +467,16 @@ uv run mypy alice_ticktick/
 | Phase 3 — Интенты NLU | ✅ Готово | add_subtask, list_subtasks, add_checklist_item, show_checklist, check_item, delete_checklist_item |
 | Phase 3 — CD + деплой | ✅ Готово | Object Storage, python312 runtime, linux-совместимые бинарники (PR #4) |
 | Phase 3 — Помощь / прощание | ✅ Готово | Обработчики YANDEX.HELP, YANDEX.WHAT_CAN_YOU_DO, YANDEX.GOODBYE (PR #5) |
-| Phase 4 — Брифинг | ✅ Готово | Утренний/вечерний брифинг через API v1 (PR #N) |
+| Phase 4 — Брифинг | ✅ Готово | Утренний/вечерний брифинг через API v1 (PR #6) |
+| Phase 4 — Проекты | ✅ Готово | list_projects, project_tasks, create_project |
+| Phase 4 — Фильтрация | ✅ Готово | Фильтр по приоритету и диапазону дат (PR #33, FR-15) |
+| Ревью и фиксы | ✅ Готово | Комплексный ревью 29 issues, PRs #34–#39 |
+| — UX: унификация стиля | ✅ Готово | «Готово!» везде, пассивный залог, «ёлочки», склонение (PR #34) |
+| — Privacy: кэш per-user | ✅ Готово | Кэш привязан к access_token пользователя (PR #35) |
+| — Fuzzy: подтверждение | ✅ Готово | complete/edit_task запрашивают подтверждение при score < 85 (PR #36) |
+| — Timezone + truncate | ✅ Готово | now с tz, обрезка по \n, «…и ещё N» в брифингах (PR #37) |
+| — TickTickUnauthorizedError | ✅ Готово | Отдельная обработка ошибки авторизации (PR #38) |
+| — Рефакторинг handlers | ✅ Готово | handlers.py → handlers/ пакет (8 модулей), PR #39 |
 | Phase 5 — Kanban, проекты | ⬜ В очереди | Колонки, перемещение карточек |
 | Phase 6 — Привычки, статистика | ⬜ В очереди | Серии, привычки, брифинги |
 | Phase 7 — Публикация | ⬜ В очереди | Модерация, каталог Алисы |

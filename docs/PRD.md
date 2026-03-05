@@ -361,45 +361,35 @@ alice_ticktick/
 ├── dialogs/
 │   ├── __init__.py
 │   ├── router.py            # Маршрутизация интентов (aliceio Router)
-│   ├── intents.py           # Кастомные интенты и слоты
+│   ├── intents.py           # Извлечение слотов из intent_data
+│   ├── responses.py         # Все строки ответов Алисы (константы + helpers)
 │   ├── states.py            # FSM-состояния диалогов
-│   ├── scenes/
-│   │   ├── __init__.py
-│   │   ├── welcome.py       # Приветствие, помощь
-│   │   ├── create_task.py   # Создание задачи (многоходовый диалог)
-│   │   ├── list_tasks.py    # Просмотр задач на дату
-│   │   ├── overdue_tasks.py # Просроченные задачи
-│   │   ├── search_tasks.py  # Нечёткий поиск
-│   │   ├── edit_task.py     # Редактирование
-│   │   ├── delete_task.py   # Удаление с подтверждением
-│   │   ├── subtasks.py      # Подзадачи
-│   │   ├── checklist.py     # Чеклисты
-│   │   ├── tags.py          # Теги
-│   │   ├── recurrence.py    # Повторяющиеся задачи
-│   │   ├── reminders.py     # Напоминания
-│   │   ├── kanban.py        # Kanban-доска
-│   │   ├── projects.py      # Проекты
-│   │   ├── habits.py        # Привычки
-│   │   ├── stats.py         # Статистика продуктивности
-│   │   └── briefing.py      # Утренний/вечерний брифинг
+│   ├── handlers/            # Обработчики интентов (пакет)
+│   │   ├── __init__.py      # Re-export всех публичных handlers
+│   │   ├── _helpers.py      # Хелперы: _find_active_task, _truncate_response, кэш
+│   │   ├── tasks.py         # Задачи: create, list, complete, edit, delete, search
+│   │   ├── projects.py      # Проекты: list_projects, project_tasks, create_project
+│   │   ├── subtasks.py      # Подзадачи: add_subtask, list_subtasks
+│   │   ├── checklists.py    # Чеклисты: add_item, show, check_item, delete_item
+│   │   ├── briefings.py     # Брифинги: утренний, вечерний
+│   │   └── misc.py          # Помощь, прощание, fallback
 │   └── nlp/
 │       ├── __init__.py
-│       ├── dates.py         # Парсинг дат (YANDEX.DATETIME + fallback)
-│       ├── priorities.py    # "высокий" → 5, "срочный" → 5
-│       ├── recurrence.py    # "каждый понедельник" → RRULE
-│       └── fuzzy.py         # Нечёткий поиск (rapidfuzz, транслит)
+│       ├── date_parser.py   # Парсинг дат (YANDEX.DATETIME + fallback)
+│       ├── priority_parser.py # "высокий" → 5, "срочный" → 5
+│       ├── recurrence_parser.py # "каждый понедельник" → RRULE
+│       └── fuzzy_search.py  # Нечёткий поиск (rapidfuzz)
 ├── ticktick/
 │   ├── __init__.py
 │   ├── client_v1.py         # Async клиент Official API v1
-│   ├── client_v2.py         # Async клиент Unofficial API v2
-│   ├── client.py            # Фасад: объединение v1 + v2
-│   ├── models.py            # Pydantic-модели (Task, Project, Habit, Column, Tag)
-│   └── auth.py              # OAuth flow + V2 session
+│   ├── client_v2.py         # Async клиент Unofficial API v2 (подзадачи, теги)
+│   ├── client.py            # Фасад: объединение v1 + v2, кэш per-user
+│   ├── models.py            # Pydantic-модели (Task, Project, Tag, …)
+│   └── auth.py              # OAuth flow
 ├── storage/
 │   ├── __init__.py
-│   └── tokens.py            # Хранение и шифрование токенов
-├── config.py                # Конфигурация (pydantic-settings)
-└── utils.py                 # Общие утилиты
+│   └── tokens.py            # Хранение токенов
+└── config.py                # Конфигурация (pydantic-settings)
 ```
 
 ---
