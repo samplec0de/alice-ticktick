@@ -9,6 +9,7 @@ import pytest
 
 from alice_ticktick.dialogs import responses as txt
 from alice_ticktick.dialogs.handlers import (
+    ALICE_RESPONSE_MAX_LENGTH,
     _reset_project_cache,
     handle_create_project,
     handle_list_projects,
@@ -264,3 +265,13 @@ async def test_create_project_api_error() -> None:
         ticktick_client_factory=factory,
     )
     assert response.text == txt.PROJECT_CREATE_ERROR
+
+
+async def test_list_projects_long_list_truncated() -> None:
+    """UX-8: handle_list_projects truncates response within 1024 chars."""
+    projects = [_make_project(project_id=f"p{i}", name=f"Проект номер {i}") for i in range(100)]
+    message = _make_message()
+    response = await handle_list_projects(
+        message, ticktick_client_factory=_make_mock_client(projects=projects)
+    )
+    assert len(response.text) <= ALICE_RESPONSE_MAX_LENGTH

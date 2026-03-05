@@ -762,7 +762,23 @@ class TestTruncateResponse:
     def test_long_text_truncated(self) -> None:
         text = "a" * (ALICE_RESPONSE_MAX_LENGTH + 100)
         result = _truncate_response(text)
-        assert len(result) == ALICE_RESPONSE_MAX_LENGTH
+        assert len(result) <= ALICE_RESPONSE_MAX_LENGTH
+        assert result.endswith("…")
+
+    def test_truncate_at_newline(self) -> None:
+        """UX-9: _truncate_response breaks at last newline, not mid-word."""
+        line1 = "a" * 600
+        line2 = "b" * 600
+        text = line1 + "\n" + line2
+        result = _truncate_response(text)
+        assert result == line1 + "\n…"
+        assert len(result) <= ALICE_RESPONSE_MAX_LENGTH
+
+    def test_truncate_no_good_newline_falls_back(self) -> None:
+        """When newline is too early (< limit//2), truncate without newline."""
+        text = "ab\n" + "c" * (ALICE_RESPONSE_MAX_LENGTH + 100)
+        result = _truncate_response(text)
+        assert len(result) <= ALICE_RESPONSE_MAX_LENGTH
         assert result.endswith("…")
 
 
