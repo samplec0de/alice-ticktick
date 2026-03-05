@@ -36,6 +36,7 @@ from alice_ticktick.dialogs.handlers import (
 )
 from alice_ticktick.dialogs.router import _MAX_CONFIRM_RETRIES, on_delete_other
 from alice_ticktick.dialogs.states import DeleteTaskStates
+from alice_ticktick.ticktick.client import TickTickUnauthorizedError
 from alice_ticktick.ticktick.models import ChecklistItem, Project, Task
 
 
@@ -2610,3 +2611,97 @@ async def test_list_tasks_passes_timezone_to_parse_yandex_datetime() -> None:
 )
 def test_format_priority_instrumental(input_val: str, expected: str) -> None:
     assert txt.format_priority_instrumental(input_val) == expected
+
+
+# --- TickTickUnauthorizedError handling (C-5) ---
+
+
+async def test_create_task_unauthorized_returns_auth_required() -> None:
+    """TickTickUnauthorizedError in create_task returns AUTH_REQUIRED."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"type": "YANDEX.STRING", "value": "купить молоко"}}
+    }
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=TickTickUnauthorizedError(401, "Unauthorized"),
+    )
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+
+
+async def test_list_tasks_unauthorized_returns_auth_required() -> None:
+    """TickTickUnauthorizedError in list_tasks returns AUTH_REQUIRED."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=TickTickUnauthorizedError(401, "Unauthorized"),
+    )
+    response = await handle_list_tasks(message, intent_data, mock_factory)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+
+
+async def test_complete_task_unauthorized_returns_auth_required() -> None:
+    """TickTickUnauthorizedError in complete_task returns AUTH_REQUIRED."""
+    message = _make_message()
+    state = _make_state()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"type": "YANDEX.STRING", "value": "купить молоко"}}
+    }
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=TickTickUnauthorizedError(401, "Unauthorized"),
+    )
+    response = await handle_complete_task(message, intent_data, state, mock_factory)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+
+
+async def test_complete_task_generic_exception_returns_api_error() -> None:
+    """Generic Exception in complete_task returns COMPLETE_ERROR."""
+    message = _make_message()
+    state = _make_state()
+    intent_data: dict[str, Any] = {
+        "slots": {"task_name": {"type": "YANDEX.STRING", "value": "купить молоко"}}
+    }
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=Exception("API error"),
+    )
+    response = await handle_complete_task(message, intent_data, state, mock_factory)
+    assert response.text == txt.COMPLETE_ERROR
+
+
+async def test_unauthorized_with_account_linking_returns_linking_response() -> None:
+    """TickTickUnauthorizedError with account_linking returns AUTH_REQUIRED_LINKING."""
+    message = _make_message()
+    intent_data: dict[str, Any] = {"slots": {}}
+
+    mock_update = MagicMock()
+    mock_update.meta.interfaces.account_linking = {}
+    mock_update.meta.timezone = "UTC"
+
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=TickTickUnauthorizedError(401, "Unauthorized"),
+    )
+    response = await handle_list_tasks(
+        message, intent_data, mock_factory, event_update=mock_update
+    )
+    assert response.text == txt.AUTH_REQUIRED_LINKING
+    assert response.directives is not None
+
+
+async def test_delete_confirm_unauthorized_clears_state() -> None:
+    """TickTickUnauthorizedError in delete_confirm clears FSM state."""
+    message = _make_message()
+    state = _make_state(
+        {"task_id": "t1", "project_id": "p1", "task_name": "test", "task_context": ""}
+    )
+    mock_factory = _make_mock_client()
+    mock_factory.return_value.__aenter__ = AsyncMock(
+        side_effect=TickTickUnauthorizedError(401, "Unauthorized"),
+    )
+    response = await handle_delete_confirm(message, state, ticktick_client_factory=mock_factory)
+    assert response.text == txt.AUTH_REQUIRED_NO_LINKING
+    state.clear.assert_awaited()

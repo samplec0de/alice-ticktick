@@ -46,7 +46,7 @@ from alice_ticktick.dialogs.nlp import (
 )
 from alice_ticktick.dialogs.nlp.date_parser import ExtractedDates, extract_dates_from_nlu
 from alice_ticktick.dialogs.states import CompleteTaskStates, DeleteTaskStates, EditTaskStates
-from alice_ticktick.ticktick.client import TickTickClient
+from alice_ticktick.ticktick.client import TickTickClient, TickTickUnauthorizedError
 from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskPriority, TaskUpdate
 
 logger = logging.getLogger(__name__)
@@ -657,6 +657,8 @@ async def handle_create_task(
             )
             await client.create_task(payload)
             _invalidate_task_cache(access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to create task")
         return Response(text=txt.CREATE_ERROR)
@@ -853,6 +855,8 @@ async def handle_add_reminder(
 
             rem_display = format_reminder(trigger) or ""
             return Response(text=txt.REMINDER_ADDED.format(reminder=rem_display, name=best_match))
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to add reminder")
         return Response(text=txt.REMINDER_ERROR)
@@ -876,6 +880,8 @@ async def handle_list_tasks(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to list tasks")
         return Response(text=txt.API_ERROR)
@@ -1056,6 +1062,8 @@ async def handle_overdue_tasks(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to get overdue tasks")
         return Response(text=txt.API_ERROR)
@@ -1140,6 +1148,8 @@ async def handle_complete_task(
             await client.complete_task(result.task.id, result.task.project_id)
             _invalidate_task_cache(access_token)
 
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to complete task")
         return Response(text=txt.COMPLETE_ERROR)
@@ -1176,6 +1186,9 @@ async def handle_complete_confirm(
         async with factory(access_token) as client:
             await client.complete_task(task_id, project_id)
             _invalidate_task_cache(access_token)
+    except TickTickUnauthorizedError:
+        await state.clear()
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to complete task")
         await state.clear()
@@ -1290,6 +1303,8 @@ async def handle_search_task(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to search tasks")
         return Response(text=txt.API_ERROR)
@@ -1380,6 +1395,8 @@ async def handle_edit_task(
             cached_projects = (
                 await _get_cached_projects(client, access_token) if has_project else None
             )
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to fetch tasks for edit")
         return Response(text=txt.API_ERROR)
@@ -1540,6 +1557,8 @@ async def handle_edit_task(
         async with factory(access_token) as client:
             await client.update_task(payload)
             _invalidate_task_cache(access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
@@ -1637,6 +1656,8 @@ async def handle_delete_task(
     try:
         async with factory(access_token) as client:
             result = await _find_active_task(client, slots.task_name, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to fetch tasks for deletion")
         return Response(text=txt.API_ERROR)
@@ -1693,6 +1714,9 @@ async def handle_delete_confirm(
         async with factory(access_token) as client:
             await client.delete_task(task_id, project_id)
             _invalidate_task_cache(access_token)
+    except TickTickUnauthorizedError:
+        await state.clear()
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to delete task")
         await state.clear()
@@ -1742,6 +1766,8 @@ async def handle_add_subtask(
             await client.create_task(payload)
             _invalidate_task_cache(access_token)
 
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to create subtask")
         return Response(text=txt.SUBTASK_ERROR)
@@ -1769,6 +1795,8 @@ async def handle_list_subtasks(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to fetch tasks for subtask listing")
         return Response(text=txt.API_ERROR)
@@ -1851,6 +1879,8 @@ async def handle_add_checklist_item(
             await client.update_task(payload)
             _invalidate_task_cache(access_token)
 
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to add checklist item")
         return Response(text=txt.CHECKLIST_ITEM_ERROR)
@@ -1882,6 +1912,8 @@ async def handle_show_checklist(
     try:
         async with factory(access_token) as client:
             result = await _find_active_task(client, slots.task_name, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to fetch tasks for checklist")
         return Response(text=txt.API_ERROR)
@@ -1969,6 +2001,8 @@ async def handle_check_item(
             await client.update_task(payload)
             _invalidate_task_cache(access_token)
 
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to check item")
         return Response(text=txt.CHECKLIST_CHECK_ERROR)
@@ -2045,6 +2079,8 @@ async def handle_delete_checklist_item(
             await client.update_task(payload)
             _invalidate_task_cache(access_token)
 
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to delete checklist item")
         return Response(text=txt.CHECKLIST_ITEM_DELETE_ERROR)
@@ -2068,6 +2104,8 @@ async def handle_list_projects(
     try:
         async with factory(access_token) as client:
             projects = await client.get_projects()
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to list projects")
         return Response(text=txt.API_ERROR)
@@ -2116,6 +2154,8 @@ async def handle_project_tasks(
                     text=txt.PROJECT_NOT_FOUND.format(name=slots.project_name, projects=names)
                 )
             tasks = await client.get_tasks(project.id)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to get project tasks")
         return Response(text=txt.API_ERROR)
@@ -2207,6 +2247,8 @@ async def handle_create_project(
         async with factory(access_token) as client:
             await client.create_project(slots.project_name)
             _invalidate_task_cache(access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to create project")
         return Response(text=txt.PROJECT_CREATE_ERROR)
@@ -2233,6 +2275,8 @@ async def handle_morning_briefing(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to fetch tasks for morning briefing")
         return Response(text=txt.API_ERROR)
@@ -2269,6 +2313,8 @@ async def handle_evening_briefing(
     try:
         async with factory(access_token) as client:
             all_tasks = await _gather_all_tasks(client, access_token)
+    except TickTickUnauthorizedError:
+        return _auth_required_response(event_update)
     except Exception:
         logger.exception("Failed to fetch tasks for evening briefing")
         return Response(text=txt.API_ERROR)
