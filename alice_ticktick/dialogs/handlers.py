@@ -243,11 +243,18 @@ def _apply_task_filters(
     return result
 
 
-def _truncate_response(text: str) -> str:
-    """Truncate response to Alice's 1024-char limit."""
-    if len(text) <= ALICE_RESPONSE_MAX_LENGTH:
+def _truncate_response(text: str, limit: int = ALICE_RESPONSE_MAX_LENGTH) -> str:
+    """Truncate response to Alice's 1024-char limit, breaking at last newline."""
+    if len(text) <= limit:
         return text
-    return text[: ALICE_RESPONSE_MAX_LENGTH - 1] + "…"
+    truncated = text[: limit - 1]
+    last_newline = truncated.rfind("\n")
+    if last_newline > limit // 2:
+        return truncated[:last_newline] + "\n…"
+    return truncated.rstrip() + "…"
+
+
+MAX_BRIEFING_TASKS = 5
 
 
 def _build_morning_briefing_text(
@@ -265,8 +272,12 @@ def _build_morning_briefing_text(
         return txt.MORNING_BRIEFING_NO_TASKS
 
     count_str = txt.pluralize_tasks(len(today_tasks))
-    lines = [_format_task_line(i + 1, t) for i, t in enumerate(today_tasks[:5])]
+    shown = today_tasks[:MAX_BRIEFING_TASKS]
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(shown)]
     task_list = "\n".join(lines)
+    if len(today_tasks) > MAX_BRIEFING_TASKS:
+        remaining = len(today_tasks) - MAX_BRIEFING_TASKS
+        task_list += "\n" + txt.BRIEFING_MORE_TASKS.format(count=remaining)
 
     if overdue_count:
         return txt.MORNING_BRIEFING_TASKS_OVERDUE.format(
@@ -292,8 +303,12 @@ def _build_evening_briefing_text(
         return txt.EVENING_BRIEFING_NO_TASKS
 
     count_str = txt.pluralize_tasks(len(tomorrow_tasks))
-    lines = [_format_task_line(i + 1, t) for i, t in enumerate(tomorrow_tasks[:5])]
+    shown = tomorrow_tasks[:MAX_BRIEFING_TASKS]
+    lines = [_format_task_line(i + 1, t) for i, t in enumerate(shown)]
     task_list = "\n".join(lines)
+    if len(tomorrow_tasks) > MAX_BRIEFING_TASKS:
+        remaining = len(tomorrow_tasks) - MAX_BRIEFING_TASKS
+        task_list += "\n" + txt.BRIEFING_MORE_TASKS.format(count=remaining)
 
     if overdue_count:
         return txt.EVENING_BRIEFING_TASKS_OVERDUE.format(
@@ -2085,7 +2100,8 @@ async def handle_list_projects(
         count_str = f"{n} проекта"
     else:
         count_str = f"{n} проектов"
-    return Response(text=txt.PROJECTS_LIST.format(count=count_str, projects="\n".join(lines)))
+    full_text = txt.PROJECTS_LIST.format(count=count_str, projects="\n".join(lines))
+    return Response(text=_truncate_response(full_text))
 
 
 async def handle_project_tasks(
@@ -2240,11 +2256,7 @@ async def handle_morning_briefing(
     user_tz = _get_user_tz(event_update)
     today = datetime.datetime.now(tz=user_tz).date()
 
-    today_tasks = [
-        t
-        for t in all_tasks
-        if t.status == 0 and t.due_date is not None and _to_user_date(t.due_date, user_tz) == today
-    ]
+    today_tasks = _apply_task_filters(all_tasks, date_filter=today, user_tz=user_tz)
     overdue_tasks = [
         t
         for t in all_tasks
@@ -2277,13 +2289,7 @@ async def handle_evening_briefing(
     now_date = datetime.datetime.now(tz=user_tz).date()
     tomorrow = now_date + datetime.timedelta(days=1)
 
-    tomorrow_tasks = [
-        t
-        for t in all_tasks
-        if t.status == 0
-        and t.due_date is not None
-        and _to_user_date(t.due_date, user_tz) == tomorrow
-    ]
+    tomorrow_tasks = _apply_task_filters(all_tasks, date_filter=tomorrow, user_tz=user_tz)
     overdue_tasks = [
         t
         for t in all_tasks

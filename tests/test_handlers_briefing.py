@@ -104,6 +104,22 @@ def test_morning_briefing_text_caps_at_five() -> None:
     assert "T6" not in result  # только первые 5
 
 
+def test_morning_briefing_text_shows_remaining_count() -> None:
+    """UX-10: morning briefing with 7 tasks shows 5 + 'и ещё 2.'"""
+    today = [_make_task(task_id=str(i), title=f"Задача {i}") for i in range(7)]
+    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=[])
+    assert "и ещё 2" in result
+    assert "Задача 0" in result
+    assert "Задача 4" in result
+    assert "Задача 5" not in result
+
+
+def test_morning_briefing_text_no_remaining_when_five_or_less() -> None:
+    today = [_make_task(task_id=str(i), title=f"Задача {i}") for i in range(5)]
+    result = _build_morning_briefing_text(today_tasks=today, overdue_tasks=[])
+    assert "и ещё" not in result
+
+
 # --- _build_evening_briefing_text ---
 
 
@@ -138,6 +154,22 @@ def test_evening_briefing_text_caps_at_five() -> None:
     tomorrow = [_make_task(task_id=str(i), title=f"T{i}") for i in range(10)]
     result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, overdue_tasks=[])
     assert "T6" not in result
+
+
+def test_evening_briefing_text_shows_remaining_count() -> None:
+    """UX-10: evening briefing with 7 tasks shows 5 + 'и ещё 2.'"""
+    tomorrow = [_make_task(task_id=str(i), title=f"Задача {i}") for i in range(7)]
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, overdue_tasks=[])
+    assert "и ещё 2" in result
+    assert "Задача 0" in result
+    assert "Задача 4" in result
+    assert "Задача 5" not in result
+
+
+def test_evening_briefing_text_no_remaining_when_five_or_less() -> None:
+    tomorrow = [_make_task(task_id=str(i), title=f"Задача {i}") for i in range(5)]
+    result = _build_evening_briefing_text(tomorrow_tasks=tomorrow, overdue_tasks=[])
+    assert "и ещё" not in result
 
 
 # --- handle_morning_briefing ---
@@ -257,6 +289,30 @@ async def test_evening_briefing_tomorrow_and_overdue() -> None:
     response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
     assert "Завтрашняя" in response.text
     assert "просроч" in response.text.lower()
+
+
+async def test_morning_briefing_many_tasks_shows_remaining() -> None:
+    """UX-10: morning briefing handler with 7 tasks shows 'и ещё 2'."""
+    tz = ZoneInfo("UTC")
+    today = datetime.datetime.now(tz=tz).replace(hour=12, microsecond=0)
+    tasks = [_make_task(task_id=str(i), title=f"Задача {i}", due_date=today) for i in range(7)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
+    assert "и ещё 2" in response.text
+
+
+async def test_evening_briefing_many_tasks_shows_remaining() -> None:
+    """UX-10: evening briefing handler with 7 tasks shows 'и ещё 2'."""
+    tz = ZoneInfo("UTC")
+    tomorrow = (datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)).replace(
+        hour=12, microsecond=0
+    )
+    tasks = [_make_task(task_id=str(i), title=f"Задача {i}", due_date=tomorrow) for i in range(7)]
+    msg = _make_message()
+    factory = _make_mock_client(tasks)
+    response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
+    assert "и ещё 2" in response.text
 
 
 async def test_evening_briefing_api_error() -> None:
