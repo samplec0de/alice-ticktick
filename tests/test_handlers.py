@@ -565,7 +565,7 @@ async def test_list_tasks_filter_by_priority() -> None:
     assert "Важная" in response.text
     assert "Ещё важная" in response.text
     assert "Обычная" not in response.text
-    assert "высокий приоритет" in response.text
+    assert "высоким приоритетом" in response.text
 
 
 async def test_list_tasks_filter_by_priority_no_matches() -> None:
@@ -584,7 +584,7 @@ async def test_list_tasks_filter_by_priority_no_matches() -> None:
     }
     mock_factory = _make_mock_client(tasks=tasks)
     response = await handle_list_tasks(message, intent_data, mock_factory)
-    assert "высокий приоритет" in response.text
+    assert "высоким приоритетом" in response.text
     assert "нет" in response.text
 
 
@@ -2499,3 +2499,114 @@ async def test_search_task_description_truncated_when_too_long() -> None:
     assert len(response.text) <= 1024
     assert "Описание:" in response.text
     assert response.text.rstrip().endswith("…")
+
+
+# --- Cache isolation tests (L-10/C-6) ---
+
+
+async def test_task_cache_isolated_between_tokens() -> None:
+    """Tasks cached for one user must not leak to another user."""
+    from alice_ticktick.dialogs.handlers import _reset_project_cache
+
+    _reset_project_cache()
+
+    today = datetime.datetime.now(tz=datetime.UTC)
+    task_user_a = _make_task(task_id="a1", title="User A task", due_date=today)
+    task_user_b = _make_task(task_id="b1", title="User B task", due_date=today)
+
+    factory_a = _make_mock_client(tasks=[task_user_a])
+    factory_b = _make_mock_client(tasks=[task_user_b])
+
+    # User A lists tasks (populates cache for token "token-a")
+    msg_a = _make_message(access_token="token-a")
+    intent_data: dict[str, Any] = {"slots": {}}
+    response_a = await handle_list_tasks(msg_a, intent_data, factory_a)
+    assert "User A task" in response_a.text
+
+    # User B lists tasks (should use its own cache for token "token-b")
+    msg_b = _make_message(access_token="token-b")
+    response_b = await handle_list_tasks(msg_b, intent_data, factory_b)
+    assert "User B task" in response_b.text
+    assert "User A task" not in response_b.text
+
+
+async def test_timezone_warning_when_no_timezone(caplog: pytest.LogCaptureFixture) -> None:
+    """Warning is logged when request has no timezone."""
+    import logging
+
+    from alice_ticktick.dialogs.handlers import _get_user_tz
+
+    with caplog.at_level(logging.WARNING):
+        tz = _get_user_tz(None)
+
+    assert str(tz) == "UTC"
+    assert "No timezone in request, falling back to UTC" in caplog.text
+
+
+async def test_no_timezone_warning_when_timezone_present(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No warning when timezone is present in request."""
+    import logging
+
+    from alice_ticktick.dialogs.handlers import _get_user_tz
+
+    mock_update = MagicMock()
+    mock_update.meta.timezone = "Europe/Moscow"
+
+    with caplog.at_level(logging.WARNING):
+        tz = _get_user_tz(mock_update)
+
+    assert str(tz) == "Europe/Moscow"
+    assert "No timezone" not in caplog.text
+
+
+async def test_list_tasks_passes_timezone_to_parse_yandex_datetime() -> None:
+    """handle_list_tasks passes user timezone to parse_yandex_datetime for single-day path."""
+    # Task due on March 2 UTC 00:30 — in Europe/Moscow it's still March 2
+    due = datetime.datetime(2026, 3, 2, 0, 30, tzinfo=datetime.UTC)
+    task = _make_task(task_id="t1", title="TZ Test Task", due_date=due)
+    factory = _make_mock_client(tasks=[task])
+
+    message = _make_message()
+    # Ask for "tomorrow" (relative day +1) — with MSK timezone where "now" is
+    # March 2 at 03:00, "tomorrow" should be March 3
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "date": {
+                "value": {
+                    "day": 2,
+                    "day_is_relative": False,
+                    "month": 3,
+                    "month_is_relative": False,
+                    "year": 2026,
+                    "year_is_relative": False,
+                },
+            },
+        },
+    }
+
+    mock_update = MagicMock()
+    mock_update.meta.timezone = "Europe/Moscow"
+
+    response = await handle_list_tasks(message, intent_data, factory, event_update=mock_update)
+    # Task due 2026-03-02 00:30 UTC = 2026-03-02 03:30 MSK — should match March 2
+    assert "TZ Test Task" in response.text
+
+
+# --- format_priority_instrumental tests ---
+
+
+@pytest.mark.parametrize(
+    "input_val,expected",
+    [
+        ("высокий приоритет", "высоким приоритетом"),
+        ("средний приоритет", "средним приоритетом"),
+        ("низкий приоритет", "низким приоритетом"),
+        ("срочный приоритет", "срочным приоритетом"),
+        ("unknown", "unknown"),
+        ("", ""),
+    ],
+)
+def test_format_priority_instrumental(input_val: str, expected: str) -> None:
+    assert txt.format_priority_instrumental(input_val) == expected

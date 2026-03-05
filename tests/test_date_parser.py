@@ -87,6 +87,32 @@ class TestEdgeCases:
         result = parse_yandex_datetime(slot, now=NOW)
         assert result == datetime.datetime(2026, 3, 2, 9, 0, tzinfo=datetime.UTC)
 
+    def test_now_with_timezone_affects_relative_date(self) -> None:
+        """When now has a non-UTC timezone, relative dates use that timezone."""
+        msk = ZoneInfo("Europe/Moscow")
+        # 2026-03-01 23:00 UTC = 2026-03-02 02:00 MSK
+        now_utc = datetime.datetime(2026, 3, 1, 23, 0, tzinfo=datetime.UTC)
+        now_msk = now_utc.astimezone(msk)
+
+        slot = {"day": 1, "day_is_relative": True}
+
+        # With UTC now → March 2
+        result_utc = parse_yandex_datetime(slot, now=now_utc)
+        assert result_utc == datetime.date(2026, 3, 2)
+
+        # With MSK now → March 3 (because it's already March 2 in MSK)
+        result_msk = parse_yandex_datetime(slot, now=now_msk)
+        assert result_msk == datetime.date(2026, 3, 3)
+
+    def test_now_with_timezone_affects_absolute_time(self) -> None:
+        """Absolute hour preserves the timezone from now."""
+        msk = ZoneInfo("Europe/Moscow")
+        now_msk = datetime.datetime(2026, 3, 1, 10, 0, tzinfo=msk)
+
+        slot = {"hour": 14, "minute": 30}
+        result = parse_yandex_datetime(slot, now=now_msk)
+        assert result == datetime.datetime(2026, 3, 1, 14, 30, tzinfo=msk)
+
 
 class TestExtractDatesFromNlu:
     """Tests for extract_dates_from_nlu (hybrid NLU entity extraction)."""

@@ -86,10 +86,11 @@ class _TaskMatch:
 async def _find_active_task(
     client: TickTickClient,
     task_name: str,
+    access_token: str,
     score_threshold: int = 60,
 ) -> _TaskMatch | Response:
     """Find best matching active task by name. Returns _TaskMatch or error Response."""
-    all_tasks = await _gather_all_tasks(client)
+    all_tasks = await _gather_all_tasks(client, access_token)
     active_tasks = [t for t in all_tasks if t.status == 0]
     if not active_tasks:
         return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
@@ -152,6 +153,7 @@ def _get_user_tz(event_update: Update | None) -> ZoneInfo:
             return ZoneInfo(event_update.meta.timezone)
         except (KeyError, ValueError):
             pass
+    logger.warning("No timezone in request, falling back to UTC")
     return ZoneInfo("UTC")
 
 
@@ -302,47 +304,41 @@ def _build_evening_briefing_text(
     return txt.EVENING_BRIEFING_TASKS.format(count=count_str, tasks=task_list)
 
 
-_cached_projects: list[Project] | None = None
-_cached_projects_ts: float = 0.0
+# Per-user caches keyed by access_token to prevent data leaks between users.
+# Value: (monotonic_timestamp, data)
+_projects_cache: dict[str, tuple[float, list[Project]]] = {}
 _PROJECT_CACHE_TTL = 60.0  # seconds
 
-_cached_tasks: list[Task] | None = None
-_cached_tasks_ts: float = 0.0
+_tasks_cache: dict[str, tuple[float, list[Task]]] = {}
 _TASK_CACHE_TTL = 15.0  # seconds — short-lived cache for sequential commands
 
 
 def _reset_project_cache() -> None:
     """Reset all caches (for testing)."""
-    global _cached_projects, _cached_projects_ts
-    global _cached_tasks, _cached_tasks_ts
-    _cached_projects = None
-    _cached_projects_ts = 0.0
-    _cached_tasks = None
-    _cached_tasks_ts = 0.0
+    _projects_cache.clear()
+    _tasks_cache.clear()
 
 
-def _invalidate_task_cache() -> None:
+def _invalidate_task_cache(access_token: str) -> None:
     """Invalidate task cache after mutations (complete, create, delete, etc.)."""
-    global _cached_tasks, _cached_tasks_ts
-    _cached_tasks = None
-    _cached_tasks_ts = 0.0
+    _tasks_cache.pop(access_token, None)
 
 
 _GATHER_TIMEOUT = 4.0  # seconds — total budget for fetching all tasks
 
 
-async def _get_cached_projects(client: TickTickClient) -> list[Project]:
+async def _get_cached_projects(client: TickTickClient, access_token: str) -> list[Project]:
     """Return cached project list, fetching from API if stale."""
-    global _cached_projects, _cached_projects_ts
-
+    entry = _projects_cache.get(access_token)
     now = time.monotonic()
-    if _cached_projects is not None and now - _cached_projects_ts < _PROJECT_CACHE_TTL:
-        return list(_cached_projects)
+    if entry is not None:
+        ts, projects = entry
+        if now - ts < _PROJECT_CACHE_TTL:
+            return list(projects)
 
     all_projects = await client.get_projects()
     projects = [p for p in all_projects if not p.closed]
-    _cached_projects = projects
-    _cached_projects_ts = time.monotonic()
+    _projects_cache[access_token] = (time.monotonic(), projects)
     return projects
 
 
@@ -358,36 +354,37 @@ def _find_project_by_name(projects: list[Project], name: str) -> Project | None:
     return projects[idx]
 
 
-async def _gather_all_tasks(client: TickTickClient) -> list[Task]:
+async def _gather_all_tasks(client: TickTickClient, access_token: str) -> list[Task]:
     """Fetch tasks from all projects and inbox in parallel.
 
-    Uses a short-lived task cache (15s) to avoid redundant API calls
+    Uses a short-lived per-user task cache (15s) to avoid redundant API calls
     for sequential commands (e.g., "что на сегодня" → "закрой задачу").
     Also caches project list (60s) and applies a total time budget.
     """
-    global _cached_tasks, _cached_tasks_ts
-
+    entry = _tasks_cache.get(access_token)
     now = time.monotonic()
-    if _cached_tasks is not None and now - _cached_tasks_ts < _TASK_CACHE_TTL:
-        age = now - _cached_tasks_ts
-        logger.info("Using cached tasks (%d), age %.1fs", len(_cached_tasks), age)
-        return list(_cached_tasks)
+    if entry is not None:
+        ts, cached_tasks = entry
+        if now - ts < _TASK_CACHE_TTL:
+            age = now - ts
+            logger.info("Using cached tasks (%d), age %.1fs", len(cached_tasks), age)
+            return list(cached_tasks)
 
-    all_tasks = await asyncio.wait_for(_gather_all_tasks_impl(client), timeout=_GATHER_TIMEOUT)
-    _cached_tasks = all_tasks
-    _cached_tasks_ts = time.monotonic()
+    all_tasks = await asyncio.wait_for(
+        _gather_all_tasks_impl(client, access_token), timeout=_GATHER_TIMEOUT
+    )
+    _tasks_cache[access_token] = (time.monotonic(), all_tasks)
     return all_tasks
 
 
-async def _gather_all_tasks_impl(client: TickTickClient) -> list[Task]:
-    global _cached_projects, _cached_projects_ts
-
+async def _gather_all_tasks_impl(client: TickTickClient, access_token: str) -> list[Task]:
     t0 = time.monotonic()
 
+    proj_entry = _projects_cache.get(access_token)
     now = time.monotonic()
-    if _cached_projects is not None and now - _cached_projects_ts < _PROJECT_CACHE_TTL:
-        projects = _cached_projects
-        age = now - _cached_projects_ts
+    if proj_entry is not None and now - proj_entry[0] < _PROJECT_CACHE_TTL:
+        projects = proj_entry[1]
+        age = now - proj_entry[0]
         logger.info("Using cached projects (%d), age %.1fs", len(projects), age)
     else:
         projects_result, inbox_tasks = await asyncio.gather(
@@ -395,8 +392,7 @@ async def _gather_all_tasks_impl(client: TickTickClient) -> list[Task]:
             client.get_inbox_tasks(),
         )
         projects = projects_result
-        _cached_projects = projects
-        _cached_projects_ts = time.monotonic()
+        _projects_cache[access_token] = (time.monotonic(), projects)
         elapsed = (time.monotonic() - t0) * 1000
         logger.info("Fetched projects (%d) + inbox in %.0fms", len(projects), elapsed)
 
@@ -639,7 +635,7 @@ async def handle_create_task(
     try:
         async with factory(access_token) as client:
             if slots.project_name:
-                projects = await _get_cached_projects(client)
+                projects = await _get_cached_projects(client, access_token)
                 project = _find_project_by_name(projects, slots.project_name)
                 if project is None:
                     names = ", ".join(p.name for p in projects) if projects else "—"
@@ -660,7 +656,7 @@ async def handle_create_task(
                 reminders=reminders_list,
             )
             await client.create_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
     except Exception:
         logger.exception("Failed to create task")
         return Response(text=txt.CREATE_ERROR)
@@ -828,7 +824,7 @@ async def handle_add_reminder(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
 
             active_tasks = [t for t in all_tasks if t.status == 0]
             if not active_tasks:
@@ -853,7 +849,7 @@ async def handle_add_reminder(
                 reminders=existing_reminders,
             )
             await client.update_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
 
             rem_display = format_reminder(trigger) or ""
             return Response(text=txt.REMINDER_ADDED.format(reminder=rem_display, name=best_match))
@@ -879,7 +875,7 @@ async def handle_list_tasks(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
     except Exception:
         logger.exception("Failed to list tasks")
         return Response(text=txt.API_ERROR)
@@ -893,7 +889,9 @@ async def handle_list_tasks(
         )
         priority_filter = parse_priority(slots.priority) if slots.priority else None
         priority_label = (
-            _format_priority_label(priority_filter) if priority_filter is not None else None
+            txt.format_priority_instrumental(_format_priority_label(priority_filter))
+            if priority_filter is not None
+            else None
         )
 
         filtered = _apply_task_filters(
@@ -954,8 +952,9 @@ async def handle_list_tasks(
 
     # Single-day path
     if slots.date:
+        now_local = datetime.datetime.now(tz=user_tz)
         try:
-            target_date = parse_yandex_datetime(slots.date)
+            target_date = parse_yandex_datetime(slots.date, now=now_local)
             if isinstance(target_date, datetime.datetime):
                 target_day = target_date.date()
             else:
@@ -979,7 +978,9 @@ async def handle_list_tasks(
     # Apply priority filter if provided
     priority_filter = parse_priority(slots.priority) if slots.priority else None
     priority_label = (
-        _format_priority_label(priority_filter) if priority_filter is not None else None
+        txt.format_priority_instrumental(_format_priority_label(priority_filter))
+        if priority_filter is not None
+        else None
     )
 
     if priority_filter is not None:
@@ -1043,7 +1044,9 @@ async def handle_overdue_tasks(
     slots = extract_overdue_tasks_slots(intent_data or {})
     priority_filter = parse_priority(slots.priority) if slots.priority else None
     priority_label = (
-        _format_priority_label(priority_filter) if priority_filter is not None else None
+        txt.format_priority_instrumental(_format_priority_label(priority_filter))
+        if priority_filter is not None
+        else None
     )
 
     user_tz = _get_user_tz(event_update)
@@ -1052,7 +1055,7 @@ async def handle_overdue_tasks(
 
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
     except Exception:
         logger.exception("Failed to get overdue tasks")
         return Response(text=txt.API_ERROR)
@@ -1115,7 +1118,7 @@ async def handle_complete_task(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.task_name)
+            result = await _find_active_task(client, slots.task_name, access_token)
             if isinstance(result, Response):
                 return result
 
@@ -1135,7 +1138,7 @@ async def handle_complete_task(
                 return Response(text=txt.COMPLETE_CONFIRM.format(name=result.name))
 
             await client.complete_task(result.task.id, result.task.project_id)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
 
     except Exception:
         logger.exception("Failed to complete task")
@@ -1172,7 +1175,7 @@ async def handle_complete_confirm(
     try:
         async with factory(access_token) as client:
             await client.complete_task(task_id, project_id)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
     except Exception:
         logger.exception("Failed to complete task")
         await state.clear()
@@ -1286,7 +1289,7 @@ async def handle_search_task(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
     except Exception:
         logger.exception("Failed to search tasks")
         return Response(text=txt.API_ERROR)
@@ -1372,9 +1375,11 @@ async def handle_edit_task(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
             # Pre-fetch projects if move requested (reuses same client session)
-            cached_projects = await _get_cached_projects(client) if has_project else None
+            cached_projects = (
+                await _get_cached_projects(client, access_token) if has_project else None
+            )
     except Exception:
         logger.exception("Failed to fetch tasks for edit")
         return Response(text=txt.API_ERROR)
@@ -1534,7 +1539,7 @@ async def handle_edit_task(
     try:
         async with factory(access_token) as client:
             await client.update_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
     except Exception:
         logger.exception("Failed to edit task")
         return Response(text=txt.EDIT_ERROR)
@@ -1631,7 +1636,7 @@ async def handle_delete_task(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.task_name)
+            result = await _find_active_task(client, slots.task_name, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for deletion")
         return Response(text=txt.API_ERROR)
@@ -1687,7 +1692,7 @@ async def handle_delete_confirm(
     try:
         async with factory(access_token) as client:
             await client.delete_task(task_id, project_id)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
     except Exception:
         logger.exception("Failed to delete task")
         await state.clear()
@@ -1725,7 +1730,7 @@ async def handle_add_subtask(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.parent_name)
+            result = await _find_active_task(client, slots.parent_name, access_token)
             if isinstance(result, Response):
                 return result
 
@@ -1735,7 +1740,7 @@ async def handle_add_subtask(
                 parentId=result.task.id,
             )
             await client.create_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
 
     except Exception:
         logger.exception("Failed to create subtask")
@@ -1763,7 +1768,7 @@ async def handle_list_subtasks(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for subtask listing")
         return Response(text=txt.API_ERROR)
@@ -1819,7 +1824,7 @@ async def handle_add_checklist_item(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.task_name)
+            result = await _find_active_task(client, slots.task_name, access_token)
             if isinstance(result, Response):
                 return result
 
@@ -1844,7 +1849,7 @@ async def handle_add_checklist_item(
                 items=updated_items,
             )
             await client.update_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
 
     except Exception:
         logger.exception("Failed to add checklist item")
@@ -1876,7 +1881,7 @@ async def handle_show_checklist(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.task_name)
+            result = await _find_active_task(client, slots.task_name, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for checklist")
         return Response(text=txt.API_ERROR)
@@ -1920,7 +1925,7 @@ async def handle_check_item(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.task_name)
+            result = await _find_active_task(client, slots.task_name, access_token)
             if isinstance(result, Response):
                 return result
 
@@ -1962,7 +1967,7 @@ async def handle_check_item(
                 items=updated_items,
             )
             await client.update_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
 
     except Exception:
         logger.exception("Failed to check item")
@@ -1995,7 +2000,7 @@ async def handle_delete_checklist_item(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            result = await _find_active_task(client, slots.task_name)
+            result = await _find_active_task(client, slots.task_name, access_token)
             if isinstance(result, Response):
                 return result
 
@@ -2038,7 +2043,7 @@ async def handle_delete_checklist_item(
                 items=updated_items,
             )
             await client.update_task(payload)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
 
     except Exception:
         logger.exception("Failed to delete checklist item")
@@ -2126,15 +2131,18 @@ async def handle_project_tasks(
             tz=user_tz,
         )
     elif slots.date:
+        now_local = datetime.datetime.now(tz=user_tz)
         try:
-            parsed = parse_yandex_datetime(slots.date)
+            parsed = parse_yandex_datetime(slots.date, now=now_local)
             date_filter = parsed.date() if isinstance(parsed, datetime.datetime) else parsed
         except ValueError:
             pass
 
     priority_filter = parse_priority(slots.priority) if slots.priority else None
     priority_label = (
-        _format_priority_label(priority_filter) if priority_filter is not None else None
+        txt.format_priority_instrumental(_format_priority_label(priority_filter))
+        if priority_filter is not None
+        else None
     )
 
     active = _apply_task_filters(
@@ -2198,7 +2206,7 @@ async def handle_create_project(
     try:
         async with factory(access_token) as client:
             await client.create_project(slots.project_name)
-            _invalidate_task_cache()
+            _invalidate_task_cache(access_token)
     except Exception:
         logger.exception("Failed to create project")
         return Response(text=txt.PROJECT_CREATE_ERROR)
@@ -2224,7 +2232,7 @@ async def handle_morning_briefing(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for morning briefing")
         return Response(text=txt.API_ERROR)
@@ -2260,7 +2268,7 @@ async def handle_evening_briefing(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client)
+            all_tasks = await _gather_all_tasks(client, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for evening briefing")
         return Response(text=txt.API_ERROR)

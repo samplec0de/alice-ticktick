@@ -89,7 +89,7 @@ class TestDurationCreateTask:
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())
 
-        assert "Добавила" in resp.text
+        assert "Готово" in resp.text
         assert "совещание" in resp.text.lower()
         # Verify payload has startDate and dueDate
         payloads = factory._created_payloads  # type: ignore[attr-defined]
@@ -120,7 +120,7 @@ class TestDurationCreateTask:
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())
 
-        assert "Добавила" in resp.text
+        assert "Готово" in resp.text
         payloads = factory._created_payloads  # type: ignore[attr-defined]
         assert len(payloads) == 1
         p = payloads[0]
@@ -165,7 +165,7 @@ class TestDurationCreateTask:
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())
 
-        assert "Добавила" in resp.text
+        assert "Готово" in resp.text
         assert "стендап" in resp.text.lower()
 
 
@@ -186,7 +186,7 @@ class TestRangeCreateTask:
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())
 
-        assert "Добавила" in resp.text
+        assert "Готово" in resp.text
         assert "митинг" in resp.text.lower()
         payloads = factory._created_payloads  # type: ignore[attr-defined]
         assert len(payloads) == 1
@@ -223,7 +223,7 @@ class TestDurationCombinations:
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())
 
-        assert "Добавила" in resp.text
+        assert "Готово" in resp.text
         assert "приоритет" in resp.text
 
     @pytest.mark.asyncio
@@ -251,5 +251,5 @@ class TestDurationCombinations:
 
         resp = await handle_create_task(msg, intent_data, factory, _make_update())
 
-        assert "Добавила" in resp.text
+        assert "Готово" in resp.text
         assert "напоминание" in resp.text

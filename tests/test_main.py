@@ -58,7 +58,7 @@ async def test_handler_unknown_command() -> None:
     event = _make_event(new=False, command="абракадабра")
     result = await handler(event, None)
     assert "response" in result
-    assert "Не поняла" in result["response"]["text"]
+    assert "не распознана" in result["response"]["text"]
 
 
 async def test_handler_returns_version() -> None:

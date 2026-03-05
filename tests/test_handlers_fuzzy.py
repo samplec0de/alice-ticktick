@@ -137,7 +137,7 @@ class TestFindActiveTask:
         tasks = [_make_task(title="Купить молоко")]
         mock_factory = _make_mock_client(tasks=tasks)
         client = await mock_factory().__aenter__()
-        result = await _find_active_task(client, "купить молоко")
+        result = await _find_active_task(client, "купить молоко", "test_token")
         assert isinstance(result, _TaskMatch)
         assert result.task.title == "Купить молоко"
         assert result.score > 85
@@ -146,14 +146,14 @@ class TestFindActiveTask:
         tasks = [_make_task(title="Купить молоко")]
         mock_factory = _make_mock_client(tasks=tasks)
         client = await mock_factory().__aenter__()
-        result = await _find_active_task(client, "совершенно другое")
+        result = await _find_active_task(client, "совершенно другое", "test_token")
         assert isinstance(result, Response)
         assert "не найдена" in result.text
 
     async def test_no_active_tasks(self) -> None:
         mock_factory = _make_mock_client(tasks=[])
         client = await mock_factory().__aenter__()
-        result = await _find_active_task(client, "что угодно")
+        result = await _find_active_task(client, "что угодно", "test_token")
         assert isinstance(result, Response)
         assert "не найдена" in result.text
 
@@ -161,7 +161,7 @@ class TestFindActiveTask:
         tasks = [_make_task(title="Купить молоко")]
         mock_factory = _make_mock_client(tasks=tasks)
         client = await mock_factory().__aenter__()
-        result = await _find_active_task(client, "купить молоко")
+        result = await _find_active_task(client, "купить молоко", "test_token")
         assert isinstance(result, _TaskMatch)
         assert result.score >= 60
 
