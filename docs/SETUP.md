@@ -467,7 +467,7 @@ uv run mypy alice_ticktick/
 | Phase 3 — Интенты NLU | ✅ Готово | add_subtask, list_subtasks, add_checklist_item, show_checklist, check_item, delete_checklist_item |
 | Phase 3 — CD + деплой | ✅ Готово | Object Storage, python312 runtime, linux-совместимые бинарники (PR #4) |
 | Phase 3 — Помощь / прощание | ✅ Готово | Обработчики YANDEX.HELP, YANDEX.WHAT_CAN_YOU_DO, YANDEX.GOODBYE (PR #5) |
-| Phase 4 — Брифинг | ✅ Готово | Утренний/вечерний брифинг через API v1 (PR #6) |
+| Phase 4 — Брифинг | ✅ Готово | Утренний/вечерний брифинг через API v1 (PR #30) |
 | Phase 4 — Проекты | ✅ Готово | list_projects, project_tasks, create_project |
 | Phase 4 — Фильтрация | ✅ Готово | Фильтр по приоритету и диапазону дат (PR #33, FR-15) |
 | Ревью и фиксы | ✅ Готово | Комплексный ревью 29 issues, PRs #34–#39 |
