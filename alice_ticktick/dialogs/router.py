@@ -16,6 +16,8 @@ from alice_ticktick.dialogs.handlers import (
     handle_add_reminder,
     handle_add_subtask,
     handle_check_item,
+    handle_complete_confirm,
+    handle_complete_reject,
     handle_complete_task,
     handle_create_project,
     handle_create_recurring_task,
@@ -24,6 +26,8 @@ from alice_ticktick.dialogs.handlers import (
     handle_delete_confirm,
     handle_delete_reject,
     handle_delete_task,
+    handle_edit_confirm,
+    handle_edit_reject,
     handle_edit_task,
     handle_evening_briefing,
     handle_goodbye,
@@ -61,7 +65,7 @@ from alice_ticktick.dialogs.intents import (
     SEARCH_TASK,
     SHOW_CHECKLIST,
 )
-from alice_ticktick.dialogs.states import DeleteTaskStates
+from alice_ticktick.dialogs.states import CompleteTaskStates, DeleteTaskStates, EditTaskStates
 
 if TYPE_CHECKING:
     from aliceio.fsm.context import FSMContext
@@ -257,10 +261,10 @@ async def on_check_item(
 
 @router.message(IntentFilter(COMPLETE_TASK))
 async def on_complete_task(
-    message: Message, intent_data: dict[str, Any], event_update: Update
+    message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
     """Handle complete_task intent."""
-    return await handle_complete_task(message, intent_data, event_update=event_update)
+    return await handle_complete_task(message, intent_data, state, event_update=event_update)
 
 
 @router.message(IntentFilter(SEARCH_TASK))
@@ -282,10 +286,10 @@ async def on_show_checklist(
 
 @router.message(IntentFilter(EDIT_TASK))
 async def on_edit_task(
-    message: Message, intent_data: dict[str, Any], event_update: Update
+    message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
     """Handle edit_task intent."""
-    return await handle_edit_task(message, intent_data, event_update=event_update)
+    return await handle_edit_task(message, intent_data, state, event_update=event_update)
 
 
 # --- Specific "удали..." intent BEFORE generic delete_task ---
@@ -303,6 +307,78 @@ async def on_delete_task(
 ) -> Response:
     """Handle delete_task intent."""
     return await handle_delete_task(message, intent_data, state, event_update=event_update)
+
+
+# FSM handlers for complete confirmation — must be BEFORE the unknown handler
+@router.message(CompleteTaskStates.confirm, IntentFilter("YANDEX.CONFIRM"))
+async def on_complete_confirm(
+    message: Message, state: FSMContext, event_update: Update
+) -> Response:
+    """Handle complete confirmation."""
+    return await handle_complete_confirm(message, state, event_update=event_update)
+
+
+@router.message(CompleteTaskStates.confirm, IntentFilter("YANDEX.REJECT"))
+async def on_complete_reject(message: Message, state: FSMContext) -> Response:
+    """Handle complete rejection."""
+    return await handle_complete_reject(message, state)
+
+
+@router.message(CompleteTaskStates.confirm)
+async def on_complete_other(message: Message, state: FSMContext) -> Response:
+    """Handle unexpected input during complete confirmation."""
+    tokens = set(message.nlu.tokens or []) if message.nlu else set()
+    command_lower = (message.command or "").lower().strip()
+
+    if tokens & _REJECT_TOKENS or command_lower in _REJECT_TOKENS:
+        return await handle_complete_reject(message, state)
+    if tokens & _CONFIRM_TOKENS or command_lower in _CONFIRM_TOKENS:
+        return await handle_complete_confirm(message, state)
+
+    data = await state.get_data()
+    retries = data.get("_confirm_retries", 0) + 1
+
+    if retries >= _MAX_CONFIRM_RETRIES:
+        await state.clear()
+        return Response(text=txt.COMPLETE_CANCELLED)
+
+    await state.set_data({**data, "_confirm_retries": retries})
+    return Response(text=txt.COMPLETE_CONFIRM.format(name=data.get("task_name", "")))
+
+
+# FSM handlers for edit confirmation — must be BEFORE the unknown handler
+@router.message(EditTaskStates.confirm, IntentFilter("YANDEX.CONFIRM"))
+async def on_edit_confirm(message: Message, state: FSMContext, event_update: Update) -> Response:
+    """Handle edit confirmation."""
+    return await handle_edit_confirm(message, state, event_update=event_update)
+
+
+@router.message(EditTaskStates.confirm, IntentFilter("YANDEX.REJECT"))
+async def on_edit_reject(message: Message, state: FSMContext) -> Response:
+    """Handle edit rejection."""
+    return await handle_edit_reject(message, state)
+
+
+@router.message(EditTaskStates.confirm)
+async def on_edit_other(message: Message, state: FSMContext) -> Response:
+    """Handle unexpected input during edit confirmation."""
+    tokens = set(message.nlu.tokens or []) if message.nlu else set()
+    command_lower = (message.command or "").lower().strip()
+
+    if tokens & _REJECT_TOKENS or command_lower in _REJECT_TOKENS:
+        return await handle_edit_reject(message, state)
+    if tokens & _CONFIRM_TOKENS or command_lower in _CONFIRM_TOKENS:
+        return await handle_edit_confirm(message, state)
+
+    data = await state.get_data()
+    retries = data.get("_confirm_retries", 0) + 1
+
+    if retries >= _MAX_CONFIRM_RETRIES:
+        await state.clear()
+        return Response(text=txt.EDIT_CANCELLED)
+
+    await state.set_data({**data, "_confirm_retries": retries})
+    return Response(text=txt.EDIT_CONFIRM.format(name=data.get("task_name", "")))
 
 
 # FSM handlers for delete confirmation — must be BEFORE the unknown handler
