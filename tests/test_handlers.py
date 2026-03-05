@@ -543,7 +543,7 @@ async def test_list_tasks_filter_by_priority() -> None:
     assert "Важная" in response.text
     assert "Ещё важная" in response.text
     assert "Обычная" not in response.text
-    assert "высокий приоритет" in response.text
+    assert "высоким приоритетом" in response.text
 
 
 async def test_list_tasks_filter_by_priority_no_matches() -> None:
@@ -562,7 +562,7 @@ async def test_list_tasks_filter_by_priority_no_matches() -> None:
     }
     mock_factory = _make_mock_client(tasks=tasks)
     response = await handle_list_tasks(message, intent_data, mock_factory)
-    assert "высокий приоритет" in response.text
+    assert "высоким приоритетом" in response.text
     assert "нет" in response.text
 
 
