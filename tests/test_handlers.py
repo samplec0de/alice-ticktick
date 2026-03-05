@@ -100,6 +100,28 @@ def _make_project(*, project_id: str = "proj-1", name: str = "Inbox") -> Project
     return Project(id=project_id, name=name)
 
 
+def _make_state(data: dict[str, Any] | None = None) -> AsyncMock:
+    """Create a mock FSMContext."""
+    state = AsyncMock()
+    _state_data = dict(data) if data else {}
+
+    async def _get_data() -> dict[str, Any]:
+        return dict(_state_data)
+
+    async def _set_data(new_data: dict[str, Any]) -> None:
+        _state_data.clear()
+        _state_data.update(new_data)
+
+    async def _clear() -> None:
+        _state_data.clear()
+
+    state.get_data = AsyncMock(side_effect=_get_data)
+    state.set_data = AsyncMock(side_effect=_set_data)
+    state.set_state = AsyncMock()
+    state.clear = AsyncMock(side_effect=_clear)
+    return state
+
+
 def _make_mock_client(
     projects: list[Project] | None = None,
     tasks: list[Task] | None = None,
@@ -211,7 +233,7 @@ async def test_overdue_tasks_auth_required() -> None:
 async def test_complete_task_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
-    response = await handle_complete_task(message, intent_data)
+    response = await handle_complete_task(message, intent_data, _make_state())
     assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
@@ -225,7 +247,7 @@ async def test_search_task_auth_required() -> None:
 async def test_edit_task_auth_required() -> None:
     message = _make_message(access_token=None)
     intent_data: dict[str, Any] = {"slots": {}}
-    response = await handle_edit_task(message, intent_data)
+    response = await handle_edit_task(message, intent_data, _make_state())
     assert response.text == txt.AUTH_REQUIRED_NO_LINKING
 
 
@@ -652,7 +674,7 @@ async def test_overdue_tasks_api_error() -> None:
 async def test_complete_task_name_required() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {"slots": {}}
-    response = await handle_complete_task(message, intent_data)
+    response = await handle_complete_task(message, intent_data, _make_state())
     assert response.text == txt.COMPLETE_NAME_REQUIRED
 
 
@@ -663,7 +685,7 @@ async def test_complete_task_success() -> None:
         "slots": {"task_name": {"value": "купить молоко"}},
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_complete_task(message, intent_data, mock_factory)
+    response = await handle_complete_task(message, intent_data, _make_state(), mock_factory)
     assert "Купить молоко" in response.text
     assert "выполненной" in response.text
 
@@ -675,7 +697,7 @@ async def test_complete_task_not_found() -> None:
         "slots": {"task_name": {"value": "xxxxxx"}},
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_complete_task(message, intent_data, mock_factory)
+    response = await handle_complete_task(message, intent_data, _make_state(), mock_factory)
     assert "не найдена" in response.text
 
 
@@ -686,7 +708,7 @@ async def test_complete_task_no_active_tasks() -> None:
         "slots": {"task_name": {"value": "Done"}},
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_complete_task(message, intent_data, mock_factory)
+    response = await handle_complete_task(message, intent_data, _make_state(), mock_factory)
     assert "не найдена" in response.text
 
 
@@ -699,7 +721,7 @@ async def test_complete_task_api_error() -> None:
     mock_factory.return_value.__aenter__ = AsyncMock(
         side_effect=Exception("API error"),
     )
-    response = await handle_complete_task(message, intent_data, mock_factory)
+    response = await handle_complete_task(message, intent_data, _make_state(), mock_factory)
     assert response.text == txt.COMPLETE_ERROR
 
 
@@ -960,7 +982,7 @@ async def test_search_task_api_error() -> None:
 async def test_edit_task_name_required() -> None:
     message = _make_message()
     intent_data: dict[str, Any] = {"slots": {}}
-    response = await handle_edit_task(message, intent_data)
+    response = await handle_edit_task(message, intent_data, _make_state())
     assert response.text == txt.EDIT_NAME_REQUIRED
 
 
@@ -969,7 +991,7 @@ async def test_edit_task_no_changes() -> None:
     intent_data: dict[str, Any] = {
         "slots": {"task_name": {"value": "Купить молоко"}},
     }
-    response = await handle_edit_task(message, intent_data)
+    response = await handle_edit_task(message, intent_data, _make_state())
     assert response.text == txt.EDIT_NO_CHANGES
 
 
@@ -983,7 +1005,7 @@ async def test_edit_task_reschedule() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
     assert "Купить молоко" in response.text
 
@@ -1008,7 +1030,7 @@ async def test_edit_task_reschedule_with_end_date() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
 
     client = mock_factory.return_value.__aenter__.return_value
@@ -1030,7 +1052,7 @@ async def test_edit_task_change_priority() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
 
     client = mock_factory.return_value.__aenter__.return_value
@@ -1051,7 +1073,7 @@ async def test_edit_task_rename() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
 
     client = mock_factory.return_value.__aenter__.return_value
@@ -1090,16 +1112,20 @@ async def test_edit_task_reschedule_with_v_in_name() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    state = _make_state()
+    response = await handle_edit_task(message, intent_data, state, mock_factory)
 
-    # Must NOT rename — title should be None (unchanged)
+    # Low fuzzy score (merged name "сходить в озон на сегодня" ≠ "Сходить в Озон")
+    # → confirmation is requested
+    assert "Сходить в Озон" in response.text
+    state.set_state.assert_called_once()
+
+    # After confirmation, the edit should go through
+    await handle_edit_task(message, intent_data, state, mock_factory, _skip_confirm=True)
     client = mock_factory.return_value.__aenter__.return_value
     call_args = client.update_task.call_args[0][0]
     assert call_args.title is None
-    # Must reschedule (NLU date detected)
     assert call_args.due_date is not None
-    # Confirmation should mention the right task
-    assert "Сходить в Озон" in response.text
 
 
 async def test_edit_task_not_found() -> None:
@@ -1112,7 +1138,7 @@ async def test_edit_task_not_found() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "не найдена" in response.text
 
 
@@ -1128,7 +1154,7 @@ async def test_edit_task_fetch_api_error() -> None:
     mock_factory.return_value.__aenter__ = AsyncMock(
         side_effect=Exception("API error"),
     )
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert response.text == txt.API_ERROR
 
 
@@ -1144,7 +1170,7 @@ async def test_edit_task_update_api_error() -> None:
     mock_factory = _make_mock_client(tasks=tasks)
     client = mock_factory.return_value.__aenter__.return_value
     client.update_task = AsyncMock(side_effect=Exception("API error"))
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert response.text == txt.EDIT_ERROR
 
 
@@ -1171,7 +1197,11 @@ async def test_edit_task_via_nlu_entities() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    # task_name "купить молоко на сегодня" vs "Купить молоко" → score ~70 < 85
+    # Skip confirmation to test the edit logic itself
+    response = await handle_edit_task(
+        message, intent_data, _make_state(), mock_factory, _skip_confirm=True
+    )
     assert "обновлена" in response.text
 
     client = mock_factory.return_value.__aenter__.return_value
@@ -1650,7 +1680,7 @@ async def test_edit_task_move_to_project() -> None:
         },
     }
     mock_factory = _make_mock_client(projects=projects, tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "перемещена" in response.text
     assert "Работа" in response.text
 
@@ -1674,7 +1704,7 @@ async def test_edit_task_move_project_not_found() -> None:
         },
     }
     mock_factory = _make_mock_client(projects=projects, tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "не найден" in response.text
     assert "Покупки" in response.text
     assert "Работа" in response.text
@@ -1692,7 +1722,7 @@ async def test_edit_task_move_same_project() -> None:
         },
     }
     mock_factory = _make_mock_client(projects=projects, tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "уже в проекте" in response.text
     assert "Работа" in response.text
 
@@ -1713,7 +1743,7 @@ async def test_edit_task_move_and_reschedule() -> None:
         },
     }
     mock_factory = _make_mock_client(projects=projects, tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     # Multiple changes → EDIT_SUCCESS (not TASK_MOVED)
     assert "обновлена" in response.text
 
@@ -2137,7 +2167,7 @@ async def test_edit_add_recurrence() -> None:
         },
     }
     message = _make_message(command="поменяй повторение задачи зарядка на каждый день")
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "повторение" in response.text.lower() or "обновлена" in response.text.lower()
     call_args = client.update_task.call_args[0][0]
     assert call_args.repeat_flag == "RRULE:FREQ=DAILY"
@@ -2157,7 +2187,7 @@ async def test_edit_remove_recurrence() -> None:
         },
     }
     message = _make_message(command="убери повторение задачи зарядка")
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "убрано" in response.text.lower() or "обновлена" in response.text.lower()
     call_args = client.update_task.call_args[0][0]
     assert call_args.repeat_flag == ""
@@ -2177,7 +2207,7 @@ async def test_edit_add_reminder() -> None:
         },
     }
     message = _make_message(command="поставь напоминание задачи встреча за 30 минут")
-    await handle_edit_task(message, intent_data, mock_factory)
+    await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     call_args = client.update_task.call_args[0][0]
     assert call_args.reminders == ["TRIGGER:-PT30M"]
 
@@ -2196,7 +2226,7 @@ async def test_edit_remove_reminder() -> None:
         },
     }
     message = _make_message(command="убери напоминание задачи встреча")
-    await handle_edit_task(message, intent_data, mock_factory)
+    await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     call_args = client.update_task.call_args[0][0]
     assert call_args.reminders == []
 
@@ -2269,7 +2299,7 @@ async def test_edit_task_reschedule_confirms_date() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "Купить молоко" in response.text
     assert "дата" in response.text.lower()
     assert "завтра" in response.text
@@ -2286,7 +2316,7 @@ async def test_edit_task_change_priority_confirms() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "Купить молоко" in response.text
     assert "приоритет" in response.text.lower()
     assert "высокий" in response.text.lower()
@@ -2304,7 +2334,7 @@ async def test_edit_task_multiple_changes_confirms_all() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "дата" in response.text.lower()
     assert "приоритет" in response.text.lower()
 
@@ -2322,7 +2352,7 @@ async def test_complete_task_confirms_with_context() -> None:
         "slots": {"task_name": {"value": "купить молоко"}},
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_complete_task(message, intent_data, mock_factory)
+    response = await handle_complete_task(message, intent_data, _make_state(), mock_factory)
     assert "Купить молоко" in response.text
     assert "завтра" in response.text
     assert "низкий приоритет" in response.text
@@ -2385,7 +2415,7 @@ async def test_edit_task_rename_confirms_new_title() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
     assert "название" in response.text.lower()
     assert "Новое название" in response.text
@@ -2405,7 +2435,7 @@ async def test_edit_task_rename_capitalizes_first_letter() -> None:
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
     assert "Новое название" in response.text
     client = mock_factory.return_value.__aenter__.return_value
@@ -2415,16 +2445,16 @@ async def test_edit_task_rename_capitalizes_first_letter() -> None:
 
 async def test_edit_task_remove_priority_confirms() -> None:
     """Edit task with priority set to none shows 'приоритет убран'."""
-    tasks = [_make_task(title="Задача", priority=5)]
+    tasks = [_make_task(title="Купить молоко", priority=5)]
     message = _make_message()
     intent_data: dict[str, Any] = {
         "slots": {
-            "task_name": {"value": "задача"},
+            "task_name": {"value": "купить молоко"},
             "new_priority": {"value": "без приоритета"},
         },
     }
     mock_factory = _make_mock_client(tasks=tasks)
-    response = await handle_edit_task(message, intent_data, mock_factory)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
     assert "обновлена" in response.text
     assert "приоритет убран" in response.text
 

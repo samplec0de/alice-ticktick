@@ -99,6 +99,8 @@ NO_OVERDUE_WITH_PRIORITY = "Просроченных задач с {priority} н
 TASK_COMPLETED = "Задача «{name}»{context} отмечена выполненной."
 TASK_NOT_FOUND = "Задача «{name}» не найдена. Попробуйте сказать точнее."
 COMPLETE_NAME_REQUIRED = "Какую задачу отметить выполненной? Скажите название."
+COMPLETE_CONFIRM = "Завершить задачу «{name}»? Скажите да или нет."
+COMPLETE_CANCELLED = "Отменила завершение."
 COMPLETE_ERROR = "Не удалось завершить задачу. Попробуйте ещё раз."
 
 # Search
@@ -112,6 +114,8 @@ SEARCH_CHECKLIST_MORE = "…и ещё {count}"
 
 # Edit
 EDIT_NAME_REQUIRED = "Какую задачу изменить? Скажите название."
+EDIT_CONFIRM = "Изменить задачу «{name}»? Скажите да или нет."
+EDIT_CANCELLED = "Отменила изменение."
 EDIT_NO_CHANGES = (
     "Не удалось понять, что изменить. Скажите, например: "
     "«перенеси на завтра» или «поменяй приоритет на высокий»."

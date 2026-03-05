@@ -45,7 +45,7 @@ from alice_ticktick.dialogs.nlp import (
     parse_yandex_datetime,
 )
 from alice_ticktick.dialogs.nlp.date_parser import ExtractedDates, extract_dates_from_nlu
-from alice_ticktick.dialogs.states import DeleteTaskStates
+from alice_ticktick.dialogs.states import CompleteTaskStates, DeleteTaskStates, EditTaskStates
 from alice_ticktick.ticktick.client import TickTickClient
 from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskPriority, TaskUpdate
 
@@ -64,6 +64,44 @@ _TASK_NAME_STOPWORDS = frozenset(
         "напоминания",
     }
 )
+
+_FUZZY_CONFIRM_THRESHOLD = 85
+
+
+def _is_only_stopwords(name: str) -> bool:
+    """Check if task name consists only of stopwords."""
+    words = name.lower().split()
+    return all(w in _TASK_NAME_STOPWORDS for w in words) if words else True
+
+
+@dataclasses.dataclass
+class _TaskMatch:
+    """Result of a successful fuzzy task match."""
+
+    task: Task
+    score: float
+    name: str
+
+
+async def _find_active_task(
+    client: TickTickClient,
+    task_name: str,
+    access_token: str,
+    score_threshold: int = 60,
+) -> _TaskMatch | Response:
+    """Find best matching active task by name. Returns _TaskMatch or error Response."""
+    all_tasks = await _gather_all_tasks(client, access_token)
+    active_tasks = [t for t in all_tasks if t.status == 0]
+    if not active_tasks:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
+    titles = [t.title for t in active_tasks]
+    matches = find_matches(task_name, titles, threshold=score_threshold, limit=1)
+    if not matches:
+        return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
+    best_name, best_score, best_idx = matches[0]
+    task = active_tasks[best_idx]
+    return _TaskMatch(task=task, score=best_score, name=best_name)
+
 
 _REMINDER_SUFFIX_RE = re.compile(
     r"\s+с\s+напоминанием\s+за\s+(?:\d+\s+)?(?:минуту|минуты|минут|час|часа|часов|день|дня|дней)\s*$",
@@ -1063,6 +1101,7 @@ async def handle_overdue_tasks(
 async def handle_complete_task(
     message: Message,
     intent_data: dict[str, Any],
+    state: FSMContext,
     ticktick_client_factory: type[TickTickClient] | None = None,
     event_update: Update | None = None,
 ) -> Response:
@@ -1073,29 +1112,32 @@ async def handle_complete_task(
 
     slots = extract_complete_task_slots(intent_data)
 
-    if not slots.task_name:
+    if not slots.task_name or _is_only_stopwords(slots.task_name):
         return Response(text=txt.COMPLETE_NAME_REQUIRED)
 
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
+            result = await _find_active_task(client, slots.task_name, access_token)
+            if isinstance(result, Response):
+                return result
 
-            # Find task by fuzzy match
-            active_tasks = [t for t in all_tasks if t.status == 0]
-            if not active_tasks:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+            # Low score → ask for confirmation
+            if result.score < _FUZZY_CONFIRM_THRESHOLD:
+                user_tz = _get_user_tz(event_update)
+                context = _format_task_context(result.task, user_tz)
+                await state.set_state(CompleteTaskStates.confirm)
+                await state.set_data(
+                    {
+                        "task_id": result.task.id,
+                        "project_id": result.task.project_id,
+                        "task_name": result.name,
+                        "task_context": context,
+                    }
+                )
+                return Response(text=txt.COMPLETE_CONFIRM.format(name=result.name))
 
-            titles = [t.title for t in active_tasks]
-            match_result = find_best_match(slots.task_name, titles)
-
-            if match_result is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            best_match, match_idx = match_result
-            matched_task = active_tasks[match_idx]
-
-            await client.complete_task(matched_task.id, matched_task.project_id)
+            await client.complete_task(result.task.id, result.task.project_id)
             _invalidate_task_cache(access_token)
 
     except Exception:
@@ -1103,8 +1145,50 @@ async def handle_complete_task(
         return Response(text=txt.COMPLETE_ERROR)
 
     user_tz = _get_user_tz(event_update)
-    context = _format_task_context(matched_task, user_tz)
-    return Response(text=txt.TASK_COMPLETED.format(name=best_match, context=context))
+    context = _format_task_context(result.task, user_tz)
+    return Response(text=txt.TASK_COMPLETED.format(name=result.name, context=context))
+
+
+async def handle_complete_confirm(
+    message: Message,
+    state: FSMContext,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle complete confirmation (user said 'yes')."""
+    access_token = _get_access_token(message)
+    if access_token is None:
+        await state.clear()
+        return _auth_required_response(event_update)
+
+    data = await state.get_data()
+    task_id = data.get("task_id", "")
+    project_id = data.get("project_id", "")
+    task_name = data.get("task_name", "")
+    task_context = data.get("task_context", "")
+
+    if not task_id or not project_id or not task_name:
+        await state.clear()
+        return Response(text=txt.COMPLETE_ERROR)
+
+    factory = ticktick_client_factory or TickTickClient
+    try:
+        async with factory(access_token) as client:
+            await client.complete_task(task_id, project_id)
+            _invalidate_task_cache(access_token)
+    except Exception:
+        logger.exception("Failed to complete task")
+        await state.clear()
+        return Response(text=txt.COMPLETE_ERROR)
+
+    await state.clear()
+    return Response(text=txt.TASK_COMPLETED.format(name=task_name, context=task_context))
+
+
+async def handle_complete_reject(message: Message, state: FSMContext) -> Response:
+    """Handle complete rejection (user said 'no')."""
+    await state.clear()
+    return Response(text=txt.COMPLETE_CANCELLED)
 
 
 def _build_search_response(
@@ -1233,8 +1317,11 @@ async def handle_search_task(
 async def handle_edit_task(
     message: Message,
     intent_data: dict[str, Any],
+    state: FSMContext,
     ticktick_client_factory: type[TickTickClient] | None = None,
     event_update: Update | None = None,
+    *,
+    _skip_confirm: bool = False,
 ) -> Response:
     """Handle edit_task intent."""
     access_token = _get_access_token(message)
@@ -1243,7 +1330,7 @@ async def handle_edit_task(
 
     slots = extract_edit_task_slots(intent_data)
 
-    if not slots.task_name:
+    if not slots.task_name or _is_only_stopwords(slots.task_name):
         return Response(text=txt.EDIT_NAME_REQUIRED)
 
     # Hybrid approach: try NLU entities for date extraction (grammar .+ swallows dates)
@@ -1303,13 +1390,26 @@ async def handle_edit_task(
         return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
 
     titles = [t.title for t in active_tasks]
-    match_result = find_best_match(task_name, titles)
+    match_results = find_matches(task_name, titles, limit=1)
 
-    if match_result is None:
+    if not match_results:
         return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
 
-    best_match, match_idx = match_result
+    best_match, match_score, match_idx = match_results[0]
     matched_task = active_tasks[match_idx]
+
+    # Low score → ask for confirmation before editing
+    if not _skip_confirm and match_score < _FUZZY_CONFIRM_THRESHOLD:
+        await state.set_state(EditTaskStates.confirm)
+        await state.set_data(
+            {
+                "task_id": matched_task.id,
+                "project_id": matched_task.project_id,
+                "task_name": best_match,
+                "intent_data": intent_data,
+            }
+        )
+        return Response(text=txt.EDIT_CONFIRM.format(name=best_match))
 
     # Build update payload
     new_title: str | None = (
@@ -1489,6 +1589,33 @@ async def handle_edit_task(
     return Response(text=txt.EDIT_SUCCESS_NO_DETAILS.format(name=best_match))
 
 
+async def handle_edit_confirm(
+    message: Message,
+    state: FSMContext,
+    ticktick_client_factory: type[TickTickClient] | None = None,
+    event_update: Update | None = None,
+) -> Response:
+    """Handle edit confirmation (user said 'yes') — re-run edit with forced match."""
+    data = await state.get_data()
+    intent_data = data.get("intent_data", {})
+    await state.clear()
+
+    return await handle_edit_task(
+        message,
+        intent_data,
+        state,
+        ticktick_client_factory=ticktick_client_factory,
+        event_update=event_update,
+        _skip_confirm=True,
+    )
+
+
+async def handle_edit_reject(message: Message, state: FSMContext) -> Response:
+    """Handle edit rejection (user said 'no')."""
+    await state.clear()
+    return Response(text=txt.EDIT_CANCELLED)
+
+
 async def handle_delete_task(
     message: Message,
     intent_data: dict[str, Any],
@@ -1503,44 +1630,34 @@ async def handle_delete_task(
 
     slots = extract_delete_task_slots(intent_data)
 
-    if not slots.task_name:
+    if not slots.task_name or _is_only_stopwords(slots.task_name):
         return Response(text=txt.DELETE_NAME_REQUIRED)
 
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
+            result = await _find_active_task(client, slots.task_name, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for deletion")
         return Response(text=txt.API_ERROR)
 
-    active_tasks = [t for t in all_tasks if t.status == 0]
-    if not active_tasks:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-    titles = [t.title for t in active_tasks]
-    match_result = find_best_match(slots.task_name, titles)
-
-    if match_result is None:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-    best_match, match_idx = match_result
-    matched_task = active_tasks[match_idx]
+    if isinstance(result, Response):
+        return result
 
     user_tz = _get_user_tz(event_update)
-    context = _format_task_context(matched_task, user_tz)
+    context = _format_task_context(result.task, user_tz)
 
     await state.set_state(DeleteTaskStates.confirm)
     await state.set_data(
         {
-            "task_id": matched_task.id,
-            "project_id": matched_task.project_id,
-            "task_name": best_match,
+            "task_id": result.task.id,
+            "project_id": result.task.project_id,
+            "task_name": result.name,
             "task_context": context,
         }
     )
 
-    return Response(text=txt.DELETE_CONFIRM.format(name=best_match, context=context))
+    return Response(text=txt.DELETE_CONFIRM.format(name=result.name, context=context))
 
 
 async def handle_delete_confirm(
@@ -1613,25 +1730,14 @@ async def handle_add_subtask(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
-
-            active_tasks = [t for t in all_tasks if t.status == 0]
-            if not active_tasks:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.parent_name))
-
-            titles = [t.title for t in active_tasks]
-            match_result = find_best_match(slots.parent_name, titles)
-
-            if match_result is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.parent_name))
-
-            best_match, match_idx = match_result
-            parent_task = active_tasks[match_idx]
+            result = await _find_active_task(client, slots.parent_name, access_token)
+            if isinstance(result, Response):
+                return result
 
             payload = TaskCreate(
                 title=slots.subtask_name,
-                projectId=parent_task.project_id,
-                parentId=parent_task.id,
+                projectId=result.task.project_id,
+                parentId=result.task.id,
             )
             await client.create_task(payload)
             _invalidate_task_cache(access_token)
@@ -1640,7 +1746,7 @@ async def handle_add_subtask(
         logger.exception("Failed to create subtask")
         return Response(text=txt.SUBTASK_ERROR)
 
-    return Response(text=txt.SUBTASK_CREATED.format(name=slots.subtask_name, parent=best_match))
+    return Response(text=txt.SUBTASK_CREATED.format(name=slots.subtask_name, parent=result.name))
 
 
 async def handle_list_subtasks(
@@ -1718,20 +1824,11 @@ async def handle_add_checklist_item(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
+            result = await _find_active_task(client, slots.task_name, access_token)
+            if isinstance(result, Response):
+                return result
 
-            active_tasks = [t for t in all_tasks if t.status == 0]
-            if not active_tasks:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            titles = [t.title for t in active_tasks]
-            match_result = find_best_match(slots.task_name, titles)
-
-            if match_result is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            best_match, match_idx = match_result
-            matched_task = active_tasks[match_idx]
+            matched_task = result.task
 
             # Build updated items list
             existing_items: list[dict[str, Any]] = [
@@ -1760,7 +1857,7 @@ async def handle_add_checklist_item(
 
     return Response(
         text=txt.CHECKLIST_ITEM_ADDED.format(
-            item=slots.item_name, task=best_match, count=len(updated_items)
+            item=slots.item_name, task=result.name, count=len(updated_items)
         )
     )
 
@@ -1784,35 +1881,25 @@ async def handle_show_checklist(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
+            result = await _find_active_task(client, slots.task_name, access_token)
     except Exception:
         logger.exception("Failed to fetch tasks for checklist")
         return Response(text=txt.API_ERROR)
 
-    active_tasks = [t for t in all_tasks if t.status == 0]
-    if not active_tasks:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
+    if isinstance(result, Response):
+        return result
 
-    titles = [t.title for t in active_tasks]
-    match_result = find_best_match(slots.task_name, titles)
-
-    if match_result is None:
-        return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-    best_match, match_idx = match_result
-    matched_task = active_tasks[match_idx]
-
-    if not matched_task.items:
-        return Response(text=txt.CHECKLIST_EMPTY.format(name=best_match))
+    if not result.task.items:
+        return Response(text=txt.CHECKLIST_EMPTY.format(name=result.name))
 
     lines: list[str] = []
-    for i, item in enumerate(matched_task.items, 1):
+    for i, item in enumerate(result.task.items, 1):
         mark = "[x]" if item.status == 1 else "[ ]"
         lines.append(f"{i}. {mark} {item.title}")
     items_text = "\n".join(lines)
 
     return Response(
-        text=_truncate_response(txt.CHECKLIST_HEADER.format(name=best_match, items=items_text))
+        text=_truncate_response(txt.CHECKLIST_HEADER.format(name=result.name, items=items_text))
     )
 
 
@@ -1838,24 +1925,17 @@ async def handle_check_item(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
+            result = await _find_active_task(client, slots.task_name, access_token)
+            if isinstance(result, Response):
+                return result
 
-            active_tasks = [t for t in all_tasks if t.status == 0]
-            if not active_tasks:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            titles = [t.title for t in active_tasks]
-            match_result = find_best_match(slots.task_name, titles)
-
-            if match_result is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            best_match, match_idx = match_result
-            matched_task = active_tasks[match_idx]
+            matched_task = result.task
 
             if not matched_task.items:
                 return Response(
-                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(
+                        item=slots.item_name, task=result.name
+                    )
                 )
 
             item_titles = [item.title for item in matched_task.items]
@@ -1863,7 +1943,9 @@ async def handle_check_item(
 
             if item_match is None:
                 return Response(
-                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(
+                        item=slots.item_name, task=result.name
+                    )
                 )
 
             matched_item_title, item_idx = item_match
@@ -1892,7 +1974,7 @@ async def handle_check_item(
         return Response(text=txt.CHECKLIST_CHECK_ERROR)
 
     return Response(
-        text=txt.CHECKLIST_ITEM_CHECKED.format(item=matched_item_title, task=best_match)
+        text=txt.CHECKLIST_ITEM_CHECKED.format(item=matched_item_title, task=result.name)
     )
 
 
@@ -1918,24 +2000,17 @@ async def handle_delete_checklist_item(
     factory = ticktick_client_factory or TickTickClient
     try:
         async with factory(access_token) as client:
-            all_tasks = await _gather_all_tasks(client, access_token)
+            result = await _find_active_task(client, slots.task_name, access_token)
+            if isinstance(result, Response):
+                return result
 
-            active_tasks = [t for t in all_tasks if t.status == 0]
-            if not active_tasks:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            titles = [t.title for t in active_tasks]
-            match_result = find_best_match(slots.task_name, titles)
-
-            if match_result is None:
-                return Response(text=txt.TASK_NOT_FOUND.format(name=slots.task_name))
-
-            best_match, match_idx = match_result
-            matched_task = active_tasks[match_idx]
+            matched_task = result.task
 
             if not matched_task.items:
                 return Response(
-                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(
+                        item=slots.item_name, task=result.name
+                    )
                 )
 
             item_titles = [item.title for item in matched_task.items]
@@ -1943,7 +2018,9 @@ async def handle_delete_checklist_item(
 
             if item_match is None:
                 return Response(
-                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(item=slots.item_name, task=best_match)
+                    text=txt.CHECKLIST_ITEM_NOT_FOUND.format(
+                        item=slots.item_name, task=result.name
+                    )
                 )
 
             matched_item_title, item_idx = item_match
@@ -1973,7 +2050,7 @@ async def handle_delete_checklist_item(
         return Response(text=txt.CHECKLIST_ITEM_DELETE_ERROR)
 
     return Response(
-        text=txt.CHECKLIST_ITEM_DELETED.format(item=matched_item_title, task=best_match)
+        text=txt.CHECKLIST_ITEM_DELETED.format(item=matched_item_title, task=result.name)
     )
 
 
