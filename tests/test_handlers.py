@@ -1905,7 +1905,7 @@ async def test_router_disambiguate_add_subtask_vs_create_task_in_project() -> No
     event_update.meta.timezone = "UTC"
     from unittest.mock import patch
 
-    with patch("alice_ticktick.dialogs.handlers.TickTickClient", mock_factory):
+    with patch("alice_ticktick.dialogs.handlers.tasks.TickTickClient", mock_factory):
         add_subtask_data = message.nlu.intents["add_subtask"]
         response = await on_add_subtask(message, add_subtask_data, event_update)
 

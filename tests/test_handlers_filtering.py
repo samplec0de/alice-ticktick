@@ -181,7 +181,10 @@ class TestListTasksWithDateRange:
         event_update.meta.interfaces = MagicMock()
         event_update.meta.interfaces.account_linking = None
 
-        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+        with (
+            mock.patch("alice_ticktick.dialogs.handlers.tasks.datetime") as mock_dt,
+            mock.patch("alice_ticktick.dialogs.handlers._helpers.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _NOW
             response = await handle_list_tasks(
                 message,
@@ -206,7 +209,10 @@ class TestListTasksWithDateRange:
         event_update.meta.interfaces = MagicMock()
         event_update.meta.interfaces.account_linking = None
 
-        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+        with (
+            mock.patch("alice_ticktick.dialogs.handlers.tasks.datetime") as mock_dt,
+            mock.patch("alice_ticktick.dialogs.handlers._helpers.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _NOW
             response = await handle_list_tasks(
                 message,
@@ -243,7 +249,10 @@ class TestListTasksWithDateRange:
         event_update.meta.interfaces = MagicMock()
         event_update.meta.interfaces.account_linking = None
 
-        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+        with (
+            mock.patch("alice_ticktick.dialogs.handlers.tasks.datetime") as mock_dt,
+            mock.patch("alice_ticktick.dialogs.handlers._helpers.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _NOW
             response = await handle_list_tasks(
                 message,
@@ -332,7 +341,7 @@ class TestProjectTasksFiltering:
             date_to=datetime.date(2026, 3, 8),
         )
         with mock.patch(
-            "alice_ticktick.dialogs.handlers.parse_date_range",
+            "alice_ticktick.dialogs.handlers.projects.parse_date_range",
             return_value=fixed_range,
         ):
             response = await handle_project_tasks(
@@ -378,7 +387,7 @@ class TestProjectTasksFiltering:
             date_to=datetime.date(2026, 3, 8),
         )
         with mock.patch(
-            "alice_ticktick.dialogs.handlers.parse_date_range",
+            "alice_ticktick.dialogs.handlers.projects.parse_date_range",
             return_value=fixed_range,
         ):
             response = await handle_project_tasks(
@@ -414,7 +423,10 @@ class TestOverdueTasksFiltering:
         event_update.meta.interfaces = MagicMock()
         event_update.meta.interfaces.account_linking = None
 
-        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+        with (
+            mock.patch("alice_ticktick.dialogs.handlers.tasks.datetime") as mock_dt,
+            mock.patch("alice_ticktick.dialogs.handlers._helpers.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _NOW
             response = await handle_overdue_tasks(
                 message,
@@ -441,7 +453,10 @@ class TestOverdueTasksFiltering:
         event_update.meta.interfaces = MagicMock()
         event_update.meta.interfaces.account_linking = None
 
-        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+        with (
+            mock.patch("alice_ticktick.dialogs.handlers.tasks.datetime") as mock_dt,
+            mock.patch("alice_ticktick.dialogs.handlers._helpers.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _NOW
             response = await handle_overdue_tasks(
                 message,
@@ -468,7 +483,10 @@ class TestOverdueTasksFiltering:
         event_update.meta.interfaces = MagicMock()
         event_update.meta.interfaces.account_linking = None
 
-        with mock.patch("alice_ticktick.dialogs.handlers.datetime") as mock_dt:
+        with (
+            mock.patch("alice_ticktick.dialogs.handlers.tasks.datetime") as mock_dt,
+            mock.patch("alice_ticktick.dialogs.handlers._helpers.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _NOW
             response = await handle_overdue_tasks(
                 message,
