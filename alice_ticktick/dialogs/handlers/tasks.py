@@ -1066,7 +1066,9 @@ async def handle_edit_task(
 
     has_other_changes = not (
         new_title is None
+        and new_start_date is None
         and new_due_date is None
+        and new_is_all_day is None
         and new_priority_value is None
         and new_repeat_flag is None
         and new_reminders is None
