@@ -202,7 +202,11 @@ async def handle_create_task(
     if nlu_dates and nlu_dates.start_date:
         # NLU entities found -- use them and the cleaned task name
         if nlu_dates.task_name:
-            task_name = nlu_dates.task_name
+            tn = nlu_dates.task_name
+            task_name = tn[:1].upper() + tn[1:]
+        else:
+            # NLU stripped все токены — пользователь назвал только дату, без задачи
+            return Response(text=txt.TASK_NAME_REQUIRED)
 
         parsed_start = nlu_dates.start_date
         date_display = _format_date(parsed_start, user_tz)
