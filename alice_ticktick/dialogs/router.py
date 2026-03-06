@@ -87,6 +87,16 @@ _CHECKLIST_ITEM_RE = re.compile(
     re.IGNORECASE,
 )
 
+_CHECK_ITEM_RE = re.compile(
+    r"(?:отметь|выполни)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|из)\s+(?:чеклиста?|списка?|чеклисте?)\s+(?:задачи?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
+_DELETE_CHECKLIST_ITEM_RE = re.compile(
+    r"(?:удали|убери)\s+(?:пункт|элемент)\s+(.+?)\s+(?:из|от)\s+(?:чеклиста?|списка?)\s+(?:задачи?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
 
 def _try_parse_checklist_command(command: str) -> tuple[str, str] | None:
     """Попытаться извлечь item_name и task_name из команды чеклиста."""
@@ -263,7 +273,26 @@ async def on_check_item(
 async def on_complete_task(
     message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
-    """Handle complete_task intent."""
+    """Handle complete_task intent.
+
+    Also detects when NLU fired complete_task but the utterance is actually
+    a check_item command (e.g. 'отметь пункт X в чеклисте задачи Y').
+    """
+    if message.nlu:
+        tokens = set(message.nlu.tokens or [])
+        if tokens & _CHECKLIST_KEYWORDS and tokens & _ITEM_KEYWORDS:
+            m = _CHECK_ITEM_RE.search(message.command or "")
+            if m:
+                item_name, task_name = m.group(1).strip(), m.group(2).strip()
+                fake_intent_data: dict[str, Any] = {
+                    "slots": {
+                        "item_name": {"value": item_name},
+                        "task_name": {"value": task_name},
+                    }
+                }
+                return await handle_check_item(
+                    message, fake_intent_data, event_update=event_update
+                )
     return await handle_complete_task(message, intent_data, state, event_update=event_update)
 
 

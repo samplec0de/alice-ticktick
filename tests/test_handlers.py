@@ -500,6 +500,7 @@ async def test_list_tasks_no_tasks() -> None:
 
 async def test_list_tasks_with_tasks() -> None:
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
         datetime.datetime.now(tz=tz).date(),
@@ -521,6 +522,7 @@ async def test_list_tasks_with_tasks() -> None:
 
 async def test_list_tasks_for_specific_date() -> None:
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     tomorrow = datetime.datetime.now(tz=tz).date() + datetime.timedelta(days=1)
     tomorrow_dt = datetime.datetime.combine(
@@ -553,6 +555,7 @@ async def test_list_tasks_api_error() -> None:
 async def test_list_tasks_filter_by_priority() -> None:
     """Filter tasks by priority — only high-priority tasks returned."""
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
         datetime.datetime.now(tz=tz).date(),
@@ -599,6 +602,7 @@ async def test_list_tasks_filter_by_priority_no_matches() -> None:
 async def test_list_tasks_filter_by_priority_with_date() -> None:
     """Filter tasks by priority + specific date."""
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     tomorrow = datetime.datetime.now(tz=tz).date() + datetime.timedelta(days=1)
     tomorrow_dt = datetime.datetime.combine(
@@ -627,6 +631,7 @@ async def test_list_tasks_filter_by_priority_with_date() -> None:
 async def test_list_tasks_unknown_priority_ignored() -> None:
     """Unknown priority string — ignore filter, show all tasks."""
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
         datetime.datetime.now(tz=tz).date(),
@@ -800,6 +805,7 @@ class TestTruncateResponse:
 async def test_list_tasks_parallel_fetch() -> None:
     """Verify tasks are fetched from all projects in parallel."""
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
         datetime.datetime.now(tz=tz).date(),
@@ -834,6 +840,7 @@ async def test_list_tasks_parallel_fetch() -> None:
 async def test_list_tasks_includes_inbox() -> None:
     """Verify inbox tasks are included alongside project tasks."""
     from zoneinfo import ZoneInfo
+
     tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
         datetime.datetime.now(tz=tz).date(),
@@ -2837,6 +2844,33 @@ async def test_delete_confirm_unauthorized_clears_state() -> None:
 async def test_get_user_tz_fallback_is_moscow() -> None:
     """When no timezone in request, default must be Europe/Moscow, not UTC."""
     from zoneinfo import ZoneInfo
+
     from alice_ticktick.dialogs.handlers._helpers import _get_user_tz
+
     tz = _get_user_tz(None)
     assert tz == ZoneInfo("Europe/Moscow")
+
+
+async def test_complete_task_redirects_to_check_item_on_checklist_command() -> None:
+    """on_complete_task must redirect to handle_check_item for checklist command."""
+    from unittest.mock import patch
+
+    from aliceio.types import Response as AliceResponse
+
+    from alice_ticktick.dialogs.router import on_complete_task
+
+    message = _make_message(command="отметь пункт молоко в чеклисте задачи покупки")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["отметь", "пункт", "молоко", "в", "чеклисте", "задачи", "покупки"]
+    message.nlu.intents = {}
+
+    intent_data: dict[str, Any] = {"slots": {}}
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_check_item", new_callable=AsyncMock
+    ) as mock_check:
+        mock_check.return_value = AliceResponse(text="Пункт молоко отмечен в задаче Покупки")
+        response = await on_complete_task(message, intent_data, _make_state(), MagicMock())
+
+    mock_check.assert_called_once()
+    assert "молоко" in response.text.lower() or "отмечен" in response.text.lower()
