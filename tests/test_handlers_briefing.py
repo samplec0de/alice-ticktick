@@ -200,7 +200,7 @@ async def test_morning_briefing_with_today_tasks() -> None:
 
 
 async def test_morning_briefing_with_overdue() -> None:
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     yesterday = datetime.datetime.now(tz=tz) - datetime.timedelta(days=1)
     yesterday = yesterday.replace(hour=12, microsecond=0)
     tasks = [_make_task(title="Просроченная", due_date=yesterday)]
@@ -250,7 +250,7 @@ async def test_evening_briefing_with_tomorrow_tasks() -> None:
 
 
 async def test_evening_briefing_ignores_today_tasks() -> None:
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.now(tz=tz).replace(hour=12, microsecond=0)
     tasks = [_make_task(title="Сегодняшняя задача", due_date=today)]
     msg = _make_message()
@@ -260,7 +260,7 @@ async def test_evening_briefing_ignores_today_tasks() -> None:
 
 
 async def test_evening_briefing_with_overdue() -> None:
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     yesterday = (datetime.datetime.now(tz=tz) - datetime.timedelta(days=1)).replace(
         hour=12, microsecond=0
     )
