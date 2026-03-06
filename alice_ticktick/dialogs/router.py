@@ -87,6 +87,16 @@ _CHECKLIST_ITEM_RE = re.compile(
     re.IGNORECASE,
 )
 
+_CHECK_ITEM_RE = re.compile(
+    r"(?:отметь|выполни)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|из)\s+(?:чеклиста?|списка?|чеклисте?)\s+(?:задачи?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
+_DELETE_CHECKLIST_ITEM_RE = re.compile(
+    r"(?:удали|убери)\s+(?:пункт|элемент)\s+(.+?)\s+(?:из|от)\s+(?:чеклиста?|списка?)\s+(?:задачи?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
 
 def _try_parse_checklist_command(command: str) -> tuple[str, str] | None:
     """Попытаться извлечь item_name и task_name из команды чеклиста."""
@@ -230,16 +240,6 @@ async def on_list_subtasks(
     return await handle_list_subtasks(message, intent_data, event_update=event_update)
 
 
-@router.message(IntentFilter(LIST_TASKS))
-async def on_list_tasks(
-    message: Message,
-    intent_data: dict[str, Any],
-    event_update: Update,
-) -> Response:
-    """Handle list_tasks intent."""
-    return await handle_list_tasks(message, intent_data, event_update=event_update)
-
-
 @router.message(IntentFilter(OVERDUE_TASKS))
 async def on_overdue_tasks(
     message: Message,
@@ -248,6 +248,16 @@ async def on_overdue_tasks(
 ) -> Response:
     """Handle overdue_tasks intent."""
     return await handle_overdue_tasks(message, intent_data, event_update=event_update)
+
+
+@router.message(IntentFilter(LIST_TASKS))
+async def on_list_tasks(
+    message: Message,
+    intent_data: dict[str, Any],
+    event_update: Update,
+) -> Response:
+    """Handle list_tasks intent."""
+    return await handle_list_tasks(message, intent_data, event_update=event_update)
 
 
 # --- Specific "отметь..." intent BEFORE generic complete_task ---
@@ -263,7 +273,26 @@ async def on_check_item(
 async def on_complete_task(
     message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
-    """Handle complete_task intent."""
+    """Handle complete_task intent.
+
+    Also detects when NLU fired complete_task but the utterance is actually
+    a check_item command (e.g. 'отметь пункт X в чеклисте задачи Y').
+    """
+    if message.nlu:
+        tokens = set(message.nlu.tokens or [])
+        if tokens & _CHECKLIST_KEYWORDS and tokens & _ITEM_KEYWORDS:
+            m = _CHECK_ITEM_RE.search(message.command or "")
+            if m:
+                item_name, task_name = m.group(1).strip(), m.group(2).strip()
+                fake_intent_data: dict[str, Any] = {
+                    "slots": {
+                        "item_name": {"value": item_name},
+                        "task_name": {"value": task_name},
+                    }
+                }
+                return await handle_check_item(
+                    message, fake_intent_data, event_update=event_update
+                )
     return await handle_complete_task(message, intent_data, state, event_update=event_update)
 
 
@@ -305,7 +334,26 @@ async def on_delete_checklist_item(
 async def on_delete_task(
     message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
-    """Handle delete_task intent."""
+    """Handle delete_task intent.
+
+    Also detects when NLU fired delete_task but the utterance is actually
+    a delete_checklist_item command (e.g. 'удали пункт X из чеклиста задачи Y').
+    """
+    if message.nlu:
+        tokens = set(message.nlu.tokens or [])
+        if tokens & _CHECKLIST_KEYWORDS and tokens & _ITEM_KEYWORDS:
+            m = _DELETE_CHECKLIST_ITEM_RE.search(message.command or "")
+            if m:
+                item_name, task_name = m.group(1).strip(), m.group(2).strip()
+                fake_intent_data: dict[str, Any] = {
+                    "slots": {
+                        "item_name": {"value": item_name},
+                        "task_name": {"value": task_name},
+                    }
+                }
+                return await handle_delete_checklist_item(
+                    message, fake_intent_data, event_update=event_update
+                )
     return await handle_delete_task(message, intent_data, state, event_update=event_update)
 
 

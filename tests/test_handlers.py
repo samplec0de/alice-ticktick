@@ -389,8 +389,8 @@ async def test_create_task_with_time_range() -> None:
     assert call_args.due_date is not None
     assert call_args.start_date != call_args.due_date
     # start should be 19:00, end should be 21:30
-    start_dt = datetime.datetime.strptime(call_args.start_date, "%Y-%m-%dT%H:%M:%S.000+0000")
-    end_dt = datetime.datetime.strptime(call_args.due_date, "%Y-%m-%dT%H:%M:%S.000+0000")
+    start_dt = datetime.datetime.strptime(call_args.start_date, "%Y-%m-%dT%H:%M:%S.000+0300")
+    end_dt = datetime.datetime.strptime(call_args.due_date, "%Y-%m-%dT%H:%M:%S.000+0300")
     assert start_dt.hour == 19
     assert end_dt.hour == 21
     assert end_dt.minute == 30
@@ -499,10 +499,13 @@ async def test_list_tasks_no_tasks() -> None:
 
 
 async def test_list_tasks_with_tasks() -> None:
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Задача 1", priority=5, due_date=today),
@@ -518,11 +521,14 @@ async def test_list_tasks_with_tasks() -> None:
 
 
 async def test_list_tasks_for_specific_date() -> None:
-    tomorrow = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=1)
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
+    tomorrow = datetime.datetime.now(tz=tz).date() + datetime.timedelta(days=1)
     tomorrow_dt = datetime.datetime.combine(
         tomorrow,
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [_make_task(title="Завтрашняя", due_date=tomorrow_dt)]
     message = _make_message()
@@ -548,10 +554,13 @@ async def test_list_tasks_api_error() -> None:
 
 async def test_list_tasks_filter_by_priority() -> None:
     """Filter tasks by priority — only high-priority tasks returned."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Важная", priority=5, due_date=today),
@@ -592,11 +601,14 @@ async def test_list_tasks_filter_by_priority_no_matches() -> None:
 
 async def test_list_tasks_filter_by_priority_with_date() -> None:
     """Filter tasks by priority + specific date."""
-    tomorrow = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=1)
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
+    tomorrow = datetime.datetime.now(tz=tz).date() + datetime.timedelta(days=1)
     tomorrow_dt = datetime.datetime.combine(
         tomorrow,
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Срочная", priority=5, due_date=tomorrow_dt),
@@ -618,10 +630,13 @@ async def test_list_tasks_filter_by_priority_with_date() -> None:
 
 async def test_list_tasks_unknown_priority_ignored() -> None:
     """Unknown priority string — ignore filter, show all tasks."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Задача 1", priority=5, due_date=today),
@@ -789,10 +804,13 @@ class TestTruncateResponse:
 
 async def test_list_tasks_parallel_fetch() -> None:
     """Verify tasks are fetched from all projects in parallel."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     projects = [
         _make_project(project_id="p1", name="Project 1"),
@@ -821,10 +839,13 @@ async def test_list_tasks_parallel_fetch() -> None:
 
 async def test_list_tasks_includes_inbox() -> None:
     """Verify inbox tasks are included alongside project tasks."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     inbox_task = _make_task(
         task_id="t-inbox",
@@ -1131,15 +1152,12 @@ async def test_edit_task_reschedule_with_v_in_name() -> None:
     }
     mock_factory = _make_mock_client(tasks=tasks)
     state = _make_state()
+    # NLU task_name = "сходить в озон" (clean, after removing date tokens) → high fuzzy score
+    # → edit goes through without confirmation
     response = await handle_edit_task(message, intent_data, state, mock_factory)
-
-    # Low fuzzy score (merged name "сходить в озон на сегодня" ≠ "Сходить в Озон")
-    # → confirmation is requested
     assert "Сходить в Озон" in response.text
-    state.set_state.assert_called_once()
+    assert "обновлена" in response.text
 
-    # After confirmation, the edit should go through
-    await handle_edit_task(message, intent_data, state, mock_factory, _skip_confirm=True)
     client = mock_factory.return_value.__aenter__.return_value
     call_args = client.update_task.call_args[0][0]
     assert call_args.title is None
@@ -1225,6 +1243,52 @@ async def test_edit_task_via_nlu_entities() -> None:
     client = mock_factory.return_value.__aenter__.return_value
     call_args = client.update_task.call_args[0][0]
     assert call_args.due_date is not None
+
+
+async def test_edit_task_uses_nlu_task_name_when_grammar_swallowed_date() -> None:
+    """When grammar .+ swallows date into task_name, NLU entity provides clean name for search."""
+    from aliceio.types import DateTimeEntity
+
+    tasks = [_make_task(title="Купить хлеб")]
+    # Grammar зафиксировало task_name="купить хлеб на завтра" (дата поглощена)
+    message = _make_message(command="перенеси задачу купить хлеб на завтра")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["перенеси", "задачу", "купить", "хлеб", "на", "завтра"]
+
+    dt_value = MagicMock(spec=DateTimeEntity)
+    dt_value.day = 1
+    dt_value.day_is_relative = True
+    dt_value.year = None
+    dt_value.month = None
+    dt_value.hour = None
+    dt_value.minute = None
+    dt_value.year_is_relative = False
+    dt_value.month_is_relative = False
+    dt_value.hour_is_relative = False
+    dt_value.minute_is_relative = False
+
+    entity = MagicMock()
+    entity.type = "YANDEX.DATETIME"
+    entity.tokens = MagicMock()
+    entity.tokens.start = 5  # "завтра" at index 5
+    entity.tokens.end = 6
+    entity.value = dt_value
+    message.nlu.entities = [entity]
+
+    # Слот task_name содержит "на завтра" из-за greedy .+
+    intent_data = {
+        "slots": {
+            "task_name": {"value": "купить хлеб на завтра"},
+            # new_date slot отсутствует — грамматика съела дату в task_name
+        }
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(
+        message, intent_data, _make_state(), mock_factory, _skip_confirm=True
+    )
+    # Задача должна быть найдена и обновлена
+    assert "обновлена" in response.text
+    assert "Купить хлеб" in response.text
 
 
 async def test_create_task_date_only_uses_user_timezone() -> None:
@@ -2610,8 +2674,8 @@ async def test_timezone_warning_when_no_timezone(caplog: pytest.LogCaptureFixtur
     with caplog.at_level(logging.WARNING):
         tz = _get_user_tz(None)
 
-    assert str(tz) == "UTC"
-    assert "No timezone in request, falling back to UTC" in caplog.text
+    assert str(tz) == "Europe/Moscow"
+    assert "No timezone in request, falling back to Europe/Moscow" in caplog.text
 
 
 async def test_no_timezone_warning_when_timezone_present(
@@ -2775,3 +2839,80 @@ async def test_delete_confirm_unauthorized_clears_state() -> None:
     response = await handle_delete_confirm(message, state, ticktick_client_factory=mock_factory)
     assert response.text == txt.AUTH_REQUIRED_NO_LINKING
     state.clear.assert_awaited()
+
+
+async def test_get_user_tz_fallback_is_moscow() -> None:
+    """When no timezone in request, default must be Europe/Moscow, not UTC."""
+    from zoneinfo import ZoneInfo
+
+    from alice_ticktick.dialogs.handlers._helpers import _get_user_tz
+
+    tz = _get_user_tz(None)
+    assert tz == ZoneInfo("Europe/Moscow")
+
+
+async def test_complete_task_redirects_to_check_item_on_checklist_command() -> None:
+    """on_complete_task must redirect to handle_check_item for checklist command."""
+    from unittest.mock import patch
+
+    from aliceio.types import Response as AliceResponse
+
+    from alice_ticktick.dialogs.router import on_complete_task
+
+    message = _make_message(command="отметь пункт молоко в чеклисте задачи покупки")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["отметь", "пункт", "молоко", "в", "чеклисте", "задачи", "покупки"]
+    message.nlu.intents = {}
+
+    intent_data: dict[str, Any] = {"slots": {}}
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_check_item", new_callable=AsyncMock
+    ) as mock_check:
+        mock_check.return_value = AliceResponse(text="Пункт молоко отмечен в задаче Покупки")
+        response = await on_complete_task(message, intent_data, _make_state(), MagicMock())
+
+    mock_check.assert_called_once()
+    assert "молоко" in response.text.lower() or "отмечен" in response.text.lower()
+
+
+async def test_delete_task_redirects_to_delete_checklist_item_on_checklist_command() -> None:
+    """on_delete_task must redirect to handle_delete_checklist_item.
+
+    For command: 'удали пункт X из чеклиста задачи Y'.
+    """
+    from unittest.mock import patch
+
+    from aliceio.types import Response as AliceResponse
+
+    from alice_ticktick.dialogs.router import on_delete_task
+
+    message = _make_message(command="удали пункт молоко из чеклиста задачи покупки")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["удали", "пункт", "молоко", "из", "чеклиста", "задачи", "покупки"]
+    message.nlu.intents = {}
+
+    intent_data: dict[str, Any] = {"slots": {}}
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_delete_checklist_item", new_callable=AsyncMock
+    ) as mock_delete:
+        mock_delete.return_value = AliceResponse(text="Пункт молоко удалён из задачи Покупки")
+        response = await on_delete_task(message, intent_data, _make_state(), MagicMock())
+
+    mock_delete.assert_called_once()
+    assert "молоко" in response.text.lower() or "удалён" in response.text.lower()
+
+
+def test_router_overdue_registered_before_list_tasks() -> None:
+    """Verify router source code registers OVERDUE_TASKS before LIST_TASKS."""
+    from pathlib import Path
+
+    router_path = Path(__file__).parent.parent / "alice_ticktick" / "dialogs" / "router.py"
+    source = router_path.read_text()
+    overdue_pos = source.find("IntentFilter(OVERDUE_TASKS)")
+    list_tasks_pos = source.find("IntentFilter(LIST_TASKS)")
+
+    assert overdue_pos != -1, "OVERDUE_TASKS not found in router"
+    assert list_tasks_pos != -1, "LIST_TASKS not found in router"
+    assert overdue_pos < list_tasks_pos, "OVERDUE_TASKS must appear before LIST_TASKS in router.py"

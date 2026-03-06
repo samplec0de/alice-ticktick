@@ -121,14 +121,14 @@ def _auth_required_response(event_update: Update | None = None) -> Response:
 
 
 def _get_user_tz(event_update: Update | None) -> ZoneInfo:
-    """Extract user timezone from Alice event, default to UTC."""
+    """Extract user timezone from Alice event, default to Europe/Moscow."""
     if event_update and event_update.meta and event_update.meta.timezone:
         try:
             return ZoneInfo(event_update.meta.timezone)
         except (KeyError, ValueError):
             pass
-    logger.warning("No timezone in request, falling back to UTC")
-    return ZoneInfo("UTC")
+    logger.warning("No timezone in request, falling back to Europe/Moscow")
+    return ZoneInfo("Europe/Moscow")
 
 
 def _to_user_date(dt: datetime.datetime, tz: ZoneInfo) -> datetime.date:
