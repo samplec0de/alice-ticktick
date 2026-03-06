@@ -334,7 +334,26 @@ async def on_delete_checklist_item(
 async def on_delete_task(
     message: Message, intent_data: dict[str, Any], state: FSMContext, event_update: Update
 ) -> Response:
-    """Handle delete_task intent."""
+    """Handle delete_task intent.
+
+    Also detects when NLU fired delete_task but the utterance is actually
+    a delete_checklist_item command (e.g. 'удали пункт X из чеклиста задачи Y').
+    """
+    if message.nlu:
+        tokens = set(message.nlu.tokens or [])
+        if tokens & _CHECKLIST_KEYWORDS and tokens & _ITEM_KEYWORDS:
+            m = _DELETE_CHECKLIST_ITEM_RE.search(message.command or "")
+            if m:
+                item_name, task_name = m.group(1).strip(), m.group(2).strip()
+                fake_intent_data: dict[str, Any] = {
+                    "slots": {
+                        "item_name": {"value": item_name},
+                        "task_name": {"value": task_name},
+                    }
+                }
+                return await handle_delete_checklist_item(
+                    message, fake_intent_data, event_update=event_update
+                )
     return await handle_delete_task(message, intent_data, state, event_update=event_update)
 
 

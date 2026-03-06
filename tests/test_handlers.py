@@ -2874,3 +2874,28 @@ async def test_complete_task_redirects_to_check_item_on_checklist_command() -> N
 
     mock_check.assert_called_once()
     assert "молоко" in response.text.lower() or "отмечен" in response.text.lower()
+
+
+async def test_delete_task_redirects_to_delete_checklist_item_on_checklist_command() -> None:
+    """on_delete_task must redirect to handle_delete_checklist_item for 'удали пункт X из чеклиста задачи Y'."""
+    from unittest.mock import patch
+
+    from aliceio.types import Response as AliceResponse
+
+    from alice_ticktick.dialogs.router import on_delete_task
+
+    message = _make_message(command="удали пункт молоко из чеклиста задачи покупки")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["удали", "пункт", "молоко", "из", "чеклиста", "задачи", "покупки"]
+    message.nlu.intents = {}
+
+    intent_data: dict[str, Any] = {"slots": {}}
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_delete_checklist_item", new_callable=AsyncMock
+    ) as mock_delete:
+        mock_delete.return_value = AliceResponse(text="Пункт молоко удалён из задачи Покупки")
+        response = await on_delete_task(message, intent_data, _make_state(), MagicMock())
+
+    mock_delete.assert_called_once()
+    assert "молоко" in response.text.lower() or "удалён" in response.text.lower()
