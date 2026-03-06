@@ -2899,3 +2899,18 @@ async def test_delete_task_redirects_to_delete_checklist_item_on_checklist_comma
 
     mock_delete.assert_called_once()
     assert "молоко" in response.text.lower() or "удалён" in response.text.lower()
+
+
+def test_router_overdue_registered_before_list_tasks() -> None:
+    """Verify router source code registers OVERDUE_TASKS before LIST_TASKS."""
+    from pathlib import Path
+
+    source = (Path(__file__).parent.parent / "alice_ticktick" / "dialogs" / "router.py").read_text()
+    overdue_pos = source.find("IntentFilter(OVERDUE_TASKS)")
+    list_tasks_pos = source.find("IntentFilter(LIST_TASKS)")
+
+    assert overdue_pos != -1, "OVERDUE_TASKS not found in router"
+    assert list_tasks_pos != -1, "LIST_TASKS not found in router"
+    assert overdue_pos < list_tasks_pos, (
+        "OVERDUE_TASKS must appear before LIST_TASKS in router.py"
+    )
