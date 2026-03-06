@@ -924,7 +924,16 @@ async def handle_edit_task(
         return Response(text=txt.API_ERROR)
 
     active_tasks = [t for t in all_tasks if t.status == 0]
+    # When NLU entities extracted a clean task name (date was removed), prefer it for search.
+    # Grammar .+ may swallow date tokens, making the slot value dirty (e.g. "купить хлеб на завтра").
     task_name: str = slots.task_name  # type: ignore[assignment]  # guaranteed by early return
+    if (
+        nlu_dates is not None
+        and nlu_has_date
+        and nlu_dates.task_name
+        and not _is_only_stopwords(nlu_dates.task_name)
+    ):
+        task_name = nlu_dates.task_name
     if not active_tasks:
         return Response(text=txt.TASK_NOT_FOUND.format(name=task_name))
 

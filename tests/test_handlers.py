@@ -1145,15 +1145,12 @@ async def test_edit_task_reschedule_with_v_in_name() -> None:
     }
     mock_factory = _make_mock_client(tasks=tasks)
     state = _make_state()
+    # NLU task_name = "сходить в озон" (clean, after removing date tokens) → high fuzzy score
+    # → edit goes through without confirmation
     response = await handle_edit_task(message, intent_data, state, mock_factory)
-
-    # Low fuzzy score (merged name "сходить в озон на сегодня" ≠ "Сходить в Озон")
-    # → confirmation is requested
     assert "Сходить в Озон" in response.text
-    state.set_state.assert_called_once()
+    assert "обновлена" in response.text
 
-    # After confirmation, the edit should go through
-    await handle_edit_task(message, intent_data, state, mock_factory, _skip_confirm=True)
     client = mock_factory.return_value.__aenter__.return_value
     call_args = client.update_task.call_args[0][0]
     assert call_args.title is None
@@ -1239,6 +1236,52 @@ async def test_edit_task_via_nlu_entities() -> None:
     client = mock_factory.return_value.__aenter__.return_value
     call_args = client.update_task.call_args[0][0]
     assert call_args.due_date is not None
+
+
+async def test_edit_task_uses_nlu_task_name_when_grammar_swallowed_date() -> None:
+    """When grammar .+ swallows date into task_name, NLU entity provides clean name for search."""
+    from aliceio.types import DateTimeEntity
+
+    tasks = [_make_task(title="Купить хлеб")]
+    # Grammar зафиксировало task_name="купить хлеб на завтра" (дата поглощена)
+    message = _make_message(command="перенеси задачу купить хлеб на завтра")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["перенеси", "задачу", "купить", "хлеб", "на", "завтра"]
+
+    dt_value = MagicMock(spec=DateTimeEntity)
+    dt_value.day = 1
+    dt_value.day_is_relative = True
+    dt_value.year = None
+    dt_value.month = None
+    dt_value.hour = None
+    dt_value.minute = None
+    dt_value.year_is_relative = False
+    dt_value.month_is_relative = False
+    dt_value.hour_is_relative = False
+    dt_value.minute_is_relative = False
+
+    entity = MagicMock()
+    entity.type = "YANDEX.DATETIME"
+    entity.tokens = MagicMock()
+    entity.tokens.start = 5  # "завтра" at index 5
+    entity.tokens.end = 6
+    entity.value = dt_value
+    message.nlu.entities = [entity]
+
+    # Слот task_name содержит "на завтра" из-за greedy .+
+    intent_data = {
+        "slots": {
+            "task_name": {"value": "купить хлеб на завтра"},
+            # new_date slot отсутствует — грамматика съела дату в task_name
+        }
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(
+        message, intent_data, _make_state(), mock_factory, _skip_confirm=True
+    )
+    # Задача должна быть найдена и обновлена
+    assert "обновлена" in response.text
+    assert "Купить хлеб" in response.text
 
 
 async def test_create_task_date_only_uses_user_timezone() -> None:
