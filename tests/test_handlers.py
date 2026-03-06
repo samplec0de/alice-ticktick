@@ -1360,6 +1360,82 @@ async def test_create_task_with_time_uses_user_timezone() -> None:
     assert call_args.is_all_day is False
 
 
+async def test_create_task_grammar_swallows_date_nlu_corrects_name() -> None:
+    """Когда .+ поглощает дату в task_name, NLU entities исправляют название и дату."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    message = _make_message(command="создай задачу купить молоко на завтра")
+    message.nlu = MagicMock()
+    # создай(0) задачу(1) купить(2) молоко(3) на(4) завтра(5)
+    message.nlu.tokens = ["создай", "задачу", "купить", "молоко", "на", "завтра"]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=4, end=6),
+            value=DateTimeEntity(day=1, day_is_relative=True),
+        )
+    ]
+    # Баг грамматики: .+ поглотил "на завтра", слот date отсутствует
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "купить молоко на завтра"}}}
+
+    mock_factory = _make_mock_client()
+    await handle_create_task(message, intent_data, mock_factory)
+
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.title == "Купить молоко"
+    assert payload.due_date is not None
+
+
+async def test_create_task_nlu_task_name_is_capitalized() -> None:
+    """Название задачи из NLU fallback должно быть с заглавной буквы."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    message = _make_message(command="добавь задачу позвонить маме на завтра")
+    message.nlu = MagicMock()
+    # добавь(0) задачу(1) позвонить(2) маме(3) на(4) завтра(5)
+    message.nlu.tokens = ["добавь", "задачу", "позвонить", "маме", "на", "завтра"]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=4, end=6),
+            value=DateTimeEntity(day=1, day_is_relative=True),
+        )
+    ]
+    # Баг грамматики: task_name поглотил дату
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "позвонить маме на завтра"}}}
+
+    mock_factory = _make_mock_client()
+    await handle_create_task(message, intent_data, mock_factory)
+
+    client = mock_factory.return_value.__aenter__.return_value
+    payload = client.create_task.call_args[0][0]
+    assert payload.title == "Позвонить маме"
+
+
+async def test_create_task_only_date_in_slot_returns_name_required() -> None:
+    """Если после NLU-очистки название пустое — возвращать TASK_NAME_REQUIRED."""
+    from aliceio.types import DateTimeEntity, Entity, TokensEntity
+
+    message = _make_message(command="создай задачу на завтра")
+    message.nlu = MagicMock()
+    # создай(0) задачу(1) на(2) завтра(3)
+    message.nlu.tokens = ["создай", "задачу", "на", "завтра"]
+    message.nlu.entities = [
+        Entity(
+            type="YANDEX.DATETIME",
+            tokens=TokensEntity(start=2, end=4),
+            value=DateTimeEntity(day=1, day_is_relative=True),
+        )
+    ]
+    # Баг грамматики: task_name = "на завтра" (только дата, без реального названия)
+    intent_data: dict[str, Any] = {"slots": {"task_name": {"value": "на завтра"}}}
+
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert response.text == txt.TASK_NAME_REQUIRED
+
+
 # --- Delete task ---
 
 
