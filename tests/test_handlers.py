@@ -1773,6 +1773,57 @@ async def test_edit_task_move_and_reschedule() -> None:
     assert update_args.due_date is not None
 
 
+async def test_edit_task_move_api_error_returns_move_error() -> None:
+    """move_task API failure → MOVE_ERROR, update_task never called."""
+    projects = [
+        _make_project(project_id="p1", name="Inbox"),
+        _make_project(project_id="p-work", name="Работа"),
+    ]
+    tasks = [_make_task(title="Отчёт", project_id="p1")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_project": {"value": "Работа"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.move_task = AsyncMock(side_effect=Exception("API error"))
+
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+
+    assert response.text == txt.MOVE_ERROR
+    client.update_task.assert_not_called()
+
+
+async def test_edit_task_partial_failure_move_ok_update_fails() -> None:
+    """move_task succeeds, update_task fails → EDIT_PARTIAL_ERROR with project name."""
+    projects = [
+        _make_project(project_id="p1", name="Inbox"),
+        _make_project(project_id="p-work", name="Работа"),
+    ]
+    tasks = [_make_task(title="Отчёт", project_id="p1")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_project": {"value": "Работа"},
+            "new_date": {"value": {"day": 1, "day_is_relative": True}},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.update_task = AsyncMock(side_effect=Exception("timeout"))
+
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+
+    assert "перемещена" in response.text
+    assert "Работа" in response.text
+    assert "остальные изменения не применились" in response.text
+    client.move_task.assert_called_once()
+
+
 # --- Intent slot extraction ---
 
 

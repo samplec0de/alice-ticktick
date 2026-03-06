@@ -1084,18 +1084,47 @@ async def handle_edit_task(
             repeatFlag=new_repeat_flag,
             reminders=new_reminders,
         )
-    try:
-        async with factory(access_token) as client:
-            if target_project_id is not None:
+    if target_project_id is not None:
+        try:
+            async with factory(access_token) as client:
                 await client.move_task(matched_task.id, matched_task.project_id, target_project_id)
-            if update_payload is not None:
+            _invalidate_task_cache(access_token)
+        except TickTickUnauthorizedError:
+            return _auth_required_response(event_update)
+        except Exception:
+            logger.exception(
+                "Failed to move task: task_id=%s, from=%s, to=%s",
+                matched_task.id,
+                matched_task.project_id,
+                target_project_id,
+            )
+            return Response(text=txt.MOVE_ERROR)
+
+    if update_payload is not None:
+        try:
+            async with factory(access_token) as client:
                 await client.update_task(update_payload)
             _invalidate_task_cache(access_token)
-    except TickTickUnauthorizedError:
-        return _auth_required_response(event_update)
-    except Exception:
-        logger.exception("Failed to edit task")
-        return Response(text=txt.EDIT_ERROR)
+        except TickTickUnauthorizedError:
+            return _auth_required_response(event_update)
+        except Exception:
+            if target_project_id is not None:
+                logger.exception(
+                    "Partial failure: task %s moved to %s but update failed",
+                    matched_task.id,
+                    target_project_id,
+                )
+                return Response(
+                    text=txt.EDIT_PARTIAL_ERROR.format(
+                        name=best_match, project=target_project_name
+                    )
+                )
+            logger.exception(
+                "Failed to edit task: task_id=%s, project_id=%s",
+                matched_task.id,
+                matched_task.project_id,
+            )
+            return Response(text=txt.EDIT_ERROR)
 
     # Specific messages for recurrence/reminder changes
     if has_remove_recurrence and new_repeat_flag is not None:

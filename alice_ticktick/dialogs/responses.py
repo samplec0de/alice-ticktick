@@ -125,6 +125,11 @@ TASK_ALREADY_IN_PROJECT = "Задача «{name}» уже в проекте «{p
 EDIT_SUCCESS = "Задача «{name}» обновлена: {changes}."
 EDIT_SUCCESS_NO_DETAILS = "Задача «{name}» обновлена."
 EDIT_ERROR = "Не удалось обновить задачу. Попробуйте ещё раз."
+MOVE_ERROR = "Не удалось переместить задачу. Попробуйте ещё раз."
+EDIT_PARTIAL_ERROR = (
+    "Задача «{name}» перемещена в проект «{project}»,"
+    " но остальные изменения не применились. Попробуйте обновить задачу отдельно."
+)
 
 # Recurrence/reminder edit
 RECURRENCE_UPDATED = "Повторение задачи «{name}» изменено: {recurrence}."

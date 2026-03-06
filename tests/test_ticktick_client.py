@@ -288,6 +288,18 @@ class TestMoveTask:
                 json=[{"taskId": "task1", "fromProjectId": "proj-from", "toProjectId": "proj-to"}],
             )
 
+    @pytest.mark.asyncio
+    async def test_move_task_unauthorized(self) -> None:
+        from alice_ticktick.ticktick.client import TickTickUnauthorizedError
+
+        async with TickTickClient(access_token="bad") as client:
+            mock = AsyncMock(return_value=_make_response(status_code=401, text="Unauthorized"))
+            with (
+                patch.object(client._client, "post", mock),
+                pytest.raises(TickTickUnauthorizedError),
+            ):
+                await client.move_task("task1", "proj-from", "proj-to")
+
 
 class TestCompleteTask:
     """Test complete_task method."""
