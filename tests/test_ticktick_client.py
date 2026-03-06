@@ -271,6 +271,36 @@ class TestDeleteTask:
             mock.assert_called_once_with("/project/proj1/task/task1")
 
 
+class TestMoveTask:
+    """Test move_task method."""
+
+    @pytest.mark.asyncio
+    async def test_moves_task(self) -> None:
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(
+                return_value=_make_response(json_data=[{"id": "task1", "etag": "abc"}], text="")
+            )
+            with patch.object(client._client, "post", mock):
+                await client.move_task("task1", "proj-from", "proj-to")
+
+            mock.assert_called_once_with(
+                "/task/move",
+                json=[{"taskId": "task1", "fromProjectId": "proj-from", "toProjectId": "proj-to"}],
+            )
+
+    @pytest.mark.asyncio
+    async def test_move_task_unauthorized(self) -> None:
+        from alice_ticktick.ticktick.client import TickTickUnauthorizedError
+
+        async with TickTickClient(access_token="bad") as client:
+            mock = AsyncMock(return_value=_make_response(status_code=401, text="Unauthorized"))
+            with (
+                patch.object(client._client, "post", mock),
+                pytest.raises(TickTickUnauthorizedError),
+            ):
+                await client.move_task("task1", "proj-from", "proj-to")
+
+
 class TestCompleteTask:
     """Test complete_task method."""
 

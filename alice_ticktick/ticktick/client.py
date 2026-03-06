@@ -158,6 +158,20 @@ class TickTickClient:
         )
         _raise_for_status(response)
 
+    async def move_task(self, task_id: str, from_project_id: str, to_project_id: str) -> None:
+        """Move a task to a different project."""
+        response = await self._client.post(
+            "/task/move",
+            json=[
+                {
+                    "taskId": task_id,
+                    "fromProjectId": from_project_id,
+                    "toProjectId": to_project_id,
+                }
+            ],
+        )
+        _raise_for_status(response)
+
     async def complete_task(self, task_id: str, project_id: str) -> None:
         """Mark a task as completed."""
         response = await self._client.post(

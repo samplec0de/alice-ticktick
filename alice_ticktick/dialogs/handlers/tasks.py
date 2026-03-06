@@ -1064,26 +1064,69 @@ async def handle_edit_task(
             )
         return Response(text=txt.EDIT_NO_CHANGES)
 
-    payload = TaskUpdate(
-        id=matched_task.id,
-        projectId=target_project_id or matched_task.project_id,
-        title=new_title,
-        priority=new_priority_value,
-        startDate=new_start_date,
-        dueDate=new_due_date,
-        isAllDay=new_is_all_day,
-        repeatFlag=new_repeat_flag,
-        reminders=new_reminders,
+    has_other_changes = not (
+        new_title is None
+        and new_start_date is None
+        and new_due_date is None
+        and new_is_all_day is None
+        and new_priority_value is None
+        and new_repeat_flag is None
+        and new_reminders is None
     )
-    try:
-        async with factory(access_token) as client:
-            await client.update_task(payload)
+    update_payload: TaskUpdate | None = None
+    if has_other_changes:
+        update_payload = TaskUpdate(
+            id=matched_task.id,
+            projectId=target_project_id or matched_task.project_id,
+            title=new_title,
+            priority=new_priority_value,
+            startDate=new_start_date,
+            dueDate=new_due_date,
+            isAllDay=new_is_all_day,
+            repeatFlag=new_repeat_flag,
+            reminders=new_reminders,
+        )
+    if target_project_id is not None:
+        try:
+            async with factory(access_token) as client:
+                await client.move_task(matched_task.id, matched_task.project_id, target_project_id)
             _invalidate_task_cache(access_token)
-    except TickTickUnauthorizedError:
-        return _auth_required_response(event_update)
-    except Exception:
-        logger.exception("Failed to edit task")
-        return Response(text=txt.EDIT_ERROR)
+        except TickTickUnauthorizedError:
+            return _auth_required_response(event_update)
+        except Exception:
+            logger.exception(
+                "Failed to move task: task_id=%s, from=%s, to=%s",
+                matched_task.id,
+                matched_task.project_id,
+                target_project_id,
+            )
+            return Response(text=txt.MOVE_ERROR)
+
+    if update_payload is not None:
+        try:
+            async with factory(access_token) as client:
+                await client.update_task(update_payload)
+            _invalidate_task_cache(access_token)
+        except TickTickUnauthorizedError:
+            return _auth_required_response(event_update)
+        except Exception:
+            if target_project_id is not None:
+                logger.exception(
+                    "Partial failure: task %s moved to %s but update failed",
+                    matched_task.id,
+                    target_project_id,
+                )
+                return Response(
+                    text=txt.EDIT_PARTIAL_ERROR.format(
+                        name=best_match, project=target_project_name
+                    )
+                )
+            logger.exception(
+                "Failed to edit task: task_id=%s, project_id=%s",
+                matched_task.id,
+                matched_task.project_id,
+            )
+            return Response(text=txt.EDIT_ERROR)
 
     # Specific messages for recurrence/reminder changes
     if has_remove_recurrence and new_repeat_flag is not None:
