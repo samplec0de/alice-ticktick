@@ -42,3 +42,4 @@ uv.lock
 
 # Worktrees
 .worktrees/
+.claude/worktrees/
