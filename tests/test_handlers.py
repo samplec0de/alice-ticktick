@@ -2915,6 +2915,4 @@ def test_router_overdue_registered_before_list_tasks() -> None:
 
     assert overdue_pos != -1, "OVERDUE_TASKS not found in router"
     assert list_tasks_pos != -1, "LIST_TASKS not found in router"
-    assert overdue_pos < list_tasks_pos, (
-        "OVERDUE_TASKS must appear before LIST_TASKS in router.py"
-    )
+    assert overdue_pos < list_tasks_pos, "OVERDUE_TASKS must appear before LIST_TASKS in router.py"
