@@ -925,7 +925,8 @@ async def handle_edit_task(
 
     active_tasks = [t for t in all_tasks if t.status == 0]
     # When NLU entities extracted a clean task name (date was removed), prefer it for search.
-    # Grammar .+ may swallow date tokens, making the slot value dirty (e.g. "купить хлеб на завтра").
+    # Grammar .+ may swallow date tokens, making the slot value dirty
+    # (e.g. "купить хлеб на завтра").
     task_name: str = slots.task_name  # type: ignore[assignment]  # guaranteed by early return
     if (
         nlu_dates is not None

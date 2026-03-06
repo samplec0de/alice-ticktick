@@ -2877,7 +2877,10 @@ async def test_complete_task_redirects_to_check_item_on_checklist_command() -> N
 
 
 async def test_delete_task_redirects_to_delete_checklist_item_on_checklist_command() -> None:
-    """on_delete_task must redirect to handle_delete_checklist_item for 'удали пункт X из чеклиста задачи Y'."""
+    """on_delete_task must redirect to handle_delete_checklist_item.
+
+    For command: 'удали пункт X из чеклиста задачи Y'.
+    """
     from unittest.mock import patch
 
     from aliceio.types import Response as AliceResponse
@@ -2905,7 +2908,8 @@ def test_router_overdue_registered_before_list_tasks() -> None:
     """Verify router source code registers OVERDUE_TASKS before LIST_TASKS."""
     from pathlib import Path
 
-    source = (Path(__file__).parent.parent / "alice_ticktick" / "dialogs" / "router.py").read_text()
+    router_path = Path(__file__).parent.parent / "alice_ticktick" / "dialogs" / "router.py"
+    source = router_path.read_text()
     overdue_pos = source.find("IntentFilter(OVERDUE_TASKS)")
     list_tasks_pos = source.find("IntentFilter(LIST_TASKS)")
 
