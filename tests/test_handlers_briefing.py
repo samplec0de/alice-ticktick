@@ -189,7 +189,7 @@ async def test_morning_briefing_no_tasks() -> None:
 
 
 async def test_morning_briefing_with_today_tasks() -> None:
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.now(tz=tz).replace(hour=12, microsecond=0)
     tasks = [_make_task(title="Задача сегодня", due_date=today)]
     msg = _make_message()
@@ -237,7 +237,7 @@ async def test_evening_briefing_no_tasks() -> None:
 
 
 async def test_evening_briefing_with_tomorrow_tasks() -> None:
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     tomorrow = (datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)).replace(
         hour=12, microsecond=0
     )
@@ -273,7 +273,7 @@ async def test_evening_briefing_with_overdue() -> None:
 
 
 async def test_evening_briefing_tomorrow_and_overdue() -> None:
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     tomorrow = (datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)).replace(
         hour=12, microsecond=0
     )
@@ -293,7 +293,7 @@ async def test_evening_briefing_tomorrow_and_overdue() -> None:
 
 async def test_morning_briefing_many_tasks_shows_remaining() -> None:
     """UX-10: morning briefing handler with 7 tasks shows 'и ещё 2'."""
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.now(tz=tz).replace(hour=12, microsecond=0)
     tasks = [_make_task(task_id=str(i), title=f"Задача {i}", due_date=today) for i in range(7)]
     msg = _make_message()
@@ -304,7 +304,7 @@ async def test_morning_briefing_many_tasks_shows_remaining() -> None:
 
 async def test_evening_briefing_many_tasks_shows_remaining() -> None:
     """UX-10: evening briefing handler with 7 tasks shows 'и ещё 2'."""
-    tz = ZoneInfo("UTC")
+    tz = ZoneInfo("Europe/Moscow")
     tomorrow = (datetime.datetime.now(tz=tz) + datetime.timedelta(days=1)).replace(
         hour=12, microsecond=0
     )

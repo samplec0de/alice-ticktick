@@ -389,8 +389,8 @@ async def test_create_task_with_time_range() -> None:
     assert call_args.due_date is not None
     assert call_args.start_date != call_args.due_date
     # start should be 19:00, end should be 21:30
-    start_dt = datetime.datetime.strptime(call_args.start_date, "%Y-%m-%dT%H:%M:%S.000+0000")
-    end_dt = datetime.datetime.strptime(call_args.due_date, "%Y-%m-%dT%H:%M:%S.000+0000")
+    start_dt = datetime.datetime.strptime(call_args.start_date, "%Y-%m-%dT%H:%M:%S.000+0300")
+    end_dt = datetime.datetime.strptime(call_args.due_date, "%Y-%m-%dT%H:%M:%S.000+0300")
     assert start_dt.hour == 19
     assert end_dt.hour == 21
     assert end_dt.minute == 30
@@ -499,10 +499,12 @@ async def test_list_tasks_no_tasks() -> None:
 
 
 async def test_list_tasks_with_tasks() -> None:
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Задача 1", priority=5, due_date=today),
@@ -518,11 +520,13 @@ async def test_list_tasks_with_tasks() -> None:
 
 
 async def test_list_tasks_for_specific_date() -> None:
-    tomorrow = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=1)
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
+    tomorrow = datetime.datetime.now(tz=tz).date() + datetime.timedelta(days=1)
     tomorrow_dt = datetime.datetime.combine(
         tomorrow,
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [_make_task(title="Завтрашняя", due_date=tomorrow_dt)]
     message = _make_message()
@@ -548,10 +552,12 @@ async def test_list_tasks_api_error() -> None:
 
 async def test_list_tasks_filter_by_priority() -> None:
     """Filter tasks by priority — only high-priority tasks returned."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Важная", priority=5, due_date=today),
@@ -592,11 +598,13 @@ async def test_list_tasks_filter_by_priority_no_matches() -> None:
 
 async def test_list_tasks_filter_by_priority_with_date() -> None:
     """Filter tasks by priority + specific date."""
-    tomorrow = datetime.datetime.now(tz=datetime.UTC).date() + datetime.timedelta(days=1)
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
+    tomorrow = datetime.datetime.now(tz=tz).date() + datetime.timedelta(days=1)
     tomorrow_dt = datetime.datetime.combine(
         tomorrow,
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Срочная", priority=5, due_date=tomorrow_dt),
@@ -618,10 +626,12 @@ async def test_list_tasks_filter_by_priority_with_date() -> None:
 
 async def test_list_tasks_unknown_priority_ignored() -> None:
     """Unknown priority string — ignore filter, show all tasks."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     tasks = [
         _make_task(title="Задача 1", priority=5, due_date=today),
@@ -789,10 +799,12 @@ class TestTruncateResponse:
 
 async def test_list_tasks_parallel_fetch() -> None:
     """Verify tasks are fetched from all projects in parallel."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     projects = [
         _make_project(project_id="p1", name="Project 1"),
@@ -821,10 +833,12 @@ async def test_list_tasks_parallel_fetch() -> None:
 
 async def test_list_tasks_includes_inbox() -> None:
     """Verify inbox tasks are included alongside project tasks."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Moscow")
     today = datetime.datetime.combine(
-        datetime.datetime.now(tz=datetime.UTC).date(),
+        datetime.datetime.now(tz=tz).date(),
         datetime.time(),
-        tzinfo=datetime.UTC,
+        tzinfo=tz,
     )
     inbox_task = _make_task(
         task_id="t-inbox",
@@ -2610,8 +2624,8 @@ async def test_timezone_warning_when_no_timezone(caplog: pytest.LogCaptureFixtur
     with caplog.at_level(logging.WARNING):
         tz = _get_user_tz(None)
 
-    assert str(tz) == "UTC"
-    assert "No timezone in request, falling back to UTC" in caplog.text
+    assert str(tz) == "Europe/Moscow"
+    assert "No timezone in request, falling back to Europe/Moscow" in caplog.text
 
 
 async def test_no_timezone_warning_when_timezone_present(
@@ -2775,3 +2789,11 @@ async def test_delete_confirm_unauthorized_clears_state() -> None:
     response = await handle_delete_confirm(message, state, ticktick_client_factory=mock_factory)
     assert response.text == txt.AUTH_REQUIRED_NO_LINKING
     state.clear.assert_awaited()
+
+
+async def test_get_user_tz_fallback_is_moscow() -> None:
+    """When no timezone in request, default must be Europe/Moscow, not UTC."""
+    from zoneinfo import ZoneInfo
+    from alice_ticktick.dialogs.handlers._helpers import _get_user_tz
+    tz = _get_user_tz(None)
+    assert tz == ZoneInfo("Europe/Moscow")
