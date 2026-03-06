@@ -140,6 +140,7 @@ def _make_mock_client(
     client.create_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
     client.complete_task = AsyncMock(return_value=None)
     client.update_task = AsyncMock(return_value=tasks[0] if tasks else _make_task())
+    client.move_task = AsyncMock(return_value=None)
     client.delete_task = AsyncMock(return_value=None)
 
     factory = MagicMock()
@@ -1702,8 +1703,8 @@ async def test_edit_task_move_to_project() -> None:
     assert "Работа" in response.text
 
     client = mock_factory.return_value.__aenter__.return_value
-    call_args = client.update_task.call_args[0][0]
-    assert call_args.project_id == "p-work"
+    client.move_task.assert_called_once_with(tasks[0].id, "p1", "p-work")
+    client.update_task.assert_not_called()
 
 
 async def test_edit_task_move_project_not_found() -> None:
@@ -1765,9 +1766,11 @@ async def test_edit_task_move_and_reschedule() -> None:
     assert "обновлена" in response.text
 
     client = mock_factory.return_value.__aenter__.return_value
-    call_args = client.update_task.call_args[0][0]
-    assert call_args.project_id == "p-work"
-    assert call_args.due_date is not None
+    # Both move_task and update_task must be called
+    client.move_task.assert_called_once_with(tasks[0].id, "p1", "p-work")
+    update_args = client.update_task.call_args[0][0]
+    assert update_args.project_id == "p-work"
+    assert update_args.due_date is not None
 
 
 # --- Intent slot extraction ---

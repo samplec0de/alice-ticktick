@@ -1064,20 +1064,32 @@ async def handle_edit_task(
             )
         return Response(text=txt.EDIT_NO_CHANGES)
 
-    payload = TaskUpdate(
-        id=matched_task.id,
-        projectId=target_project_id or matched_task.project_id,
-        title=new_title,
-        priority=new_priority_value,
-        startDate=new_start_date,
-        dueDate=new_due_date,
-        isAllDay=new_is_all_day,
-        repeatFlag=new_repeat_flag,
-        reminders=new_reminders,
+    has_other_changes = not (
+        new_title is None
+        and new_due_date is None
+        and new_priority_value is None
+        and new_repeat_flag is None
+        and new_reminders is None
     )
+    update_payload: TaskUpdate | None = None
+    if has_other_changes:
+        update_payload = TaskUpdate(
+            id=matched_task.id,
+            projectId=target_project_id or matched_task.project_id,
+            title=new_title,
+            priority=new_priority_value,
+            startDate=new_start_date,
+            dueDate=new_due_date,
+            isAllDay=new_is_all_day,
+            repeatFlag=new_repeat_flag,
+            reminders=new_reminders,
+        )
     try:
         async with factory(access_token) as client:
-            await client.update_task(payload)
+            if target_project_id is not None:
+                await client.move_task(matched_task.id, matched_task.project_id, target_project_id)
+            if update_payload is not None:
+                await client.update_task(update_payload)
             _invalidate_task_cache(access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
