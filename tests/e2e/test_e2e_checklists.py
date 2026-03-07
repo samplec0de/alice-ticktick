@@ -36,8 +36,7 @@ async def test_add_checklist_item_alt(
 ) -> None:
     """Add a different item to a task's checklist."""
     response = await yandex_client.send(
-        "добавь пункт кктест написать отчёт "
-        "в чеклист задачи кктест подготовить презентацию"
+        "добавь пункт кктест написать отчёт в чеклист задачи кктест подготовить презентацию"
     )
     assert response != UNKNOWN, f"Intent not recognized: {response}"
     assert "добавлен" in response or "не найдена" in response
@@ -62,9 +61,7 @@ async def test_show_checklist_alt(
     yandex_client: YandexDialogsClient,
 ) -> None:
     """Show the checklist using alternative phrasing."""
-    response = await yandex_client.send(
-        "что в чеклисте задачи кктест подготовить презентацию"
-    )
+    response = await yandex_client.send("что в чеклисте задачи кктест подготовить презентацию")
     assert response != UNKNOWN, f"Intent not recognized: {response}"
     assert "Чеклист" in response or "пуст" in response or "не найдена" in response
 

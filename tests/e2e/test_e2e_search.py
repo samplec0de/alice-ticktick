@@ -23,8 +23,7 @@ _SEARCH_XFAIL = pytest.mark.xfail(
 def _is_search_response(text: str) -> bool:
     t = text.lower()
     return any(
-        w in t
-        for w in ("совпадение", "найдена", "не найдено", "ничего не найдено", "результат")
+        w in t for w in ("совпадение", "найдена", "не найдено", "ничего не найдено", "результат")
     )
 
 

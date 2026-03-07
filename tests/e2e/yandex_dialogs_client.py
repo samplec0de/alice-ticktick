@@ -80,9 +80,7 @@ class YandexDialogsClient:
             result_text: str = result["text"]
 
             # Retry on transient TickTick errors
-            if attempt < max_retries and any(
-                err in result_text for err in _TRANSIENT_ERRORS
-            ):
+            if attempt < max_retries and any(err in result_text for err in _TRANSIENT_ERRORS):
                 await asyncio.sleep(5)
                 continue
 

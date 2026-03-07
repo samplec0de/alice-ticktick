@@ -54,9 +54,7 @@ async def test_edit_date_monday(yandex_client: YandexDialogsClient) -> None:
 @_XFAIL
 async def test_edit_rename(yandex_client: YandexDialogsClient) -> None:
     """Rename task: переименуй задачу X в Y."""
-    response = await yandex_client.send(
-        f"переименуй задачу {TASK_NAME} в кктест переименования"
-    )
+    response = await yandex_client.send(f"переименуй задачу {TASK_NAME} в кктест переименования")
     assert UNKNOWN not in response, f"Intent not recognized: {response}"
     assert "обновлена" in response.lower() or "не найдена" in response.lower()
 

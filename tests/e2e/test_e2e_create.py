@@ -84,9 +84,7 @@ async def test_create_with_date_day_after_tomorrow(
     yandex_client: YandexDialogsClient,
 ) -> None:
     """Create a task for the day after tomorrow (послезавтра)."""
-    response = await yandex_client.send(
-        "создай задачу кктест записаться к врачу на послезавтра"
-    )
+    response = await yandex_client.send("создай задачу кктест записаться к врачу на послезавтра")
     assert "Готово" in response
     assert "кктест записаться к врачу" in _norm(response)
 
@@ -195,9 +193,7 @@ async def test_create_meeting_tomorrow_2hours(
     yandex_client: YandexDialogsClient,
 ) -> None:
     """Create a meeting for tomorrow at 10 lasting 2 hours."""
-    response = await yandex_client.send(
-        "создай задачу кктест совещание завтра в 10 на 2 часа"
-    )
+    response = await yandex_client.send("создай задачу кктест совещание завтра в 10 на 2 часа")
     assert "Готово" in response
     assert "кктест совещание" in _norm(response)
 
