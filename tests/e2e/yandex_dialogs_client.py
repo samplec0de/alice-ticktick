@@ -86,7 +86,7 @@ class YandexDialogsClient:
 
             return result_text
 
-        return result_text  # unreachable, satisfies type checker
+        raise RuntimeError("unreachable: loop always returns on the last iteration")
 
     async def send_new_session(self) -> str:
         """Start a new session (like page reload) and return the greeting."""

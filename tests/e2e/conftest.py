@@ -82,6 +82,7 @@ async def _warmup_and_cleanup(yandex_client: YandexDialogsClient) -> None:
     print(f"\n{'=' * 60}")
     print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix...")
     deleted = 0
+    MAX_CLEANUP = 50
     for _ in range(200):
         await asyncio.sleep(3)
         await yandex_client.send_new_session()
@@ -95,6 +96,9 @@ async def _warmup_and_cleanup(yandex_client: YandexDialogsClient) -> None:
             if "удалена" in confirm.lower():
                 deleted += 1
                 print(f"  Deleted task #{deleted}")
+        if deleted >= MAX_CLEANUP:
+            print(f"WARNING: cleaned {deleted} tasks, stopping early to avoid runaway cleanup")
+            break
     print(f"Cleanup done: {deleted} tasks deleted")
     print("=" * 60)
 

@@ -53,6 +53,9 @@ ignore = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# session scope is required for e2e session-scoped fixtures (yandex_client, _warmup_and_cleanup).
+# pytest-asyncio ini_options cannot be scoped per-directory, so this applies globally.
+# Unit tests are unaffected in practice and all pass with this setting.
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
