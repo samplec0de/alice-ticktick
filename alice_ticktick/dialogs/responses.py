@@ -1,4 +1,10 @@
-"""Response text constants for Alice skill (all in Russian)."""
+"""Response text constants for Alice skill (all in Russian).
+
+NOTE: a subset of these constants is duplicated in tests/e2e/expected_responses.py
+to avoid importing aliceio in the e2e environment. If you change strings used
+there (WELCOME, UNKNOWN, DELETE_CANCELLED, TASK_NAME_REQUIRED,
+DURATION_MISSING_START_TIME, GOODBYE), update that file as well.
+"""
 
 # Welcome / help
 WELCOME = "Слушаю!"

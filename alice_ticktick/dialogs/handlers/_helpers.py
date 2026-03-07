@@ -251,7 +251,7 @@ def _invalidate_task_cache(access_token: str) -> None:
     _tasks_cache.pop(access_token, None)
 
 
-_GATHER_TIMEOUT = 4.0  # seconds — total budget for fetching all tasks
+_GATHER_TIMEOUT = 8.0  # seconds — total budget for fetching all tasks (cold start may take 5s)
 
 
 async def _get_cached_projects(client: TickTickClient, access_token: str) -> list[Project]:

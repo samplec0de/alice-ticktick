@@ -40,6 +40,9 @@ deploy.zip
 
 uv.lock
 
+# Yandex auth for E2E tests
+.yandex_auth/
+
 # Worktrees
 .worktrees/
 .claude/worktrees/
