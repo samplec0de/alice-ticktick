@@ -19,10 +19,6 @@ pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Long task names may cause TickTick API errors or NLU truncation",
-    strict=False,
-)
 async def test_long_task_name(yandex_client: YandexDialogsClient) -> None:
     """Create a task with a very long name."""
     long_name = "кктест " + "подготовить очень подробный отчёт по проекту " * 5

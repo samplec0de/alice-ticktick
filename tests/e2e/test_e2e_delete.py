@@ -17,7 +17,7 @@ TASK_NAME = "кктест удаления"
 
 
 @pytest.mark.xfail(
-    reason="Cloud Functions may lose FSM state between requests (multi-turn)",
+    reason="Cloud Functions may lose FSM state between requests (flaky in serverless)",
     strict=False,
 )
 async def test_delete_confirm_yes(yandex_client: YandexDialogsClient) -> None:
@@ -32,7 +32,7 @@ async def test_delete_confirm_yes(yandex_client: YandexDialogsClient) -> None:
 
 
 @pytest.mark.xfail(
-    reason="Cloud Functions may lose FSM state between requests (multi-turn)",
+    reason="Cloud Functions may lose FSM state between requests (flaky in serverless)",
     strict=False,
 )
 async def test_delete_confirm_no(yandex_client: YandexDialogsClient) -> None:

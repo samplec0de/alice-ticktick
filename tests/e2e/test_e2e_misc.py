@@ -23,10 +23,6 @@ async def test_help(yandex_client: YandexDialogsClient) -> None:
     assert "Я умею" in response, f"Expected 'Я умею' in response: {response}"
 
 
-@pytest.mark.xfail(
-    reason="NLU: create_task may intercept 'что ты умеешь'",
-    strict=False,
-)
 async def test_help_what_can_you_do(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -46,10 +42,6 @@ async def test_help_alt(yandex_client: YandexDialogsClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="YANDEX.GOODBYE may not work in text testing mode",
-    strict=False,
-)
 async def test_goodbye(yandex_client: YandexDialogsClient) -> None:
     """'до свидания' should end the session."""
     response = await yandex_client.send("до свидания")
@@ -67,10 +59,6 @@ async def test_goodbye_bye(yandex_client: YandexDialogsClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="NLU: greedy create_task grammar (.+) intercepts unrecognized commands",
-    strict=False,
-)
 async def test_fallback_joke(yandex_client: YandexDialogsClient) -> None:
     """Unrecognized command 'расскажи анекдот' should trigger fallback."""
     response = await yandex_client.send("расскажи анекдот")
