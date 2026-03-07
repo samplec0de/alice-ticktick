@@ -453,6 +453,104 @@ uv run ruff format .
 uv run mypy alice_ticktick/
 ```
 
+## 8. E2E тестирование
+
+E2E тесты проверяют полный пайплайн **Яндекс NLU → webhook (YC Functions) → TickTick API** без LLM/MCP.
+
+### Как это работает
+
+Тесты используют внутренний API страницы тестирования Яндекс Диалогов:
+
+```
+POST /developer/api/skills/{skill_id}/message
+Body: {"text": "...", "isDraft": true, "sessionId": "...", "sessionSeq": N}
+Headers: x-csrf-token (из HTML страницы), cookies (Яндекс-сессия)
+```
+
+Клиент (`tests/e2e/yandex_dialogs_client.py`) отправляет текстовые сообщения навыку
+и получает текстовые ответы — как если бы пользователь писал на странице тестирования.
+
+### Зависимости
+
+```bash
+uv sync --extra dev --extra e2e   # playwright (только для первичной авторизации)
+python -m playwright install chromium
+```
+
+Для самих тестов используется только httpx (уже в зависимостях проекта).
+Playwright нужен только один раз — для интерактивного логина в Яндексе.
+
+### Авторизация
+
+**Первый запуск** — Playwright откроет браузер:
+
+```bash
+uv run pytest tests/e2e/ --setup-yandex-auth -v -s
+```
+
+1. Откроется Chromium → страница тестирования (Яндекс перенаправит на вход)
+2. Залогиньтесь вручную (таймаут: 5 минут)
+3. После входа браузер закроется автоматически
+4. Cookies сохранятся в `.yandex_auth/cookies.json` (в `.gitignore`)
+
+Флаг `-s` нужен, чтобы pytest не перехватывал вывод.
+
+**Повторный логин** (если cookies протухли):
+
+```bash
+uv run pytest tests/e2e/ --setup-yandex-auth -v -s
+```
+
+### Запуск тестов
+
+```bash
+# Все E2E тесты (116 штук)
+uv run pytest -m e2e -v
+
+# Конкретный раздел
+uv run pytest tests/e2e/test_e2e_create.py -v
+
+# Только unit тесты (E2E исключены)
+uv run pytest -m "not e2e" -v
+
+# Полный прогон (unit + e2e)
+uv run pytest -v
+```
+
+### Структура
+
+```
+tests/e2e/
+  conftest.py                  # авторизация, фикстуры, сброс сессии
+  yandex_dialogs_client.py     # httpx-клиент API Яндекс Диалогов
+  test_e2e_greeting.py         # 1 тест  — приветствие
+  test_e2e_create.py           # 23 теста — создание задач
+  test_e2e_list.py             # 13 тестов — просмотр, фильтрация, просроченные
+  test_e2e_complete.py         # 5 тестов — завершение
+  test_e2e_search.py           # 4 теста  — поиск
+  test_e2e_edit.py             # 16 тестов — редактирование
+  test_e2e_delete.py           # 4 теста  — удаление (multi-turn)
+  test_e2e_recurring.py        # 8 тестов — повторяющиеся
+  test_e2e_reminders.py        # 5 тестов — напоминания
+  test_e2e_subtasks.py         # 4 теста  — подзадачи
+  test_e2e_checklists.py       # 6 тестов — чеклисты
+  test_e2e_projects.py         # 3 теста  — проекты
+  test_e2e_briefings.py        # 2 теста  — брифинги
+  test_e2e_misc.py             # 8 тестов — помощь, прощание, fallback
+  test_e2e_edge.py             # 7 тестов — edge cases
+  test_e2e_regression.py       # 7 тестов — регрессия (known bugs, xfail)
+```
+
+Сценарии 1:1 соответствуют `docs/CHROME_TESTING.md`.
+
+### Соглашения
+
+- Все тестовые задачи содержат «тестирование» в имени (для поиска и очистки)
+- Сессия сбрасывается перед каждым тестом (изоляция)
+- Тесты на известные баги помечены `@pytest.mark.xfail(strict=False)`
+- E2E тесты **не запускаются в CI** — только локально (нет cookies в CI)
+- Маркер `@pytest.mark.e2e` позволяет включать/исключать тесты
+
 ## Прогресс
 
 | Фаза | Статус | Описание |
@@ -477,6 +575,7 @@ uv run mypy alice_ticktick/
 | — Timezone + truncate | ✅ Готово | now с tz, обрезка по \n, «…и ещё N» в брифингах (PR #37) |
 | — TickTickUnauthorizedError | ✅ Готово | Отдельная обработка ошибки авторизации (PR #38) |
 | — Рефакторинг handlers | ✅ Готово | handlers.py → handlers/ пакет (8 модулей), PR #39 |
+| E2E тестирование | ✅ Готово | 116 тестов через API Яндекс Диалогов (httpx, без LLM/MCP) |
 | Phase 5 — Kanban, проекты | ⬜ В очереди | Колонки, перемещение карточек |
 | Phase 6 — Привычки, статистика | ⬜ В очереди | Серии, привычки, брифинги |
 | Phase 7 — Публикация | ⬜ В очереди | Модерация, каталог Алисы |

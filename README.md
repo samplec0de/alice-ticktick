@@ -178,6 +178,61 @@ uv run ruff format .          # форматирование
 uv run mypy alice_ticktick/   # проверка типов
 ```
 
+## E2E тестирование
+
+E2E тесты проверяют полный пайплайн: **Яндекс NLU → webhook → TickTick API**.
+Тесты работают через внутренний API страницы тестирования Яндекс Диалогов (httpx, без браузера).
+
+### Первый запуск (авторизация)
+
+```bash
+uv sync --extra dev --extra e2e
+python -m playwright install chromium
+uv run pytest tests/e2e/ --setup-yandex-auth -v -s
+```
+
+Откроется браузер → залогиньтесь в Яндексе → браузер закроется автоматически.
+Cookies сохранятся в `.yandex_auth/` (в `.gitignore`).
+Флаг `-s` нужен, чтобы видеть инструкции в терминале.
+
+### Последующие запуски
+
+```bash
+uv run pytest -m e2e -v                # все 116 E2E тестов
+uv run pytest tests/e2e/test_e2e_misc.py -v  # только один файл
+uv run pytest -m "not e2e" -v          # только unit тесты
+```
+
+### Если cookies протухли
+
+```bash
+uv run pytest tests/e2e/ --setup-yandex-auth -v -s
+```
+
+### Структура тестов
+
+| Файл | Раздел | Тестов |
+|------|--------|--------|
+| `test_e2e_greeting.py` | Приветствие | 1 |
+| `test_e2e_create.py` | Создание задач | 23 |
+| `test_e2e_list.py` | Просмотр + фильтрация + просроченные | 13 |
+| `test_e2e_complete.py` | Завершение | 5 |
+| `test_e2e_search.py` | Поиск | 4 |
+| `test_e2e_edit.py` | Редактирование | 16 |
+| `test_e2e_delete.py` | Удаление (multi-turn) | 4 |
+| `test_e2e_recurring.py` | Повторяющиеся | 8 |
+| `test_e2e_reminders.py` | Напоминания | 5 |
+| `test_e2e_subtasks.py` | Подзадачи | 4 |
+| `test_e2e_checklists.py` | Чеклисты | 6 |
+| `test_e2e_projects.py` | Проекты | 3 |
+| `test_e2e_briefings.py` | Брифинги | 2 |
+| `test_e2e_misc.py` | Помощь + fallback | 8 |
+| `test_e2e_edge.py` | Edge cases | 7 |
+| `test_e2e_regression.py` | Регрессия (known bugs) | 7 |
+| **Итого** | | **116** |
+
+Подробные сценарии: [`docs/CHROME_TESTING.md`](docs/CHROME_TESTING.md).
+
 ## Лицензия
 
 MIT
