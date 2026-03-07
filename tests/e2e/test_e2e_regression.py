@@ -14,10 +14,6 @@ if TYPE_CHECKING:
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
 
-@pytest.mark.xfail(
-    reason="NLU does not recognize edit_task intent (grammar issue)",
-    strict=False,
-)
 async def test_edit_task_date_consumed(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -36,10 +32,6 @@ async def test_edit_task_date_consumed(
     ), f"Expected edit_task response: {response}"
 
 
-@pytest.mark.xfail(
-    reason="create_task intercepts subtask intent",
-    strict=False,
-)
 async def test_subtask_not_intercepted(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -68,10 +60,6 @@ async def test_checklist_not_intercepted(
     )
 
 
-@pytest.mark.xfail(
-    reason="complete_task intercepts check_item intent",
-    strict=False,
-)
 async def test_check_item_not_intercepted(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -84,10 +72,6 @@ async def test_check_item_not_intercepted(
     )
 
 
-@pytest.mark.xfail(
-    reason="delete_task intercepts delete_checklist_item intent",
-    strict=False,
-)
 async def test_delete_checklist_not_intercepted(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -114,10 +98,6 @@ async def test_goodbye_text_mode(
     )
 
 
-@pytest.mark.xfail(
-    reason="No rus->eng transliteration for search",
-    strict=False,
-)
 async def test_search_transliteration(
     yandex_client: YandexDialogsClient,
 ) -> None:

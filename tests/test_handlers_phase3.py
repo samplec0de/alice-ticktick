@@ -710,3 +710,40 @@ class TestChecklistDispatchFromCreateTask:
             fake_intent = call_kwargs[0][1]
             assert fake_intent["slots"]["item_name"]["value"] == "купить мыло"
             assert fake_intent["slots"]["task_name"]["value"] == "сменить полотенца"
+
+    async def test_dispatches_when_original_utterance_has_keywords_but_command_empty(
+        self,
+    ) -> None:
+        """Regression: NLU нормализация может убрать ключевые слова из command,
+        но original_utterance всегда содержит оригинальную фразу пользователя.
+        Диспетчер должен работать через original_utterance, а не command.
+        """
+        from unittest.mock import patch
+
+        from alice_ticktick.dialogs.intents import CREATE_TASK
+        from alice_ticktick.dialogs.router import on_create_task
+
+        message = _make_message()
+        # NLU нормализация «съела» ключевые слова из command
+        message.command = ""
+        message.original_utterance = "добавь пункт молоко в чеклист задачи покупки"
+        message.nlu = MagicMock()
+        message.nlu.tokens = []
+        message.nlu.intents = {CREATE_TASK: {"slots": {"task_name": {"value": "покупки"}}}}
+        message.nlu.entities = []
+
+        intent_data = message.nlu.intents[CREATE_TASK]
+        event_update = MagicMock()
+        event_update.meta.interfaces.account_linking = None
+
+        with patch(
+            "alice_ticktick.dialogs.router.handle_add_checklist_item",
+            new_callable=AsyncMock,
+            return_value=MagicMock(text="ok"),
+        ) as mock_handler:
+            await on_create_task(message, intent_data, event_update)
+            mock_handler.assert_called_once()
+            call_kwargs = mock_handler.call_args
+            fake_intent = call_kwargs[0][1]
+            assert fake_intent["slots"]["item_name"]["value"] == "молоко"
+            assert fake_intent["slots"]["task_name"]["value"] == "покупки"

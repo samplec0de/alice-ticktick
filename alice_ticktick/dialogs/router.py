@@ -78,8 +78,9 @@ _MAX_CONFIRM_RETRIES = 3
 _CONFIRM_TOKENS = frozenset({"да", "конечно", "подтверждаю", "ладно", "давай", "удали"})
 _REJECT_TOKENS = frozenset({"нет", "отмена", "отменить", "не", "отменяй"})
 
-# Checklist dispatch: keywords that indicate add_checklist_item intent
-_CHECKLIST_KEYWORDS = frozenset({"чеклист", "чеклиста", "чеклисте", "чеклисту"})
+# Checklist dispatch: keywords that indicate add_checklist_item intent.
+# Substring matching is used, so "чеклист" covers all inflected forms.
+_CHECKLIST_KEYWORDS = frozenset({"чеклист"})
 _ITEM_KEYWORDS = frozenset({"пункт", "элемент", "пункте", "пункта"})
 
 _CHECKLIST_ITEM_RE = re.compile(

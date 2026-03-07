@@ -49,7 +49,7 @@ class YandexDialogsClient:
     async def send(self, text: str) -> str:
         """Send a message and return the skill's text response.
 
-        Retries once on transient TickTick API errors (rate limit, timeout).
+        Retries up to 3 times on transient TickTick API errors (rate limit, timeout).
         """
         max_retries = 3
         for attempt in range(1 + max_retries):
@@ -67,8 +67,15 @@ class YandexDialogsClient:
                 json=payload,
             )
             response.raise_for_status()
-            data = response.json()
-            result = data["result"]
+            try:
+                data = response.json()
+                result = data["result"]
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Unexpected response from Yandex Dialogs API "
+                    f"(cookies may be expired — re-run with --setup-yandex-auth): "
+                    f"{response.text[:200]!r}"
+                ) from exc
 
             # Update session from response
             session = result.get("session", {})
@@ -115,7 +122,13 @@ class YandexDialogsClient:
             resp = await client.get(
                 f"/developer/skills/{skill_id}/draft/test",
             )
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise RuntimeError(
+                    f"Failed to load Yandex Dialogs test page (HTTP {exc.response.status_code}). "
+                    "Cookies may be expired — re-run with --setup-yandex-auth"
+                ) from exc
             match = re.search(r'"secretkey"\s*:\s*"([^"]+)"', resp.text)
             if not match:
                 msg = (

@@ -38,7 +38,10 @@ def _load_cookies() -> dict[str, str]:
             f"No saved auth at {COOKIES_FILE}. "
             "Run `uv run pytest tests/e2e/ --setup-yandex-auth` first."
         )
-    data = json.loads(COOKIES_FILE.read_text())
+    try:
+        data = json.loads(COOKIES_FILE.read_text())
+    except json.JSONDecodeError:
+        pytest.skip("Corrupted cookies file. Re-run with --setup-yandex-auth.")
     if not data:
         pytest.skip("Empty cookies file. Re-run with --setup-yandex-auth.")
     return data
@@ -83,19 +86,29 @@ async def _warmup_and_cleanup(yandex_client: YandexDialogsClient) -> None:
     print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix...")
     deleted = 0
     MAX_CLEANUP = 50
-    for _ in range(200):
-        await asyncio.sleep(3)
-        await yandex_client.send_new_session()
-        response = await yandex_client.send(f"удали задачу {TEST_TASK_PREFIX}")
+    MAX_ITERATIONS = 200
+    SLEEP_BETWEEN = 3
+    for _ in range(MAX_ITERATIONS):
+        try:
+            await asyncio.sleep(SLEEP_BETWEEN)
+            await yandex_client.send_new_session()
+            response = await yandex_client.send(f"удали задачу {TEST_TASK_PREFIX}")
+        except Exception as exc:
+            print(f"  Cleanup error (skipping iteration): {exc}")
+            break
         r = response.lower()
         if "не найдена" in r or "не распознана" in r:
             break
         if "да или нет" in r or "удалить" in r:
-            await asyncio.sleep(3)
-            confirm = await yandex_client.send("да")
-            if "удалена" in confirm.lower():
-                deleted += 1
-                print(f"  Deleted task #{deleted}")
+            try:
+                await asyncio.sleep(SLEEP_BETWEEN)
+                confirm = await yandex_client.send("да")
+                if "удалена" in confirm.lower():
+                    deleted += 1
+                    print(f"  Deleted task #{deleted}")
+            except Exception as exc:
+                print(f"  Cleanup confirm error (skipping): {exc}")
+                break
         if deleted >= MAX_CLEANUP:
             print(f"WARNING: cleaned {deleted} tasks, stopping early to avoid runaway cleanup")
             break
@@ -112,7 +125,12 @@ async def _reset_session(yandex_client: YandexDialogsClient) -> None:
     TickTick API rate limiting.
     """
     await asyncio.sleep(5)
-    await yandex_client.send_new_session()
+    response = await yandex_client.send_new_session()
+    # If a previous test left FSM in a confirmation state, cancel it and restart
+    if "да или нет" in response.lower():
+        await yandex_client.send("нет")
+        await asyncio.sleep(2)
+        await yandex_client.send_new_session()
 
 
 def _interactive_login() -> dict[str, str]:
