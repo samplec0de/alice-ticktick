@@ -13,7 +13,7 @@ from alice_ticktick.dialogs.router import router
 
 logger = logging.getLogger(__name__)
 
-dp = Dispatcher()
+dp = Dispatcher(use_api_storage=True)
 dp.include_router(router)
 
 skill = Skill(skill_id=settings.alice_skill_id)

@@ -77,3 +77,15 @@ async def test_handler_error_returns_fallback() -> None:
         result = await handler(event, None)
     assert "response" in result
     assert "ошибка" in result["response"]["text"].lower()
+
+
+def test_dispatcher_uses_api_storage() -> None:
+    """Dispatcher must use Alice API storage to persist FSM state across CF invocations."""
+    from aliceio.fsm.middlewares.api_storage import FSMApiStorageMiddleware
+
+    from alice_ticktick.main import dp
+
+    has_api_middleware = any(
+        isinstance(m, FSMApiStorageMiddleware) for m in dp.update.outer_middleware
+    )
+    assert has_api_middleware, "Dispatcher must use use_api_storage=True for serverless FSM"

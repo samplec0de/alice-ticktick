@@ -40,7 +40,6 @@ async def test_search_report(yandex_client: YandexDialogsClient) -> None:
     assert _is_search_response(response), f"Expected search response: {response}"
 
 
-@_SEARCH_XFAIL
 async def test_search_milk(yandex_client: YandexDialogsClient) -> None:
     """Search for a task about milk."""
     response = await yandex_client.send("поиск задачи молоко")

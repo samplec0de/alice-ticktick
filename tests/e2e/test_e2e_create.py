@@ -62,10 +62,6 @@ async def test_create_without_name_reprompt(
     assert TASK_NAME_REQUIRED in response
 
 
-@pytest.mark.xfail(
-    reason="NLU may not parse 'в проекте X' correctly; project slot often ignored",
-    strict=False,
-)
 async def test_create_with_project(yandex_client: YandexDialogsClient) -> None:
     """Create a task in a specific project."""
     response = await yandex_client.send("создай задачу кктест ревью кода в проекте Inbox")

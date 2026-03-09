@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from aliceio.types import Response, Update
@@ -65,6 +66,11 @@ if TYPE_CHECKING:
     from aliceio.types import Message
 
 logger = logging.getLogger(__name__)
+
+_PROJECT_FROM_UTTERANCE_RE = re.compile(
+    r"\s+в\s+(?:проект[ае]?|списке?|список|папк[ауе])\s+(.+?)(?:\s+на\s+|\s+с\s+|$)",
+    re.IGNORECASE,
+)
 
 
 def _build_create_task_response(
@@ -166,6 +172,19 @@ async def handle_create_task(
         return _auth_required_response(event_update)
 
     slots = extract_create_task_slots(intent_data)
+
+    # Fallback: extract 'в проекте X' from utterance if NLU missed it
+    if not slots.project_name and slots.task_name:
+        proj_m = _PROJECT_FROM_UTTERANCE_RE.search(slots.task_name)
+        if proj_m:
+            extracted_project = proj_m.group(1).strip()
+            cleaned_name = slots.task_name[: proj_m.start()].strip()
+            if cleaned_name:
+                slots = dataclasses.replace(
+                    slots,
+                    project_name=extracted_project,
+                    task_name=cleaned_name,
+                )
 
     if not slots.task_name:
         return Response(text=txt.TASK_NAME_REQUIRED)

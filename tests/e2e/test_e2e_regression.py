@@ -79,10 +79,6 @@ async def test_delete_checklist_not_intercepted(
     assert ok, f"Expected delete_checklist_item response, got: {response}"
 
 
-@pytest.mark.xfail(
-    reason="YANDEX.GOODBYE doesn't work in text mode",
-    strict=False,
-)
 async def test_goodbye_text_mode(
     yandex_client: YandexDialogsClient,
 ) -> None:
