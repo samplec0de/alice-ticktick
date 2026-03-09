@@ -3114,9 +3114,7 @@ async def test_create_task_extracts_project_from_utterance() -> None:
     project = Project(id="proj-inbox", name="Inbox")
     client = _make_mock_client(tasks=[task], projects=[project])
 
-    message = _make_message(
-        command="создай задачу кктест ревью кода в проекте Inbox"
-    )
+    message = _make_message(command="создай задачу кктест ревью кода в проекте Inbox")
     message.nlu = MagicMock()
     message.nlu.tokens = ["создай", "задачу", "кктест", "ревью", "кода", "в", "проекте", "inbox"]
     message.nlu.intents = {}
@@ -3132,9 +3130,7 @@ async def test_create_task_extracts_project_from_utterance() -> None:
     event_update.meta.timezone = "Europe/Moscow"
     event_update.meta.interfaces.account_linking = None
 
-    response = await handle_create_task(
-        message, intent_data, client, event_update=event_update
-    )
+    response = await handle_create_task(message, intent_data, client, event_update=event_update)
     assert "Готово" in response.text
     # Verify project was extracted: task name in guillemets should not include "в проекте X"
     assert "«кктест ревью кода»" in response.text.lower()

@@ -8,11 +8,6 @@ import logging
 import re as _re
 from typing import TYPE_CHECKING, Any
 
-_PROJECT_FROM_UTTERANCE_RE = _re.compile(
-    r"\s+в\s+(?:проекте?|списке?|папку|папке)\s+(.+?)(?:\s+на\s+|\s+с\s+|$)",
-    _re.IGNORECASE,
-)
-
 from aliceio.types import Response, Update
 
 from alice_ticktick.dialogs import responses as txt
@@ -71,6 +66,11 @@ if TYPE_CHECKING:
     from aliceio.types import Message
 
 logger = logging.getLogger(__name__)
+
+_PROJECT_FROM_UTTERANCE_RE = _re.compile(
+    r"\s+в\s+(?:проекте?|списке?|папку|папке)\s+(.+?)(?:\s+на\s+|\s+с\s+|$)",
+    _re.IGNORECASE,
+)
 
 
 def _build_create_task_response(

@@ -199,6 +199,7 @@ def _try_parse_edit_command(raw: str) -> dict[str, Any] | None:
 
     return None
 
+
 _CHECK_ITEM_RE = re.compile(
     r"(?:отметь|выполни)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|из)\s+(?:чеклиста?|списка?|чеклисте?)\s+(?:задачи?\s+)?(.+)",
     re.IGNORECASE,
@@ -378,9 +379,7 @@ async def on_list_tasks(
         m = _SHOW_CHECKLIST_RE.search(raw) or _SHOW_CHECKLIST_ALT_RE.search(raw)
         if m:
             task_name = m.group(1).strip()
-            fake_intent_data: dict[str, Any] = {
-                "slots": {"task_name": {"value": task_name}}
-            }
+            fake_intent_data: dict[str, Any] = {"slots": {"task_name": {"value": task_name}}}
             return await handle_show_checklist(
                 message, fake_intent_data, event_update=event_update
             )
@@ -620,14 +619,12 @@ async def on_unknown(
     if m:
         query = m.group(1).strip()
         if query:
-            fake_intent_data: dict[str, Any] = {
-                "slots": {"query": {"value": query}}
-            }
+            fake_intent_data: dict[str, Any] = {"slots": {"query": {"value": query}}}
             return await handle_search_task(message, fake_intent_data, event_update=event_update)
 
     # Edit fallback
     edit_intent = _try_parse_edit_command(raw)
-    if edit_intent is not None:
+    if edit_intent is not None and state is not None:
         return await handle_edit_task(message, edit_intent, state, event_update=event_update)
 
     return await handle_unknown(message)
