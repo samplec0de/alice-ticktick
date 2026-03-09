@@ -2992,3 +2992,114 @@ def test_router_overdue_registered_before_list_tasks() -> None:
     assert overdue_pos != -1, "OVERDUE_TASKS not found in router"
     assert list_tasks_pos != -1, "LIST_TASKS not found in router"
     assert overdue_pos < list_tasks_pos, "OVERDUE_TASKS must appear before LIST_TASKS in router.py"
+
+
+# --- on_unknown fallback tests ---
+
+
+async def test_unknown_handler_catches_goodbye_in_text_mode() -> None:
+    """on_unknown should detect goodbye keywords and return goodbye response."""
+    from alice_ticktick.dialogs.router import on_unknown
+
+    for phrase in ["до свидания", "пока", "до встречи"]:
+        message = _make_message(command=phrase)
+        message.nlu = MagicMock()
+        message.nlu.tokens = phrase.split()
+        message.nlu.intents = {}
+        response = await on_unknown(message)
+        assert response.text == txt.GOODBYE, f"Failed for '{phrase}': {response.text}"
+        assert response.end_session is True
+
+
+async def test_unknown_handler_still_returns_unknown_for_normal_input() -> None:
+    """on_unknown should still return UNKNOWN for non-goodbye phrases."""
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="абракадабра")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["абракадабра"]
+    message.nlu.intents = {}
+    response = await on_unknown(message)
+    assert response.text == txt.UNKNOWN
+
+
+# --- on_list_tasks redirect to show_checklist ---
+
+
+async def test_list_tasks_redirects_to_show_checklist() -> None:
+    """on_list_tasks should redirect to show_checklist when 'чеклист' in utterance."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_list_tasks
+
+    message = _make_message(command="покажи чеклист задачи купить хлеб")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["покажи", "чеклист", "задачи", "купить", "хлеб"]
+    message.nlu.intents = {"list_tasks": {"slots": {"priority": {"value": "чеклист"}}}}
+    message.nlu.entities = []
+
+    intent_data: dict[str, Any] = {"slots": {"priority": {"value": "чеклист"}}}
+    event_update = MagicMock()
+    event_update.meta.interfaces.account_linking = None
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_show_checklist",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="Чеклист"),
+    ) as mock_handler:
+        await on_list_tasks(message, intent_data, event_update)
+        mock_handler.assert_called_once()
+        call_args = mock_handler.call_args[0]
+        fake_intent = call_args[1]
+        assert fake_intent["slots"]["task_name"]["value"] == "купить хлеб"
+
+
+async def test_list_tasks_not_redirected_when_no_checklist_keyword() -> None:
+    """on_list_tasks should NOT redirect for normal list queries."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_list_tasks
+
+    message = _make_message(command="покажи задачи на сегодня")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["покажи", "задачи", "на", "сегодня"]
+    message.nlu.intents = {"list_tasks": {"slots": {}}}
+    message.nlu.entities = []
+
+    intent_data: dict[str, Any] = {"slots": {}}
+    event_update = MagicMock()
+    event_update.meta.interfaces.account_linking = None
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_list_tasks",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="На сегодня"),
+    ) as mock_handler:
+        await on_list_tasks(message, intent_data, event_update)
+        mock_handler.assert_called_once()
+
+
+# --- _infer_rec_freq_from_tokens tests ---
+
+from alice_ticktick.dialogs.handlers._helpers import _infer_rec_freq_from_tokens  # noqa: E402
+
+
+def test_infer_rec_freq_detects_kazhdy_den() -> None:
+    """_infer_rec_freq should detect 'каждый день' in tokens."""
+    tokens = ["напоминай", "каждый", "день", "пить", "воду"]
+    result = _infer_rec_freq_from_tokens(None, tokens)
+    assert result == "день"
+
+
+def test_infer_rec_freq_detects_kazhduyu_nedelyu() -> None:
+    """_infer_rec_freq should detect 'каждую неделю' in tokens."""
+    tokens = ["напоминай", "каждую", "неделю", "проверить"]
+    result = _infer_rec_freq_from_tokens(None, tokens)
+    assert result == "неделю"
+
+
+def test_infer_rec_freq_preserves_existing() -> None:
+    """Should not override existing rec_freq."""
+    tokens = ["каждый", "день"]
+    result = _infer_rec_freq_from_tokens("понедельник", tokens)
+    assert result == "понедельник"
