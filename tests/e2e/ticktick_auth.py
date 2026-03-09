@@ -4,9 +4,9 @@ Handles the full OAuth2 flow:
 1. Start local HTTP server on localhost:8080
 2. Open browser → TickTick authorize page
 3. Catch redirect with auth code
-4. Exchange code for access_token + refresh_token
+4. Exchange code for tokens (refresh_token may not be returned)
 5. Persist tokens to ~/.ticktick_auth/tokens.json
-6. Auto-refresh on subsequent runs
+6. On subsequent runs, attempt token refresh (if refresh_token was provided)
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 
@@ -39,6 +39,11 @@ def get_access_token(client_id: str, client_secret: str) -> str:
     tokens = _load_tokens()
     if not tokens:
         raise RuntimeError("No saved TickTick tokens. Run with --setup-ticktick-auth first.")
+    if "access_token" not in tokens:
+        raise RuntimeError(
+            f"Token file {TOKEN_FILE} does not contain 'access_token'. "
+            "Re-run with --setup-ticktick-auth."
+        )
 
     # Try refresh if available
     if tokens.get("refresh_token"):
@@ -46,8 +51,17 @@ def get_access_token(client_id: str, client_secret: str) -> str:
             new_tokens = _refresh_token(client_id, client_secret, tokens["refresh_token"])
             _save_tokens(new_tokens)
             return new_tokens["access_token"]
-        except Exception:
-            pass  # Refresh failed, use saved access_token
+        except httpx.HTTPStatusError as exc:
+            print(
+                f"WARNING: TickTick token refresh failed (HTTP {exc.response.status_code}). "
+                "Using saved access_token (may be expired). "
+                "Re-run with --setup-ticktick-auth if cleanup fails."
+            )
+        except Exception as exc:
+            print(
+                f"WARNING: TickTick token refresh failed ({type(exc).__name__}: {exc}). "
+                "Using saved access_token."
+            )
 
     return tokens["access_token"]
 
@@ -84,10 +98,16 @@ def _run_oauth_flow(client_id: str, client_secret: str) -> dict:
     thread.start()
 
     try:
-        url = (
-            f"{AUTH_URL}?client_id={client_id}&scope={SCOPE}"
-            f"&redirect_uri={REDIRECT_URI}&response_type=code&state=e2e"
+        query = urlencode(
+            {
+                "client_id": client_id,
+                "scope": SCOPE,
+                "redirect_uri": REDIRECT_URI,
+                "response_type": "code",
+                "state": "e2e",
+            }
         )
+        url = f"{AUTH_URL}?{query}"
         print(f"\nОткрываю браузер для авторизации TickTick...\n{url}\n")
         webbrowser.open(url)
 
@@ -134,8 +154,9 @@ def _refresh_token(client_id: str, client_secret: str, refresh_token: str) -> di
 
 def _save_tokens(tokens: dict) -> None:
     """Persist tokens to disk."""
-    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    TOKEN_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
     TOKEN_FILE.write_text(json.dumps(tokens, indent=2))
+    TOKEN_FILE.chmod(0o600)
 
 
 def _load_tokens() -> dict | None:
@@ -144,5 +165,9 @@ def _load_tokens() -> dict | None:
         return None
     try:
         return json.loads(TOKEN_FILE.read_text())
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as exc:
+        print(f"WARNING: Failed to parse {TOKEN_FILE}: {exc}")
+        return None
+    except OSError as exc:
+        print(f"WARNING: Failed to read {TOKEN_FILE}: {exc}")
         return None

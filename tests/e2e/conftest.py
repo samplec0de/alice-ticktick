@@ -11,14 +11,19 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import warnings
 from pathlib import Path
 
 import pytest
 from dotenv import dotenv_values
 
-from alice_ticktick.ticktick.client import TickTickClient
+from alice_ticktick.ticktick.client import (
+    TickTickClient,
+    TickTickRateLimitError,
+    TickTickUnauthorizedError,
+)
 
-from .ticktick_auth import get_access_token
+from .ticktick_auth import _run_oauth_flow, _save_tokens, get_access_token
 from .yandex_dialogs_client import YandexDialogsClient
 
 _DOTENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
@@ -73,11 +78,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     if not client_id or not client_secret:
         pytest.exit(
             "TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET "
-            "must be set in .env for --setup-ticktick-auth",
+            "must be set in environment or .env for --setup-ticktick-auth",
             returncode=1,
         )
-    from .ticktick_auth import _run_oauth_flow, _save_tokens
-
     tokens = _run_oauth_flow(client_id, client_secret)
     _save_tokens(tokens)
     print("\nTickTick tokens saved to ~/.ticktick_auth/tokens.json")
@@ -125,7 +128,7 @@ async def yandex_client(yandex_cookies: dict[str, str]) -> YandexDialogsClient:
 def ticktick_client() -> TickTickClient | None:
     """Get a TickTickClient for direct API cleanup (optional).
 
-    Requires TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET in .env.
+    Requires TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET in env or .env.
     Tokens must be set up first via --setup-ticktick-auth.
     Returns None if credentials are not configured or token unavailable.
     """
@@ -135,7 +138,10 @@ def ticktick_client() -> TickTickClient | None:
     try:
         access_token = get_access_token(client_id, client_secret)
     except Exception as exc:
-        print(f"\nTickTick auth unavailable ({exc}), cleanup will use voice fallback")
+        warnings.warn(
+            f"TickTick auth unavailable ({exc}), cleanup will use voice fallback",
+            stacklevel=1,
+        )
         return None
     return TickTickClient(access_token)
 
@@ -148,7 +154,7 @@ async def _warmup_and_cleanup(
     """Warm up before tests and clean up test tasks after.
 
     Sends a help request to warm up Cloud Functions, then yields for tests.
-    After all tests, deletes tasks whose names contain TEST_TASK_PREFIX.
+    After all tests, deletes tasks whose names start with TEST_TASK_PREFIX.
     """
     await yandex_client.send("помощь")
     yandex_client.reset_session()
@@ -210,7 +216,10 @@ async def _cleanup_via_api(client: TickTickClient) -> None:
         for t in inbox_tasks:
             if t.title.lower().startswith(TEST_TASK_PREFIX):
                 all_tasks.append((t.id, t.project_id, t.title))
+    except Exception as exc:
+        print(f"  Error listing inbox tasks: {exc}")
 
+    try:
         projects = await client.get_projects()
         for proj in projects:
             try:
@@ -221,9 +230,7 @@ async def _cleanup_via_api(client: TickTickClient) -> None:
             except Exception as exc:
                 print(f"  Warning: failed to list tasks in project '{proj.name}': {exc}")
     except Exception as exc:
-        print(f"  Error listing tasks: {exc}")
-        print("=" * 60)
-        return
+        print(f"  Error listing projects: {exc}")
 
     if not all_tasks:
         print("  No test tasks found.")
@@ -238,17 +245,23 @@ async def _cleanup_via_api(client: TickTickClient) -> None:
             await client.delete_task(task_id, project_id)
             deleted += 1
             print(f"  Deleted: {title}")
+        except TickTickUnauthorizedError:
+            print(
+                "  ERROR: TickTick returned 401 Unauthorized. "
+                "Re-run with --setup-ticktick-auth to refresh tokens."
+            )
+            break
+        except TickTickRateLimitError:
+            print(f"  Rate limited on '{title}', retrying after 2s...")
+            await asyncio.sleep(2)
+            try:
+                await client.delete_task(task_id, project_id)
+                deleted += 1
+                print(f"  Deleted (retry): {title}")
+            except Exception as retry_exc:
+                print(f"  Retry also failed for '{title}': {retry_exc}")
         except Exception as exc:
             print(f"  Failed to delete '{title}': {exc}")
-            # Rate limit — pause and retry once
-            if "429" in str(exc):
-                await asyncio.sleep(2)
-                try:
-                    await client.delete_task(task_id, project_id)
-                    deleted += 1
-                    print(f"  Deleted (retry): {title}")
-                except Exception:
-                    pass
 
     print(f"Cleanup done: {deleted}/{len(all_tasks)} tasks deleted")
     print("=" * 60)
