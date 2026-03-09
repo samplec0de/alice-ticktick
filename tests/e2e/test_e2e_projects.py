@@ -14,10 +14,6 @@ if TYPE_CHECKING:
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
 
-@pytest.mark.xfail(
-    reason="NLU: list_tasks intercepts 'покажи мои проекты'",
-    strict=False,
-)
 async def test_list_projects(yandex_client: YandexDialogsClient) -> None:
     """List all user projects."""
     response = await yandex_client.send("покажи мои проекты")
@@ -25,10 +21,6 @@ async def test_list_projects(yandex_client: YandexDialogsClient) -> None:
     assert "проект" in response.lower(), f"Expected 'проект' in response: {response}"
 
 
-@pytest.mark.xfail(
-    reason="NLU does not recognize 'задачи в проекте X' intent",
-    strict=False,
-)
 async def test_project_tasks(yandex_client: YandexDialogsClient) -> None:
     """Show tasks in a specific project."""
     response = await yandex_client.send("задачи в проекте работа")

@@ -36,10 +36,6 @@ async def test_complete_finish(yandex_client: YandexDialogsClient) -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="NLU does not recognize 'готово X' as complete_task intent",
-    strict=False,
-)
 async def test_complete_done(yandex_client: YandexDialogsClient) -> None:
     """Complete a task using 'готово'."""
     response = await yandex_client.send("готово кктест отправить отчёт")
@@ -47,10 +43,6 @@ async def test_complete_done(yandex_client: YandexDialogsClient) -> None:
     assert "выполненной" in response.lower() or "не найдена" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="NLU does not recognize 'сделал X' as complete_task intent",
-    strict=False,
-)
 async def test_complete_done_alt(yandex_client: YandexDialogsClient) -> None:
     """Complete a task using 'сделал'."""
     response = await yandex_client.send("сделал кктест подготовить презентацию")

@@ -65,10 +65,6 @@ async def test_fallback_joke(yandex_client: YandexDialogsClient) -> None:
     assert "не распознана" in response.lower(), f"Expected fallback: {response}"
 
 
-@pytest.mark.xfail(
-    reason="NLU: greedy create_task grammar (.+) intercepts unrecognized commands",
-    strict=False,
-)
 async def test_fallback_weather(
     yandex_client: YandexDialogsClient,
 ) -> None:

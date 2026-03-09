@@ -14,10 +14,6 @@ if TYPE_CHECKING:
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
 
-@pytest.mark.xfail(
-    reason="NLU: create_task intercepts add_checklist_item intent",
-    strict=False,
-)
 async def test_add_checklist_item(yandex_client: YandexDialogsClient) -> None:
     """Add an item to a task's checklist."""
     response = await yandex_client.send(
@@ -27,10 +23,6 @@ async def test_add_checklist_item(yandex_client: YandexDialogsClient) -> None:
     assert "добавлен" in response or "не найдена" in response
 
 
-@pytest.mark.xfail(
-    reason="NLU: create_task intercepts add_checklist_item intent",
-    strict=False,
-)
 async def test_add_checklist_item_alt(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -42,10 +34,6 @@ async def test_add_checklist_item_alt(
     assert "добавлен" in response or "не найдена" in response
 
 
-@pytest.mark.xfail(
-    reason="NLU: create_task or list_tasks intercepts show_checklist intent",
-    strict=False,
-)
 async def test_show_checklist(yandex_client: YandexDialogsClient) -> None:
     """Show the checklist of a task."""
     response = await yandex_client.send("покажи чеклист задачи кктест купить хлеб")
@@ -53,10 +41,6 @@ async def test_show_checklist(yandex_client: YandexDialogsClient) -> None:
     assert "Чеклист" in response or "пуст" in response or "не найдена" in response
 
 
-@pytest.mark.xfail(
-    reason="NLU: list_tasks intercepts show_checklist intent",
-    strict=False,
-)
 async def test_show_checklist_alt(
     yandex_client: YandexDialogsClient,
 ) -> None:

@@ -44,10 +44,6 @@ async def test_subtask_not_intercepted(
     )
 
 
-@pytest.mark.xfail(
-    reason="create_task intercepts checklist intent",
-    strict=False,
-)
 async def test_checklist_not_intercepted(
     yandex_client: YandexDialogsClient,
 ) -> None:
