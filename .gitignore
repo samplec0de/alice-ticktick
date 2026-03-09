@@ -43,6 +43,9 @@ uv.lock
 # Yandex auth for E2E tests
 .yandex_auth/
 
+# TickTick auth for E2E tests
+.ticktick_auth/
+
 # Worktrees
 .worktrees/
 .claude/worktrees/
