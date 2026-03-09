@@ -14,14 +14,15 @@ import os
 from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 from alice_ticktick.ticktick.client import TickTickClient
 
 from .ticktick_auth import get_access_token
 from .yandex_dialogs_client import YandexDialogsClient
 
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+_DOTENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
+_DOTENV: dict[str, str | None] = dotenv_values(_DOTENV_PATH)
 
 SKILL_ID = "d3f073db-dece-42b8-9447-87511df30c83"
 AUTH_DIR = Path(__file__).resolve().parent.parent.parent / ".yandex_auth"
@@ -44,6 +45,19 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+def _get_ticktick_test_creds() -> tuple[str, str]:
+    """Get TICKTICK_TEST_CLIENT_ID/SECRET from env or .env file."""
+    client_id = (
+        os.environ.get("TICKTICK_TEST_CLIENT_ID") or _DOTENV.get("TICKTICK_TEST_CLIENT_ID") or ""
+    )
+    client_secret = (
+        os.environ.get("TICKTICK_TEST_CLIENT_SECRET")
+        or _DOTENV.get("TICKTICK_TEST_CLIENT_SECRET")
+        or ""
+    )
+    return client_id, client_secret
+
+
 def pytest_sessionstart(session: pytest.Session) -> None:
     """If --setup-ticktick-auth is passed, run TickTick OAuth setup early.
 
@@ -55,8 +69,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         return
     if not setup_auth:
         return
-    client_id = os.environ.get("TICKTICK_TEST_CLIENT_ID", "")
-    client_secret = os.environ.get("TICKTICK_TEST_CLIENT_SECRET", "")
+    client_id, client_secret = _get_ticktick_test_creds()
     if not client_id or not client_secret:
         pytest.exit(
             "TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET "
@@ -116,8 +129,7 @@ def ticktick_client() -> TickTickClient | None:
     Tokens must be set up first via --setup-ticktick-auth.
     Returns None if credentials are not configured or token unavailable.
     """
-    client_id = os.environ.get("TICKTICK_TEST_CLIENT_ID", "")
-    client_secret = os.environ.get("TICKTICK_TEST_CLIENT_SECRET", "")
+    client_id, client_secret = _get_ticktick_test_creds()
     if not client_id or not client_secret:
         return None
     try:

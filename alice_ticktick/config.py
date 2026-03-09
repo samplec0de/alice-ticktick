@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     yc_function_id: str = ""
     yc_service_account_id: str = ""
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
