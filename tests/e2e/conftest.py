@@ -21,7 +21,7 @@ from alice_ticktick.ticktick.client import TickTickClient
 from .ticktick_auth import get_access_token
 from .yandex_dialogs_client import YandexDialogsClient
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 SKILL_ID = "d3f073db-dece-42b8-9447-87511df30c83"
 AUTH_DIR = Path(__file__).resolve().parent.parent.parent / ".yandex_auth"
