@@ -99,6 +99,106 @@ _SHOW_CHECKLIST_ALT_RE = re.compile(
     re.IGNORECASE,
 )
 
+_SEARCH_FALLBACK_RE = re.compile(
+    r"(?:поиск|ищи)\s+(?:задачи?|задач)?\s*(.+)",
+    re.IGNORECASE,
+)
+
+# --- Edit fallback regexes ---
+_EDIT_RENAME_RE = re.compile(
+    r"переименуй\s+(?:задачу\s+)?(.+?)\s+в\s+(.+)",
+    re.IGNORECASE,
+)
+_EDIT_MOVE_RE = re.compile(
+    r"(?:перемести|переложи|перекинь|отправь)\s+(?:задачу?\s+)?(.+?)\s+в\s+(?:проект|список|папку)\s+(.+)",
+    re.IGNORECASE,
+)
+_EDIT_REMOVE_RECURRENCE_RE = re.compile(
+    r"(?:убери|отмени|удали)\s+(?:повторение|повтор)\s+(?:у|для|задачи?)?\s*(.+)",
+    re.IGNORECASE,
+)
+_EDIT_REMOVE_REMINDER_RE = re.compile(
+    r"(?:убери|отмени|удали)\s+напоминание\s+(?:у|для|задачи?)?\s*(.+)",
+    re.IGNORECASE,
+)
+_EDIT_CHANGE_RECURRENCE_RE = re.compile(
+    r"(?:поменяй|измени)\s+(?:повторение|повтор)\s+(?:у|для|задачи?)?\s*(.+?)\s+на\s+(.+)",
+    re.IGNORECASE,
+)
+_EDIT_CHANGE_REMINDER_RE = re.compile(
+    r"(?:поменяй|измени|поставь)\s+напоминание\s+(?:у|для|задачи?)?\s*(.+?)\s+за\s+(.+)",
+    re.IGNORECASE,
+)
+_EDIT_PRIORITY_RE = re.compile(
+    r"(?:поменяй|измени)\s+приоритет\s+(?:задачи?)?\s*(.+?)\s+(?:на|в)\s+(?:низкий|средний|высокий)",
+    re.IGNORECASE,
+)
+_EDIT_GENERIC_RE = re.compile(
+    r"(?:перенеси|поменяй|измени|сдвинь|обнови)\s+(?:задачу?\s+)?(.+)",
+    re.IGNORECASE,
+)
+
+
+def _try_parse_edit_command(raw: str) -> dict[str, Any] | None:
+    """Try to parse an edit command from raw utterance. Returns fake intent_data or None."""
+    slots: dict[str, Any] = {}
+
+    # Rename: "переименуй задачу X в Y"
+    m = _EDIT_RENAME_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        slots["new_name"] = {"value": m.group(2).strip()}
+        return {"slots": slots}
+
+    # Move: "перемести задачу X в проект Y"
+    m = _EDIT_MOVE_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        slots["new_project"] = {"value": m.group(2).strip()}
+        return {"slots": slots}
+
+    # Remove recurrence: "убери повторение задачи X"
+    m = _EDIT_REMOVE_RECURRENCE_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        slots["remove_recurrence"] = {"value": True}
+        return {"slots": slots}
+
+    # Remove reminder: "убери напоминание задачи X"
+    m = _EDIT_REMOVE_REMINDER_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        slots["remove_reminder"] = {"value": True}
+        return {"slots": slots}
+
+    # Change recurrence: "поменяй повторение задачи X на Y"
+    m = _EDIT_CHANGE_RECURRENCE_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        slots["rec_freq"] = {"value": m.group(2).strip()}
+        return {"slots": slots}
+
+    # Change reminder: "поменяй напоминание задачи X за Y"
+    m = _EDIT_CHANGE_REMINDER_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        slots["reminder_unit"] = {"value": m.group(2).strip()}
+        return {"slots": slots}
+
+    # Edit priority: "поменяй приоритет задачи X на высокий"
+    m = _EDIT_PRIORITY_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        return {"slots": slots}
+
+    # Generic edit: "перенеси задачу X на завтра"
+    m = _EDIT_GENERIC_RE.search(raw)
+    if m:
+        slots["task_name"] = {"value": m.group(1).strip()}
+        return {"slots": slots}
+
+    return None
+
 _CHECK_ITEM_RE = re.compile(
     r"(?:отметь|выполни)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|из)\s+(?:чеклиста?|списка?|чеклисте?)\s+(?:задачи?\s+)?(.+)",
     re.IGNORECASE,
@@ -505,9 +605,29 @@ async def on_goodbye(message: Message) -> Response:
 
 # Fallback — must be LAST
 @router.message()
-async def on_unknown(message: Message) -> Response:
+async def on_unknown(
+    message: Message, state: FSMContext | None = None, event_update: Update | None = None
+) -> Response:
     """Fallback for unrecognized commands."""
     command_lower = (message.command or "").lower().strip()
     if command_lower in _GOODBYE_KEYWORDS:
         return await handle_goodbye(message)
+
+    raw = message.original_utterance or message.command or ""
+
+    # Search fallback: "поиск задачи X"
+    m = _SEARCH_FALLBACK_RE.search(raw)
+    if m:
+        query = m.group(1).strip()
+        if query:
+            fake_intent_data: dict[str, Any] = {
+                "slots": {"query": {"value": query}}
+            }
+            return await handle_search_task(message, fake_intent_data, event_update=event_update)
+
+    # Edit fallback
+    edit_intent = _try_parse_edit_command(raw)
+    if edit_intent is not None:
+        return await handle_edit_task(message, edit_intent, state, event_update=event_update)
+
     return await handle_unknown(message)
