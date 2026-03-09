@@ -3103,3 +3103,205 @@ def test_infer_rec_freq_preserves_existing() -> None:
     tokens = ["каждый", "день"]
     result = _infer_rec_freq_from_tokens("понедельник", tokens)
     assert result == "понедельник"
+
+
+# --- create_task project extraction from utterance ---
+
+
+async def test_create_task_extracts_project_from_utterance() -> None:
+    """When NLU .+ consumes 'в проекте X', handler should extract it from utterance."""
+    task = _make_task(task_id="t1", title="Ревью кода", project_id="proj-inbox")
+    project = Project(id="proj-inbox", name="Inbox")
+    client = _make_mock_client(tasks=[task], projects=[project])
+
+    message = _make_message(
+        command="создай задачу кктест ревью кода в проекте Inbox"
+    )
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["создай", "задачу", "кктест", "ревью", "кода", "в", "проекте", "inbox"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    # NLU didn't extract project_name — .+ consumed it into task_name
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "кктест ревью кода в проекте Inbox"},
+        }
+    }
+    event_update = MagicMock()
+    event_update.meta.timezone = "Europe/Moscow"
+    event_update.meta.interfaces.account_linking = None
+
+    response = await handle_create_task(
+        message, intent_data, client, event_update=event_update
+    )
+    assert "Готово" in response.text
+    # Verify project was extracted: task name in guillemets should not include "в проекте X"
+    assert "«кктест ревью кода»" in response.text.lower()
+
+
+# --- on_unknown search fallback ---
+
+
+async def test_unknown_handler_catches_search_keywords() -> None:
+    """on_unknown should detect 'поиск' and redirect to search."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="поиск задачи молоко")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["поиск", "задачи", "молоко"]
+    message.nlu.intents = {}
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_search_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="Найдено"),
+    ) as mock_handler:
+        await on_unknown(message)
+        mock_handler.assert_called_once()
+        call_args = mock_handler.call_args[0]
+        fake_intent = call_args[1]
+        assert fake_intent["slots"]["query"]["value"] == "молоко"
+
+
+# --- on_unknown edit_task fallback ---
+
+
+async def test_unknown_catches_edit_date() -> None:
+    """on_unknown detects 'перенеси задачу X на завтра' as edit."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="перенеси задачу тестовую на завтра")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["перенеси", "задачу", "тестовую", "на", "завтра"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_edit_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="обновлена"),
+    ) as mock_handler:
+        event_update = MagicMock()
+        await on_unknown(message, event_update)
+        mock_handler.assert_called_once()
+
+
+async def test_unknown_catches_edit_priority() -> None:
+    """on_unknown detects 'поменяй приоритет задачи X на высокий' as edit."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="поменяй приоритет задачи тестовой на высокий")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["поменяй", "приоритет", "задачи", "тестовой", "на", "высокий"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_edit_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="обновлена"),
+    ) as mock_handler:
+        event_update = MagicMock()
+        await on_unknown(message, event_update)
+        mock_handler.assert_called_once()
+
+
+async def test_unknown_catches_rename() -> None:
+    """on_unknown detects 'переименуй задачу X в Y' as edit."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="переименуй задачу старое имя в новое имя")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["переименуй", "задачу", "старое", "имя", "в", "новое", "имя"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_edit_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="обновлена"),
+    ) as mock_handler:
+        event_update = MagicMock()
+        await on_unknown(message, event_update)
+        mock_handler.assert_called_once()
+        fake_intent = mock_handler.call_args[0][1]
+        assert fake_intent["slots"]["new_name"]["value"] == "новое имя"
+
+
+async def test_unknown_catches_move_project() -> None:
+    """on_unknown detects 'перемести задачу X в проект Y' as edit."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="перемести задачу тестовую в проект Inbox")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["перемести", "задачу", "тестовую", "в", "проект", "inbox"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_edit_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="перемещена"),
+    ) as mock_handler:
+        event_update = MagicMock()
+        await on_unknown(message, event_update)
+        mock_handler.assert_called_once()
+        fake_intent = mock_handler.call_args[0][1]
+        assert fake_intent["slots"]["new_project"]["value"] == "Inbox"
+
+
+async def test_unknown_catches_remove_recurrence() -> None:
+    """on_unknown detects 'убери повторение задачи X' as edit."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="убери повторение задачи тестовой")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["убери", "повторение", "задачи", "тестовой"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_edit_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="убрано"),
+    ) as mock_handler:
+        event_update = MagicMock()
+        await on_unknown(message, event_update)
+        mock_handler.assert_called_once()
+        fake_intent = mock_handler.call_args[0][1]
+        assert fake_intent["slots"]["remove_recurrence"]["value"] is True
+
+
+async def test_unknown_catches_change_reminder() -> None:
+    """on_unknown detects 'поменяй напоминание задачи X за 30 минут' as edit."""
+    from unittest.mock import patch
+
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="поменяй напоминание задачи тестовой за 30 минут")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["поменяй", "напоминание", "задачи", "тестовой", "за", "30", "минут"]
+    message.nlu.intents = {}
+    message.nlu.entities = []
+
+    with patch(
+        "alice_ticktick.dialogs.router.handle_edit_task",
+        new_callable=AsyncMock,
+        return_value=MagicMock(text="изменено"),
+    ) as mock_handler:
+        event_update = MagicMock()
+        await on_unknown(message, event_update)
+        mock_handler.assert_called_once()
