@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import logging
-import re as _re
+import re
 from typing import TYPE_CHECKING, Any
 
 from aliceio.types import Response, Update
@@ -67,9 +67,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_FROM_UTTERANCE_RE = _re.compile(
-    r"\s+в\s+(?:проекте?|списке?|папку|папке)\s+(.+?)(?:\s+на\s+|\s+с\s+|$)",
-    _re.IGNORECASE,
+_PROJECT_FROM_UTTERANCE_RE = re.compile(
+    r"\s+в\s+(?:проект[ае]?|списке?|список|папк[ауе])\s+(.+?)(?:\s+на\s+|\s+с\s+|$)",
+    re.IGNORECASE,
 )
 
 
@@ -175,15 +175,15 @@ async def handle_create_task(
 
     # Fallback: extract 'в проекте X' from utterance if NLU missed it
     if not slots.project_name and slots.task_name:
-        _proj_m = _PROJECT_FROM_UTTERANCE_RE.search(slots.task_name)
-        if _proj_m:
-            _extracted_project = _proj_m.group(1).strip()
-            _cleaned_name = slots.task_name[: _proj_m.start()].strip()
-            if _cleaned_name:
+        proj_m = _PROJECT_FROM_UTTERANCE_RE.search(slots.task_name)
+        if proj_m:
+            extracted_project = proj_m.group(1).strip()
+            cleaned_name = slots.task_name[: proj_m.start()].strip()
+            if cleaned_name:
                 slots = dataclasses.replace(
                     slots,
-                    project_name=_extracted_project,
-                    task_name=_cleaned_name,
+                    project_name=extracted_project,
+                    task_name=cleaned_name,
                 )
 
     if not slots.task_name:

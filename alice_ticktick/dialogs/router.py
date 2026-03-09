@@ -130,9 +130,10 @@ _EDIT_CHANGE_REMINDER_RE = re.compile(
     re.IGNORECASE,
 )
 _EDIT_PRIORITY_RE = re.compile(
-    r"(?:поменяй|измени)\s+приоритет\s+(?:задачи?)?\s*(.+?)\s+(?:на|в)\s+(?:низкий|средний|высокий)",
+    r"(?:поменяй|измени)\s+приоритет\s+(?:задачи?)?\s*(.+?)\s+(?:на|в)\s+(низкий|средний|высокий)",
     re.IGNORECASE,
 )
+# Must be last — "поменяй" overlaps with priority/recurrence/reminder patterns
 _EDIT_GENERIC_RE = re.compile(
     r"(?:перенеси|поменяй|измени|сдвинь|обнови)\s+(?:задачу?\s+)?(.+)",
     re.IGNORECASE,
@@ -189,6 +190,7 @@ def _try_parse_edit_command(raw: str) -> dict[str, Any] | None:
     m = _EDIT_PRIORITY_RE.search(raw)
     if m:
         slots["task_name"] = {"value": m.group(1).strip()}
+        slots["new_priority"] = {"value": m.group(2).strip()}
         return {"slots": slots}
 
     # Generic edit: "перенеси задачу X на завтра"
@@ -622,7 +624,7 @@ async def on_unknown(
             fake_intent_data: dict[str, Any] = {"slots": {"query": {"value": query}}}
             return await handle_search_task(message, fake_intent_data, event_update=event_update)
 
-    # Edit fallback
+    # Edit fallback (state is None when FSM is not configured — skip silently)
     edit_intent = _try_parse_edit_command(raw)
     if edit_intent is not None and state is not None:
         return await handle_edit_task(message, edit_intent, state, event_update=event_update)

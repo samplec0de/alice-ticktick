@@ -3207,6 +3207,9 @@ async def test_unknown_catches_edit_priority() -> None:
         event_update = MagicMock()
         await on_unknown(message, event_update)
         mock_handler.assert_called_once()
+        intent_data = mock_handler.call_args[0][1]
+        assert intent_data["slots"]["task_name"]["value"] == "тестовой"
+        assert intent_data["slots"]["new_priority"]["value"] == "высокий"
 
 
 async def test_unknown_catches_rename() -> None:
