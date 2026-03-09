@@ -55,10 +55,6 @@ async def test_list_this_week(yandex_client: YandexDialogsClient) -> None:
     assert "неделе" in response.lower() or "задач" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="NLU does not recognize 'все задачи' as list_tasks intent",
-    strict=False,
-)
 async def test_list_all_tasks(yandex_client: YandexDialogsClient) -> None:
     """Ask for all tasks."""
     response = await yandex_client.send("все задачи")
@@ -107,10 +103,6 @@ async def test_overdue_prosrocheny(yandex_client: YandexDialogsClient) -> None:
     assert "росроченных" in response.lower() or "росрочен" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="NLU: 'покажи просроченные задачи' may be intercepted by list_tasks",
-    strict=False,
-)
 async def test_overdue_prosrochennye(yandex_client: YandexDialogsClient) -> None:
     """Ask for overdue tasks using 'просроченные'."""
     response = await yandex_client.send("покажи просроченные задачи")
@@ -125,10 +117,6 @@ async def test_overdue_missed(yandex_client: YandexDialogsClient) -> None:
     assert "росроченных" in response.lower() or "росрочен" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="NLU: 'что я просрочил' may not match overdue_tasks intent",
-    strict=False,
-)
 async def test_overdue_what_overdue(yandex_client: YandexDialogsClient) -> None:
     """Ask what tasks are overdue."""
     response = await yandex_client.send("что я просрочил")
