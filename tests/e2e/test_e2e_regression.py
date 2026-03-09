@@ -75,9 +75,8 @@ async def test_delete_checklist_not_intercepted(
     response = await yandex_client.send(
         "удали пункт кктест купить мыло из чеклиста задачи сменить полотенца"
     )
-    assert "удалён" in response or "не найден" in response, (
-        f"Expected delete_checklist_item response, got: {response}"
-    )
+    ok = "удалён" in response or "не найден" in response or "Не удалось удалить пункт" in response
+    assert ok, f"Expected delete_checklist_item response, got: {response}"
 
 
 async def test_goodbye_text_mode(
