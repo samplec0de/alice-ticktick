@@ -44,6 +44,32 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """If --setup-ticktick-auth is passed, run TickTick OAuth setup early.
+
+    Runs before any fixtures or tests so it works even without Yandex auth.
+    """
+    try:
+        setup_auth = session.config.getoption("--setup-ticktick-auth")
+    except ValueError:
+        return
+    if not setup_auth:
+        return
+    client_id = os.environ.get("TICKTICK_TEST_CLIENT_ID", "")
+    client_secret = os.environ.get("TICKTICK_TEST_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        pytest.exit(
+            "TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET "
+            "must be set in .env for --setup-ticktick-auth",
+            returncode=1,
+        )
+    from .ticktick_auth import _run_oauth_flow, _save_tokens
+
+    tokens = _run_oauth_flow(client_id, client_secret)
+    _save_tokens(tokens)
+    print("\nTickTick tokens saved to ~/.ticktick_auth/tokens.json")
+
+
 def _load_cookies() -> dict[str, str]:
     """Load saved Yandex cookies from disk."""
     if not COOKIES_FILE.exists():
@@ -83,37 +109,22 @@ async def yandex_client(yandex_cookies: dict[str, str]) -> YandexDialogsClient:
 
 
 @pytest.fixture(scope="session")
-def ticktick_client(request: pytest.FixtureRequest) -> TickTickClient | None:
+def ticktick_client() -> TickTickClient | None:
     """Get a TickTickClient for direct API cleanup (optional).
 
     Requires TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET in .env.
-    If --setup-ticktick-auth is passed, runs interactive OAuth flow.
-    Returns None if credentials are not configured.
+    Tokens must be set up first via --setup-ticktick-auth.
+    Returns None if credentials are not configured or token unavailable.
     """
     client_id = os.environ.get("TICKTICK_TEST_CLIENT_ID", "")
     client_secret = os.environ.get("TICKTICK_TEST_CLIENT_SECRET", "")
     if not client_id or not client_secret:
-        if request.config.getoption("--setup-ticktick-auth"):
-            pytest.fail(
-                "TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET "
-                "must be set in .env for --setup-ticktick-auth"
-            )
         return None
-
-    if request.config.getoption("--setup-ticktick-auth"):
-        # Force interactive flow (ignore saved tokens)
-        from .ticktick_auth import _run_oauth_flow, _save_tokens
-
-        tokens = _run_oauth_flow(client_id, client_secret)
-        _save_tokens(tokens)
-        access_token = tokens["access_token"]
-    else:
-        try:
-            access_token = get_access_token(client_id, client_secret)
-        except Exception as exc:
-            print(f"\nTickTick auth unavailable ({exc}), cleanup will use voice fallback")
-            return None
-
+    try:
+        access_token = get_access_token(client_id, client_secret)
+    except Exception as exc:
+        print(f"\nTickTick auth unavailable ({exc}), cleanup will use voice fallback")
+        return None
     return TickTickClient(access_token)
 
 
