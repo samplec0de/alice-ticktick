@@ -30,21 +30,25 @@ _OAUTH_TIMEOUT = 120  # seconds to wait for browser callback
 
 
 def get_access_token(client_id: str, client_secret: str) -> str:
-    """Get a valid access token, refreshing or re-authorizing as needed."""
-    tokens = _load_tokens()
+    """Get a valid access token from saved tokens.
 
-    # Try refresh first
-    if tokens and tokens.get("refresh_token"):
+    If refresh_token is available, attempts to refresh.
+    If no saved tokens exist, raises RuntimeError (use --setup-ticktick-auth).
+    Note: TickTick may not return refresh_token; tokens are valid for ~180 days.
+    """
+    tokens = _load_tokens()
+    if not tokens:
+        raise RuntimeError("No saved TickTick tokens. Run with --setup-ticktick-auth first.")
+
+    # Try refresh if available
+    if tokens.get("refresh_token"):
         try:
             new_tokens = _refresh_token(client_id, client_secret, tokens["refresh_token"])
             _save_tokens(new_tokens)
             return new_tokens["access_token"]
         except Exception:
-            pass  # Refresh failed, fall through to full flow
+            pass  # Refresh failed, use saved access_token
 
-    # Full OAuth flow
-    tokens = _run_oauth_flow(client_id, client_secret)
-    _save_tokens(tokens)
     return tokens["access_token"]
 
 
@@ -61,11 +65,13 @@ def _run_oauth_flow(client_id: str, client_secret: str) -> dict:
             if "code" in params:
                 auth_code = params["code"][0]
                 self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
                 self.wfile.write("Авторизация прошла успешно! Можно закрыть вкладку.".encode())
             else:
                 error = params.get("error", ["unknown"])[0]
                 self.send_response(400)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(f"Ошибка: {error}".encode())
             received.set()
