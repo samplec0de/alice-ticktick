@@ -385,6 +385,7 @@ async def on_list_tasks(
             return await handle_show_checklist(
                 message, fake_intent_data, event_update=event_update
             )
+        # Regex didn't match but NLU routed to list_tasks — fall through to list_tasks below
     return await handle_list_tasks(message, intent_data, event_update=event_update)
 
 

@@ -3182,8 +3182,9 @@ async def test_unknown_catches_edit_date() -> None:
         new_callable=AsyncMock,
         return_value=MagicMock(text="обновлена"),
     ) as mock_handler:
+        state = MagicMock()
         event_update = MagicMock()
-        await on_unknown(message, event_update)
+        await on_unknown(message, state=state, event_update=event_update)
         mock_handler.assert_called_once()
 
 
@@ -3204,8 +3205,9 @@ async def test_unknown_catches_edit_priority() -> None:
         new_callable=AsyncMock,
         return_value=MagicMock(text="обновлена"),
     ) as mock_handler:
+        state = MagicMock()
         event_update = MagicMock()
-        await on_unknown(message, event_update)
+        await on_unknown(message, state=state, event_update=event_update)
         mock_handler.assert_called_once()
         intent_data = mock_handler.call_args[0][1]
         assert intent_data["slots"]["task_name"]["value"] == "тестовой"
@@ -3229,8 +3231,9 @@ async def test_unknown_catches_rename() -> None:
         new_callable=AsyncMock,
         return_value=MagicMock(text="обновлена"),
     ) as mock_handler:
+        state = MagicMock()
         event_update = MagicMock()
-        await on_unknown(message, event_update)
+        await on_unknown(message, state=state, event_update=event_update)
         mock_handler.assert_called_once()
         fake_intent = mock_handler.call_args[0][1]
         assert fake_intent["slots"]["new_name"]["value"] == "новое имя"
@@ -3253,8 +3256,9 @@ async def test_unknown_catches_move_project() -> None:
         new_callable=AsyncMock,
         return_value=MagicMock(text="перемещена"),
     ) as mock_handler:
+        state = MagicMock()
         event_update = MagicMock()
-        await on_unknown(message, event_update)
+        await on_unknown(message, state=state, event_update=event_update)
         mock_handler.assert_called_once()
         fake_intent = mock_handler.call_args[0][1]
         assert fake_intent["slots"]["new_project"]["value"] == "Inbox"
@@ -3277,8 +3281,9 @@ async def test_unknown_catches_remove_recurrence() -> None:
         new_callable=AsyncMock,
         return_value=MagicMock(text="убрано"),
     ) as mock_handler:
+        state = MagicMock()
         event_update = MagicMock()
-        await on_unknown(message, event_update)
+        await on_unknown(message, state=state, event_update=event_update)
         mock_handler.assert_called_once()
         fake_intent = mock_handler.call_args[0][1]
         assert fake_intent["slots"]["remove_recurrence"]["value"] is True
@@ -3301,6 +3306,16 @@ async def test_unknown_catches_change_reminder() -> None:
         new_callable=AsyncMock,
         return_value=MagicMock(text="изменено"),
     ) as mock_handler:
+        state = MagicMock()
         event_update = MagicMock()
-        await on_unknown(message, event_update)
+        await on_unknown(message, state=state, event_update=event_update)
         mock_handler.assert_called_once()
+
+
+def test_try_parse_edit_command_returns_none_for_unrelated() -> None:
+    """_try_parse_edit_command returns None for text that has no edit pattern."""
+    from alice_ticktick.dialogs.router import _try_parse_edit_command
+
+    assert _try_parse_edit_command("привет как дела") is None
+    assert _try_parse_edit_command("") is None
+    assert _try_parse_edit_command("добавь задачу купить молоко") is None
