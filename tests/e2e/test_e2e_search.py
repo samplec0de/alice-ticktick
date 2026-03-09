@@ -25,7 +25,6 @@ _SEARCH_FLAKY = pytest.mark.xfail(
 )
 
 
-
 def _is_search_response(text: str) -> bool:
     t = text.lower()
     return any(
