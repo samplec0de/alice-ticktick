@@ -91,6 +91,17 @@ _FIXED_RECURRENCE_TOKENS = frozenset(
     }
 )
 
+_KAZH_PREFIXES = frozenset({"каждый", "каждую", "каждое", "каждые"})
+_FREQ_WORDS = frozenset(
+    {
+        "день", "дня", "дней",
+        "неделю", "недели",
+        "месяц", "месяца", "месяцев",
+        "год", "года", "лет",
+        "понедельник", "вторник", "среду", "четверг", "пятницу", "субботу", "воскресенье",
+    }
+)
+
 
 def _infer_rec_freq_from_tokens(
     rec_freq: str | None,
@@ -101,9 +112,17 @@ def _infer_rec_freq_from_tokens(
         return rec_freq
     if not tokens:
         return None
+    # Check for fixed recurrence tokens (ежедневно etc.)
     for token in tokens:
         if token.lower() in _FIXED_RECURRENCE_TOKENS:
             return token.lower()
+    # Check for "каждый <freq>" pattern
+    lower_tokens = [t.lower() for t in tokens]
+    for i, token in enumerate(lower_tokens):
+        if token in _KAZH_PREFIXES and i + 1 < len(lower_tokens):
+            next_token = lower_tokens[i + 1]
+            if next_token in _FREQ_WORDS:
+                return next_token
     return None
 
 
