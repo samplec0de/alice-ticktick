@@ -1,7 +1,8 @@
 root:
     %lemma
     переименуй (задачу)? $TaskName в $NewName
-    (перенеси | поменяй | измени | сдвинь | обнови) (задачу)? $TaskName ($NewDate)? ((с | на | приоритет | приоритетом) (низкий | средний | высокий))?
+    (перенеси|поменяй|измени|сдвинь|обнови) (дату)? (задачи|задачу)? $TaskName (на $NewDate)?
+    (поменяй|измени|обнови) приоритет (задачи|задачу)? $TaskName (на)? $PriorityValue
     (перенеси|перемести|переложи|перекинь|отправь) (задачу|задача)? $TaskName в (проект|список|папку) $ProjectName
     (убери|отмени|удали) $RemoveRecurrence (у|для|задачи)? $TaskName
     (поменяй|измени) (повторение|повтор) (у|для|задачи)? $TaskName на $Recurrence
@@ -21,6 +22,9 @@ slots:
         type: YANDEX.STRING
     new_project:
         source: $ProjectName
+        type: YANDEX.STRING
+    new_priority:
+        source: $PriorityValue
         type: YANDEX.STRING
     rec_freq:
         source: $RecFreq
@@ -57,6 +61,9 @@ $NewName:
     .+
 
 $ProjectName:
+    .+
+
+$PriorityValue:
     .+
 
 $Recurrence:
