@@ -34,10 +34,6 @@ async def test_add_checklist_item_alt(
     assert "добавлен" in response or "не найдена" in response
 
 
-@pytest.mark.xfail(
-    reason="NLU: list_tasks $Priority (.+) intercepts 'чеклист' as priority value",
-    strict=False,
-)
 async def test_show_checklist(yandex_client: YandexDialogsClient) -> None:
     """Show the checklist of a task."""
     response = await yandex_client.send("покажи чеклист задачи кктест купить хлеб")
@@ -45,10 +41,6 @@ async def test_show_checklist(yandex_client: YandexDialogsClient) -> None:
     assert "Чеклист" in response or "пуст" in response or "не найдена" in response
 
 
-@pytest.mark.xfail(
-    reason="NLU: list_tasks $Priority (.+) intercepts 'чеклист' as priority value",
-    strict=False,
-)
 async def test_show_checklist_alt(
     yandex_client: YandexDialogsClient,
 ) -> None:

@@ -14,12 +14,6 @@ if TYPE_CHECKING:
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
 
-_SEARCH_XFAIL = pytest.mark.xfail(
-    reason="NLU: search_task intent often intercepted by create_task/edit_task",
-    strict=False,
-)
-
-
 def _is_search_response(text: str) -> bool:
     t = text.lower()
     return any(
@@ -34,7 +28,6 @@ async def test_search_report(yandex_client: YandexDialogsClient) -> None:
     assert _is_search_response(response), f"Expected search response: {response}"
 
 
-@_SEARCH_XFAIL
 async def test_search_milk(yandex_client: YandexDialogsClient) -> None:
     """Search for a task about milk."""
     response = await yandex_client.send("поиск задачи молоко")
