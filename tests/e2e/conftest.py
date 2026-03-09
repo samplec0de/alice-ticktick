@@ -10,11 +10,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
+from alice_ticktick.ticktick.client import TickTickClient
+
+from .ticktick_auth import get_access_token
 from .yandex_dialogs_client import YandexDialogsClient
+
+load_dotenv()
 
 SKILL_ID = "d3f073db-dece-42b8-9447-87511df30c83"
 AUTH_DIR = Path(__file__).resolve().parent.parent.parent / ".yandex_auth"
@@ -28,6 +35,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         default=False,
         help="Open browser for Yandex login and save cookies",
+    )
+    parser.addoption(
+        "--setup-ticktick-auth",
+        action="store_true",
+        default=False,
+        help="Open browser for TickTick OAuth login and save tokens",
     )
 
 
@@ -69,8 +82,46 @@ async def yandex_client(yandex_cookies: dict[str, str]) -> YandexDialogsClient:
     await client.close()
 
 
+@pytest.fixture(scope="session")
+def ticktick_client(request: pytest.FixtureRequest) -> TickTickClient | None:
+    """Get a TickTickClient for direct API cleanup (optional).
+
+    Requires TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET in .env.
+    If --setup-ticktick-auth is passed, runs interactive OAuth flow.
+    Returns None if credentials are not configured.
+    """
+    client_id = os.environ.get("TICKTICK_TEST_CLIENT_ID", "")
+    client_secret = os.environ.get("TICKTICK_TEST_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        if request.config.getoption("--setup-ticktick-auth"):
+            pytest.fail(
+                "TICKTICK_TEST_CLIENT_ID and TICKTICK_TEST_CLIENT_SECRET "
+                "must be set in .env for --setup-ticktick-auth"
+            )
+        return None
+
+    if request.config.getoption("--setup-ticktick-auth"):
+        # Force interactive flow (ignore saved tokens)
+        from .ticktick_auth import _run_oauth_flow, _save_tokens
+
+        tokens = _run_oauth_flow(client_id, client_secret)
+        _save_tokens(tokens)
+        access_token = tokens["access_token"]
+    else:
+        try:
+            access_token = get_access_token(client_id, client_secret)
+        except Exception as exc:
+            print(f"\nTickTick auth unavailable ({exc}), cleanup will use voice fallback")
+            return None
+
+    return TickTickClient(access_token)
+
+
 @pytest.fixture(scope="session", autouse=True)
-async def _warmup_and_cleanup(yandex_client: YandexDialogsClient) -> None:
+async def _warmup_and_cleanup(
+    yandex_client: YandexDialogsClient,
+    ticktick_client: TickTickClient | None,
+) -> None:
     """Warm up before tests and clean up test tasks after.
 
     Sends a help request to warm up Cloud Functions, then yields for tests.
@@ -81,9 +132,16 @@ async def _warmup_and_cleanup(yandex_client: YandexDialogsClient) -> None:
 
     yield  # type: ignore[misc]
 
-    # Cleanup: delete all tasks with the test prefix
+    if ticktick_client is not None:
+        await _cleanup_via_api(ticktick_client)
+    else:
+        await _cleanup_via_voice(yandex_client)
+
+
+async def _cleanup_via_voice(yandex_client: YandexDialogsClient) -> None:
+    """Delete test tasks via the voice interface (slow fallback)."""
     print(f"\n{'=' * 60}")
-    print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix...")
+    print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix (voice fallback)...")
     deleted = 0
     MAX_CLEANUP = 50
     MAX_ITERATIONS = 200
@@ -110,9 +168,66 @@ async def _warmup_and_cleanup(yandex_client: YandexDialogsClient) -> None:
                 print(f"  Cleanup confirm error (skipping): {exc}")
                 break
         if deleted >= MAX_CLEANUP:
-            print(f"WARNING: cleaned {deleted} tasks, stopping early to avoid runaway cleanup")
+            print(f"WARNING: cleaned {deleted} tasks, stopping early")
             break
     print(f"Cleanup done: {deleted} tasks deleted")
+    print("=" * 60)
+
+
+async def _cleanup_via_api(client: TickTickClient) -> None:
+    """Delete all test tasks directly via TickTick API (fast)."""
+    print(f"\n{'=' * 60}")
+    print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix (API)...")
+
+    # Collect all tasks: inbox + all projects
+    all_tasks: list[tuple[str, str, str]] = []  # (task_id, project_id, title)
+
+    try:
+        inbox_tasks = await client.get_inbox_tasks()
+        for t in inbox_tasks:
+            if t.title.lower().startswith(TEST_TASK_PREFIX):
+                all_tasks.append((t.id, t.project_id, t.title))
+
+        projects = await client.get_projects()
+        for proj in projects:
+            try:
+                proj_tasks = await client.get_tasks(proj.id)
+                for t in proj_tasks:
+                    if t.title.lower().startswith(TEST_TASK_PREFIX):
+                        all_tasks.append((t.id, t.project_id, t.title))
+            except Exception as exc:
+                print(f"  Warning: failed to list tasks in project '{proj.name}': {exc}")
+    except Exception as exc:
+        print(f"  Error listing tasks: {exc}")
+        print("=" * 60)
+        return
+
+    if not all_tasks:
+        print("  No test tasks found.")
+        print("=" * 60)
+        return
+
+    print(f"  Found {len(all_tasks)} test task(s)")
+
+    deleted = 0
+    for task_id, project_id, title in all_tasks:
+        try:
+            await client.delete_task(task_id, project_id)
+            deleted += 1
+            print(f"  Deleted: {title}")
+        except Exception as exc:
+            print(f"  Failed to delete '{title}': {exc}")
+            # Rate limit — pause and retry once
+            if "429" in str(exc):
+                await asyncio.sleep(2)
+                try:
+                    await client.delete_task(task_id, project_id)
+                    deleted += 1
+                    print(f"  Deleted (retry): {title}")
+                except Exception:
+                    pass
+
+    print(f"Cleanup done: {deleted}/{len(all_tasks)} tasks deleted")
     print("=" * 60)
 
 
