@@ -501,6 +501,40 @@ uv run pytest tests/e2e/ --setup-yandex-auth -v -s
 uv run pytest tests/e2e/ --setup-yandex-auth -v -s
 ```
 
+### TickTick API авторизация (для быстрой очистки тестов)
+
+Опционально: позволяет очищать тестовые задачи через TickTick API напрямую (секунды вместо минут).
+
+**Создание тестового приложения:**
+
+1. Перейти на https://developer.ticktick.com/manage
+2. Создать **второе** OAuth-приложение (отдельное от продового)
+3. Указать **Redirect URI**: `http://localhost:8080/callback`
+4. Сохранить `client_id` и `client_secret` в `.env`:
+
+```env
+TICKTICK_TEST_CLIENT_ID=...
+TICKTICK_TEST_CLIENT_SECRET=...
+```
+
+**Первый запуск:**
+
+```bash
+uv run pytest tests/e2e/ --setup-ticktick-auth -v -s -k "test_e2e_greeting"
+```
+
+Откроется браузер → авторизуйтесь в TickTick → токены сохранятся в `~/.ticktick_auth/tokens.json`.
+
+Флаг `-s` нужен, чтобы pytest не перехватывал вывод (включая URL авторизации).
+
+**Повторная авторизация** (если токен протух, срок ~180 дней):
+
+```bash
+uv run pytest tests/e2e/ --setup-ticktick-auth -v -s -k "test_e2e_greeting"
+```
+
+Без этой настройки cleanup использует голосовой fallback (медленнее, лимит 50 задач).
+
 ### Запуск тестов
 
 ```bash
