@@ -91,6 +91,10 @@ def build_rrule(
     normalized = rec_freq.lower().strip()
     entry = _FREQ_MAP.get(normalized)
     if entry is None:
+        # NLU greedy .+ may have captured extra text (e.g. "день пить воду")
+        first_word = normalized.split()[0] if normalized else ""
+        entry = _FREQ_MAP.get(first_word)
+    if entry is None:
         return None
 
     freq, byday = entry

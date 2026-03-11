@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from aliceio import Dispatcher, Skill
+from aliceio.fsm.strategy import FSMStrategy
 from aliceio.types import AliceResponse, Response
 
 from alice_ticktick.config import settings
@@ -13,7 +14,7 @@ from alice_ticktick.dialogs.router import router
 
 logger = logging.getLogger(__name__)
 
-dp = Dispatcher(use_api_storage=True)
+dp = Dispatcher(use_api_storage=True, fsm_strategy=FSMStrategy.SESSION)
 dp.include_router(router)
 
 skill = Skill(skill_id=settings.alice_skill_id)

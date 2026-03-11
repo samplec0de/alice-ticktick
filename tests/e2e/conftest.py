@@ -146,6 +146,24 @@ def ticktick_client() -> TickTickClient | None:
     return TickTickClient(access_token)
 
 
+_PREREQUISITE_TASKS = [
+    "кктест редактирования",
+    "кктест удаления",
+]
+
+
+async def _create_prerequisite_tasks(client: YandexDialogsClient) -> None:
+    """Create tasks required by edit/delete tests (via voice commands)."""
+    for task_name in _PREREQUISITE_TASKS:
+        await asyncio.sleep(3)
+        client.reset_session()
+        response = await client.send(f"создай задачу {task_name}")
+        if "готово" in response.lower():
+            print(f"  Created prerequisite task: {task_name}")
+        else:
+            print(f"  WARNING: Failed to create '{task_name}': {response[:100]}")
+
+
 @pytest.fixture(scope="session", autouse=True)
 async def _warmup_and_cleanup(
     yandex_client: YandexDialogsClient,
@@ -157,6 +175,10 @@ async def _warmup_and_cleanup(
     After all tests, deletes tasks whose names start with TEST_TASK_PREFIX.
     """
     await yandex_client.send("помощь")
+    yandex_client.reset_session()
+
+    # Create prerequisite tasks for edit/delete tests
+    await _create_prerequisite_tasks(yandex_client)
     yandex_client.reset_session()
 
     yield  # type: ignore[misc]

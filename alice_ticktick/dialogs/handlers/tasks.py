@@ -345,15 +345,22 @@ async def handle_create_task(
     try:
         async with factory(access_token) as client:
             if slots.project_name:
-                projects = await _get_cached_projects(client, access_token)
-                project = _find_project_by_name(projects, slots.project_name)
-                if project is None:
-                    names = ", ".join(p.name for p in projects) if projects else "\u2014"
-                    return Response(
-                        text=txt.PROJECT_NOT_FOUND.format(name=slots.project_name, projects=names)
-                    )
-                project_id = project.id
-                project_name_display = project.name
+                _inbox_names = {"inbox", "входящие", "инбокс"}
+                if slots.project_name.lower().strip() in _inbox_names:
+                    # Inbox is the default project — projectId=None means Inbox
+                    project_name_display = "Inbox"
+                else:
+                    projects = await _get_cached_projects(client, access_token)
+                    project = _find_project_by_name(projects, slots.project_name)
+                    if project is None:
+                        names = ", ".join(p.name for p in projects) if projects else "\u2014"
+                        return Response(
+                            text=txt.PROJECT_NOT_FOUND.format(
+                                name=slots.project_name, projects=names
+                            )
+                        )
+                    project_id = project.id
+                    project_name_display = project.name
 
             payload = TaskCreate(
                 title=task_name,

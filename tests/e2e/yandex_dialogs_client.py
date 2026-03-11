@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from typing import Any
 
 import httpx
 
@@ -45,6 +46,7 @@ class YandexDialogsClient:
         )
         self._session_id: str = uuid.uuid4().hex
         self._session_seq: int = 0
+        self._session_state: dict[str, Any] | None = None
 
     async def send(self, text: str) -> str:
         """Send a message and return the skill's text response.
@@ -54,7 +56,7 @@ class YandexDialogsClient:
         max_retries = 3
         for attempt in range(1 + max_retries):
             self._session_seq += 1
-            payload = {
+            payload: dict[str, Any] = {
                 "text": text,
                 "isDraft": True,
                 "sessionId": self._session_id,
@@ -62,6 +64,8 @@ class YandexDialogsClient:
                 "surface": "mobile",
                 "isAnonymousUser": False,
             }
+            if self._session_state is not None:
+                payload["sessionState"] = self._session_state
             response = await self._client.post(
                 f"/developer/api/skills/{self.skill_id}/message",
                 json=payload,
@@ -84,6 +88,9 @@ class YandexDialogsClient:
             if session.get("seq"):
                 self._session_seq = session["seq"]
 
+            # Capture session_state for FSM multi-turn flows
+            self._session_state = result.get("session_state") or result.get("sessionState")
+
             result_text: str = result["text"]
 
             # Retry on transient TickTick errors
@@ -99,12 +106,14 @@ class YandexDialogsClient:
         """Start a new session (like page reload) and return the greeting."""
         self._session_id = uuid.uuid4().hex
         self._session_seq = 0
+        self._session_state = None
         return await self.send("")
 
     def reset_session(self) -> None:
         """Reset session state for a fresh conversation."""
         self._session_id = uuid.uuid4().hex
         self._session_seq = 0
+        self._session_state = None
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
