@@ -1077,17 +1077,26 @@ async def handle_edit_task(
     target_project_name: str | None = None
     same_project_name: str | None = None
     if has_project and cached_projects is not None:
-        project = _find_project_by_name(cached_projects, slots.new_project)  # type: ignore[arg-type]
-        if project is None:
-            names = ", ".join(p.name for p in cached_projects) if cached_projects else "\u2014"
-            return Response(
-                text=txt.PROJECT_NOT_FOUND.format(name=slots.new_project, projects=names)
-            )
-        if project.id != matched_task.project_id:
-            target_project_id = project.id
-            target_project_name = project.name
+        # Inbox is special — not a project, accessed via different API
+        _inbox_names = {"inbox", "входящие", "инбокс"}
+        if slots.new_project and slots.new_project.lower().strip() in _inbox_names:
+            if matched_task.project_id is not None:  # Task is not already in Inbox
+                target_project_id = None  # None = Inbox in TickTick API
+                target_project_name = "Inbox"
+            else:
+                same_project_name = "Inbox"
         else:
-            same_project_name = project.name
+            project = _find_project_by_name(cached_projects, slots.new_project)  # type: ignore[arg-type]
+            if project is None:
+                names = ", ".join(p.name for p in cached_projects) if cached_projects else "\u2014"
+                return Response(
+                    text=txt.PROJECT_NOT_FOUND.format(name=slots.new_project, projects=names)
+                )
+            if project.id != matched_task.project_id:
+                target_project_id = project.id
+                target_project_name = project.name
+            else:
+                same_project_name = project.name
 
     # Check that at least one field was successfully parsed
     if (
