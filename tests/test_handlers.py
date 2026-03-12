@@ -3319,3 +3319,127 @@ def test_try_parse_edit_command_returns_none_for_unrelated() -> None:
     assert _try_parse_edit_command("привет как дела") is None
     assert _try_parse_edit_command("") is None
     assert _try_parse_edit_command("добавь задачу купить молоко") is None
+
+
+# --- Inbox shortcut in create_task ---
+
+
+async def test_create_task_inbox_shortcut_skips_project_resolution() -> None:
+    """project_name='inbox' should skip project resolution and create with project_id=None."""
+    message = _make_message()
+    message.nlu = None
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Тест инбокса"},
+            "project_name": {"value": "inbox"},
+        },
+    }
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Готово" in response.text
+    assert "Тест инбокса" in response.text
+    # Inbox shortcut: project_id must be None (=Inbox in TickTick)
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.project_id is None
+    # get_projects should NOT be called for Inbox shortcut
+    client.get_projects.assert_not_called()
+
+
+async def test_create_task_inbox_shortcut_russian_vhodyaschie() -> None:
+    """project_name='входящие' should also use Inbox shortcut."""
+    message = _make_message()
+    message.nlu = None
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Тест"},
+            "project_name": {"value": "входящие"},
+        },
+    }
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Готово" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.project_id is None
+    client.get_projects.assert_not_called()
+
+
+async def test_create_task_inbox_shortcut_russian_inboks() -> None:
+    """project_name='инбокс' should also use Inbox shortcut."""
+    message = _make_message()
+    message.nlu = None
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "Тест"},
+            "project_name": {"value": "инбокс"},
+        },
+    }
+    mock_factory = _make_mock_client()
+    response = await handle_create_task(message, intent_data, mock_factory)
+    assert "Готово" in response.text
+    client = mock_factory.return_value.__aenter__.return_value
+    call_args = client.create_task.call_args[0][0]
+    assert call_args.project_id is None
+    client.get_projects.assert_not_called()
+
+
+# --- Inbox shortcut in edit_task (move to Inbox) ---
+
+
+async def test_edit_task_move_to_inbox() -> None:
+    """Moving a task from a project to Inbox should call move_task with Inbox project ID."""
+    projects = [_make_project(project_id="p-work", name="Работа")]
+    tasks = [_make_task(title="Отчёт", project_id="p-work")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_project": {"value": "inbox"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+    assert "перемещена" in response.text
+    assert "Inbox" in response.text
+
+    client = mock_factory.return_value.__aenter__.return_value
+    client.move_task.assert_called_once_with(tasks[0].id, "p-work", "inbox")
+
+
+async def test_edit_task_move_to_inbox_already_in_inbox() -> None:
+    """Moving a task already in Inbox to Inbox should say 'already there'."""
+    projects = [_make_project(project_id="p1", name="Работа")]
+    tasks = [_make_task(title="Отчёт", project_id="inbox")]
+    message = _make_message()
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "отчёт"},
+            "new_project": {"value": "входящие"},
+        },
+    }
+    mock_factory = _make_mock_client(projects=projects, tasks=tasks)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+    assert "уже в проекте" in response.text
+    assert "Inbox" in response.text
+
+
+# --- First-word extraction in _infer_rec_freq_from_tokens ---
+
+
+def test_infer_rec_freq_multiword_extracts_first_word() -> None:
+    """Multi-word NLU value 'день пить воду' → returns 'день'."""
+    result = _infer_rec_freq_from_tokens("день пить воду", None)
+    assert result == "день"
+
+
+def test_infer_rec_freq_recognized_full_value() -> None:
+    """Recognized full value 'ежедневно' → returns as-is."""
+    result = _infer_rec_freq_from_tokens("ежедневно", None)
+    assert result == "ежедневно"
+
+
+def test_infer_rec_freq_unrecognized_value_passthrough() -> None:
+    """Unrecognized value → returns original for build_rrule to handle."""
+    result = _infer_rec_freq_from_tokens("кварталу", None)
+    assert result == "кварталу"

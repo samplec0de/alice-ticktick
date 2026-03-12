@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Mapping: normalized rec_freq value → (FREQ, optional BYDAY)
 _FREQ_MAP: dict[str, tuple[str, str | None]] = {
     # Basic frequencies
@@ -90,6 +94,17 @@ def build_rrule(
 
     normalized = rec_freq.lower().strip()
     entry = _FREQ_MAP.get(normalized)
+    if entry is None:
+        # Defense-in-depth: _infer_rec_freq_from_tokens normally cleans greedy NLU values,
+        # but build_rrule can also be called directly. Try the first word as a fallback.
+        first_word = normalized.split()[0] if normalized else ""
+        entry = _FREQ_MAP.get(first_word)
+        if entry is not None:
+            logger.warning(
+                "build_rrule first-word fallback: full=%r, using first_word=%r",
+                rec_freq,
+                first_word,
+            )
     if entry is None:
         return None
 

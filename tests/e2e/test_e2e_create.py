@@ -63,7 +63,7 @@ async def test_create_without_name_reprompt(
 
 
 async def test_create_with_project(yandex_client: YandexDialogsClient) -> None:
-    """Create a task in a specific project."""
+    """Create a task in the Inbox (default) project."""
     response = await yandex_client.send("создай задачу кктест ревью кода в проекте Inbox")
     assert "Готово" in response
     assert "кктест ревью кода" in _norm(response)
