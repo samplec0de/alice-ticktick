@@ -38,6 +38,7 @@ from ._helpers import (
     _FUZZY_CONFIRM_THRESHOLD,
     _REMINDER_SUFFIX_RE,
     _TASK_NAME_STOPWORDS,
+    _WEEKDAY_RE,
     _apply_task_filters,
     _auth_required_response,
     _build_search_response,
@@ -947,6 +948,11 @@ async def handle_edit_task(
         weekday_date = _try_parse_weekday(raw_utt, user_tz)
         if weekday_date is not None:
             has_date = True
+            # Strip weekday pattern from task_name (greedy .+ swallows it)
+            if slots.task_name:
+                cleaned = _WEEKDAY_RE.sub("", slots.task_name).strip()
+                if cleaned:
+                    slots = dataclasses.replace(slots, task_name=cleaned)
 
     if (
         not has_date
