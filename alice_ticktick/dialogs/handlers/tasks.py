@@ -6,7 +6,7 @@ import dataclasses
 import datetime
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from aliceio.types import Response, Update
 
@@ -66,6 +66,11 @@ if TYPE_CHECKING:
     from aliceio.types import Message
 
 logger = logging.getLogger(__name__)
+
+_INBOX_NAMES: Final[frozenset[str]] = frozenset({"inbox", "входящие", "инбокс"})
+
+# TickTick API Inbox project ID — used in move_task toProjectId
+_INBOX_PROJECT_ID: Final[str] = "inbox"
 
 _PROJECT_FROM_UTTERANCE_RE = re.compile(
     r"\s+в\s+(?:проект[ае]?|списке?|список|папк[ауе])\s+(.+?)(?:\s+на\s+|\s+с\s+|$)",
@@ -345,8 +350,7 @@ async def handle_create_task(
     try:
         async with factory(access_token) as client:
             if slots.project_name:
-                _inbox_names = {"inbox", "входящие", "инбокс"}
-                if slots.project_name.lower().strip() in _inbox_names:
+                if slots.project_name.lower().strip() in _INBOX_NAMES:
                     # Inbox is the default project — projectId=None means Inbox
                     project_name_display = "Inbox"
                 else:
@@ -1072,16 +1076,17 @@ async def handle_edit_task(
         if trigger:
             new_reminders = [trigger]
 
-    # Resolve target project if requested
+    # Resolve target project if requested.
+    # move_to_inbox is a separate flag because target_project_id=None means "no change".
     target_project_id: str | None = None
     target_project_name: str | None = None
     same_project_name: str | None = None
+    move_to_inbox: bool = False
     if has_project and cached_projects is not None:
-        # Inbox is special — not a project, accessed via different API
-        _inbox_names = {"inbox", "входящие", "инбокс"}
-        if slots.new_project and slots.new_project.lower().strip() in _inbox_names:
-            if matched_task.project_id is not None:  # Task is not already in Inbox
-                target_project_id = None  # None = Inbox in TickTick API
+        if slots.new_project and slots.new_project.lower().strip() in _INBOX_NAMES:
+            # Check if task is already in Inbox (project_id matches the Inbox ID)
+            if matched_task.project_id != _INBOX_PROJECT_ID:
+                move_to_inbox = True
                 target_project_name = "Inbox"
             else:
                 same_project_name = "Inbox"
@@ -1098,12 +1103,14 @@ async def handle_edit_task(
             else:
                 same_project_name = project.name
 
+    wants_move = target_project_id is not None or move_to_inbox
+
     # Check that at least one field was successfully parsed
     if (
         new_title is None
         and new_due_date is None
         and new_priority_value is None
-        and target_project_id is None
+        and not wants_move
         and new_repeat_flag is None
         and new_reminders is None
     ):
@@ -1112,6 +1119,11 @@ async def handle_edit_task(
                 text=txt.TASK_ALREADY_IN_PROJECT.format(name=best_match, project=same_project_name)
             )
         return Response(text=txt.EDIT_NO_CHANGES)
+
+    # Determine the effective project ID for the move
+    effective_target_project_id: str | None = (
+        _INBOX_PROJECT_ID if move_to_inbox else target_project_id
+    )
 
     has_other_changes = not (
         new_title is None
@@ -1126,7 +1138,7 @@ async def handle_edit_task(
     if has_other_changes:
         update_payload = TaskUpdate(
             id=matched_task.id,
-            projectId=target_project_id or matched_task.project_id,
+            projectId=effective_target_project_id or matched_task.project_id,
             title=new_title,
             priority=new_priority_value,
             startDate=new_start_date,
@@ -1135,10 +1147,12 @@ async def handle_edit_task(
             repeatFlag=new_repeat_flag,
             reminders=new_reminders,
         )
-    if target_project_id is not None:
+    if wants_move and effective_target_project_id is not None:
         try:
             async with factory(access_token) as client:
-                await client.move_task(matched_task.id, matched_task.project_id, target_project_id)
+                await client.move_task(
+                    matched_task.id, matched_task.project_id, effective_target_project_id
+                )
             _invalidate_task_cache(access_token)
         except TickTickUnauthorizedError:
             return _auth_required_response(event_update)
@@ -1147,7 +1161,7 @@ async def handle_edit_task(
                 "Failed to move task: task_id=%s, from=%s, to=%s",
                 matched_task.id,
                 matched_task.project_id,
-                target_project_id,
+                effective_target_project_id,
             )
             return Response(text=txt.MOVE_ERROR)
 
@@ -1159,11 +1173,11 @@ async def handle_edit_task(
         except TickTickUnauthorizedError:
             return _auth_required_response(event_update)
         except Exception:
-            if target_project_id is not None:
+            if wants_move:
                 logger.exception(
                     "Partial failure: task %s moved to %s but update failed",
                     matched_task.id,
-                    target_project_id,
+                    effective_target_project_id,
                 )
                 return Response(
                     text=txt.EDIT_PARTIAL_ERROR.format(
@@ -1193,10 +1207,7 @@ async def handle_edit_task(
 
     # Only project changed -> specific move message
     only_project = (
-        target_project_id is not None
-        and new_title is None
-        and new_due_date is None
-        and new_priority_value is None
+        wants_move and new_title is None and new_due_date is None and new_priority_value is None
     )
     if only_project and target_project_name:
         return Response(text=txt.TASK_MOVED.format(name=best_match, project=target_project_name))

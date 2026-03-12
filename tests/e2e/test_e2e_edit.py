@@ -19,11 +19,11 @@ TASK_NAME = "кктест редактирования"
 def _edit_ok(response: str, *success_words: str) -> bool:
     """Check that the response indicates a recognized edit intent.
 
-    Accepts direct success, task-not-found, or confirmation prompt
-    (fuzzy match score < 85 asks the user to confirm).
+    Accepts direct success words only. Task-not-found and confirmation prompts
+    should be handled with xfail on individual tests if flaky.
     """
     r = response.lower()
-    return any(w in r for w in success_words) or "не найдена" in r or "да или нет" in r
+    return any(w in r for w in success_words)
 
 
 # --- Date and priority ---

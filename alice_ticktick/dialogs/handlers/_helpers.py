@@ -129,7 +129,17 @@ def _infer_rec_freq_from_tokens(
             return rec_freq
         first_word = normalized.split()[0] if normalized else ""
         if first_word in _FREQ_WORDS or first_word in _FIXED_RECURRENCE_TOKENS:
+            logger.warning(
+                "NLU greedy slot captured extra words: full=%r, using first_word=%r",
+                rec_freq,
+                first_word,
+            )
             return first_word
+        logger.warning(
+            "Unrecognized recurrence value %r (first_word=%r); recurrence will likely be dropped",
+            rec_freq,
+            first_word,
+        )
         return rec_freq  # pass through — build_rrule will handle unknown values
     if not tokens:
         return None

@@ -22,19 +22,17 @@ async def test_recurring_every_monday(yandex_client: YandexDialogsClient) -> Non
     assert "понедельник" in response.lower()
 
 
+@pytest.mark.xfail(
+    reason="NLU greedy $RecFreq may swallow task name tokens; recurrence may be missing",
+    strict=False,
+)
 async def test_recurring_every_day(yandex_client: YandexDialogsClient) -> None:
     """напоминай каждый день пить воду кктест."""
     response = await yandex_client.send("напоминай каждый день пить воду кктест")
     assert UNKNOWN not in response, f"Intent not recognized: {response}"
     assert "готово" in response.lower()
-    # NLU greedy $RecFreq may swallow task name tokens; with build_rrule fix,
-    # recurrence is still extracted from the first word.
-    # Accept both explicit recurrence text and implicit date-only response.
-    assert (
-        "каждый день" in response.lower()
-        or "ежедневно" in response.lower()
-        or "создана" in response.lower()
-    )
+    # Recurrence must be confirmed in the response
+    assert "каждый день" in response.lower() or "ежедневно" in response.lower()
 
 
 async def test_recurring_daily(yandex_client: YandexDialogsClient) -> None:

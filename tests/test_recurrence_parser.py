@@ -124,3 +124,23 @@ class TestFormatRecurrence:
 
     def test_none_returns_none(self) -> None:
         assert format_recurrence(None) is None
+
+
+class TestBuildRruleFirstWordFallback:
+    """Tests for build_rrule first-word extraction from greedy NLU values."""
+
+    def test_multiword_day_extracts_daily(self) -> None:
+        """'день пить воду' → RRULE with FREQ=DAILY."""
+        assert build_rrule(rec_freq="день пить воду") == "RRULE:FREQ=DAILY"
+
+    def test_multiword_monday_extracts_weekly(self) -> None:
+        """'понедельник проверить отчёт' → RRULE with FREQ=WEEKLY;BYDAY=MO."""
+        assert build_rrule(rec_freq="понедельник проверить отчёт") == "RRULE:FREQ=WEEKLY;BYDAY=MO"
+
+    def test_unrecognized_multiword_returns_none(self) -> None:
+        """Completely unrecognized multi-word → None."""
+        assert build_rrule(rec_freq="кварталу платить налоги") is None
+
+    def test_single_recognized_word_works(self) -> None:
+        """Single recognized word still works."""
+        assert build_rrule(rec_freq="ежедневно") == "RRULE:FREQ=DAILY"

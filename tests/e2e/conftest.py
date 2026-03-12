@@ -161,7 +161,12 @@ async def _create_prerequisite_tasks(client: YandexDialogsClient) -> None:
         if "готово" in response.lower():
             print(f"  Created prerequisite task: {task_name}")
         else:
-            print(f"  WARNING: Failed to create '{task_name}': {response[:100]}")
+            warnings.warn(
+                f"Failed to create prerequisite task '{task_name}': {response[:100]}. "
+                "Edit/delete tests may fail.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
 
 @pytest.fixture(scope="session", autouse=True)
