@@ -202,6 +202,11 @@ def _try_parse_edit_command(raw: str) -> dict[str, Any] | None:
     return None
 
 
+_ADD_SUBTASK_FALLBACK_RE = re.compile(
+    r"(?:добавь|создай)\s+подзадачу\s+(.+?)\s+(?:к|в)\s+задач[еуи]?\s+(.+)",
+    re.IGNORECASE,
+)
+
 _CHECK_ITEM_RE = re.compile(
     r"(?:отметь|выполни)\s+(?:пункт|элемент)\s+(.+?)\s+(?:в|из)\s+(?:чеклиста?|списка?|чеклисте?)\s+(?:задачи?\s+)?(.+)",
     re.IGNORECASE,
@@ -624,6 +629,19 @@ async def on_unknown(
         if query:
             fake_intent_data: dict[str, Any] = {"slots": {"query": {"value": query}}}
             return await handle_search_task(message, fake_intent_data, event_update=event_update)
+
+    # Subtask fallback: "добавь подзадачу X к задаче Y"
+    m = _ADD_SUBTASK_FALLBACK_RE.search(raw)
+    if m:
+        subtask_name = m.group(1).strip()
+        parent_name = m.group(2).strip()
+        fake_subtask_data: dict[str, Any] = {
+            "slots": {
+                "subtask_name": {"value": subtask_name},
+                "parent_name": {"value": parent_name},
+            }
+        }
+        return await handle_add_subtask(message, fake_subtask_data, event_update=event_update)
 
     # Edit fallback (state is None when FSM is not configured — skip silently)
     edit_intent = _try_parse_edit_command(raw)
