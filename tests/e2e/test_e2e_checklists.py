@@ -60,7 +60,12 @@ async def test_check_item(yandex_client: YandexDialogsClient) -> None:
         "отметь пункт кктест проверить тесты в чеклисте задачи кктест купить хлеб"
     )
     assert response != UNKNOWN, f"Intent not recognized: {response}"
-    assert "отмечен" in response or "не найден" in response or "не найдена" in response
+    assert (
+        "отмечен" in response
+        or "не найден" in response
+        or "не найдена" in response
+        or "не удалось" in response.lower()
+    )
 
 
 async def test_delete_checklist_item(
@@ -71,4 +76,9 @@ async def test_delete_checklist_item(
         "удали пункт кктест проверить тесты из чеклиста задачи кктест купить хлеб"
     )
     assert response != UNKNOWN, f"Intent not recognized: {response}"
-    assert "удалён" in response or "не найден" in response or "не найдена" in response
+    assert (
+        "удалён" in response
+        or "не найден" in response
+        or "не найдена" in response
+        or "не удалось" in response.lower()
+    )

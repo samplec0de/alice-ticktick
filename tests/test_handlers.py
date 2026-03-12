@@ -3081,7 +3081,10 @@ async def test_list_tasks_not_redirected_when_no_checklist_keyword() -> None:
 
 # --- _infer_rec_freq_from_tokens tests ---
 
-from alice_ticktick.dialogs.handlers._helpers import _infer_rec_freq_from_tokens  # noqa: E402
+from alice_ticktick.dialogs.handlers._helpers import (  # noqa: E402
+    _infer_rec_freq_from_tokens,
+    _try_parse_weekday,
+)
 
 
 def test_infer_rec_freq_detects_kazhdy_den() -> None:
@@ -3443,3 +3446,41 @@ def test_infer_rec_freq_unrecognized_value_passthrough() -> None:
     """Unrecognized value → returns original for build_rrule to handle."""
     result = _infer_rec_freq_from_tokens("кварталу", None)
     assert result == "кварталу"
+
+
+# --- _try_parse_weekday ---
+
+
+class TestTryParseWeekday:
+    """Tests for _try_parse_weekday helper."""
+
+    TZ = ZoneInfo("Europe/Moscow")
+
+    def test_monday(self) -> None:
+        result = _try_parse_weekday("перенеси на понедельник", self.TZ)
+        assert result is not None
+        assert result.weekday() == 0  # Monday
+
+    def test_friday(self) -> None:
+        result = _try_parse_weekday("что на пятницу", self.TZ)
+        assert result is not None
+        assert result.weekday() == 4  # Friday
+
+    def test_wednesday_accusative(self) -> None:
+        result = _try_parse_weekday("перенеси на среду", self.TZ)
+        assert result is not None
+        assert result.weekday() == 2  # Wednesday
+
+    def test_no_weekday(self) -> None:
+        result = _try_parse_weekday("перенеси на завтра", self.TZ)
+        assert result is None
+
+    def test_empty_string(self) -> None:
+        result = _try_parse_weekday("", self.TZ)
+        assert result is None
+
+    def test_result_is_in_future(self) -> None:
+        today = datetime.datetime.now(tz=self.TZ).date()
+        result = _try_parse_weekday("на понедельник", self.TZ)
+        assert result is not None
+        assert result > today

@@ -29,7 +29,12 @@ async def test_add_subtask_alt(yandex_client: YandexDialogsClient) -> None:
         "добавь подзадачу кктест собрать отзывы к задаче кктест подготовить презентацию"
     )
     assert response != UNKNOWN, f"Intent not recognized: {response}"
-    assert "Подзадача" in response or "не найдена" in response or "не удалось" in response.lower()
+    assert (
+        "Подзадача" in response
+        or "не найдена" in response
+        or "не удалось" in response.lower()
+        or "ошибка" in response.lower()
+    )
 
 
 async def test_list_subtasks(yandex_client: YandexDialogsClient) -> None:

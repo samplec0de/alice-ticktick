@@ -59,6 +59,7 @@ from ._helpers import (
     _is_only_stopwords,
     _to_user_date,
     _truncate_response,
+    _try_parse_weekday,
 )
 
 if TYPE_CHECKING:
@@ -603,9 +604,15 @@ async def handle_list_tasks(
             else:
                 target_day = target_date
         except ValueError:
-            target_day = datetime.datetime.now(tz=user_tz).date()
+            # Fallback: try to parse weekday from raw utterance
+            raw_utt = message.original_utterance or message.command or ""
+            weekday_day = _try_parse_weekday(raw_utt, user_tz)
+            target_day = weekday_day or datetime.datetime.now(tz=user_tz).date()
     else:
-        target_day = datetime.datetime.now(tz=user_tz).date()
+        # No NLU date slot — try weekday from raw utterance
+        raw_utt = message.original_utterance or message.command or ""
+        weekday_day = _try_parse_weekday(raw_utt, user_tz)
+        target_day = weekday_day or datetime.datetime.now(tz=user_tz).date()
 
     date_display = _format_date(target_day, user_tz)
 
@@ -933,6 +940,14 @@ async def handle_edit_task(
 
     has_date = slots.new_date is not None or nlu_has_date
 
+    # Fallback: try to parse weekday from raw utterance if NLU missed the date
+    weekday_date: datetime.date | None = None
+    if not has_date:
+        raw_utt = message.original_utterance or message.command or ""
+        weekday_date = _try_parse_weekday(raw_utt, user_tz)
+        if weekday_date is not None:
+            has_date = True
+
     if (
         not has_date
         and not has_priority
@@ -1026,6 +1041,10 @@ async def handle_edit_task(
                 )
         else:
             new_due_date = new_start_date
+    elif weekday_date is not None:
+        new_start_date = datetime.datetime.combine(weekday_date, datetime.time(), tzinfo=user_tz)
+        new_due_date = new_start_date
+        new_is_all_day = True
     elif slots.new_date:
         try:
             parsed_date = parse_yandex_datetime(slots.new_date, now=now_local)

@@ -301,7 +301,7 @@ def _invalidate_task_cache(access_token: str) -> None:
     _tasks_cache.pop(access_token, None)
 
 
-_GATHER_TIMEOUT = 8.0  # seconds — total budget for fetching all tasks (cold start may take 5s)
+_GATHER_TIMEOUT = 12.0  # seconds — total budget for fetching all tasks (cold start may take 5s)
 
 
 async def _get_cached_projects(client: TickTickClient, access_token: str) -> list[Project]:
@@ -408,6 +408,41 @@ def _get_access_token(message: Message) -> str | None:
 def _format_ticktick_dt(dt: datetime.datetime) -> str:
     """Format datetime for TickTick API with proper timezone offset."""
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000%z")
+
+
+_WEEKDAY_MAP: dict[str, int] = {
+    "понедельник": 0,
+    "вторник": 1,
+    "среду": 2,
+    "среда": 2,
+    "четверг": 3,
+    "пятницу": 4,
+    "пятница": 4,
+    "субботу": 5,
+    "суббота": 5,
+    "воскресенье": 6,
+}
+
+_WEEKDAY_RE = re.compile(
+    r"на\s+(понедельник|вторник|среду|среда|четверг|пятницу|пятница|субботу|суббота|воскресенье)",
+    re.IGNORECASE,
+)
+
+
+def _try_parse_weekday(raw: str, tz: ZoneInfo) -> datetime.date | None:
+    """Try to extract a weekday from utterance and resolve to next occurrence."""
+    m = _WEEKDAY_RE.search(raw.lower())
+    if not m:
+        return None
+    weekday_name = m.group(1).lower()
+    target_weekday = _WEEKDAY_MAP.get(weekday_name)
+    if target_weekday is None:
+        return None
+    today = datetime.datetime.now(tz=tz).date()
+    days_ahead = target_weekday - today.weekday()
+    if days_ahead <= 0:
+        days_ahead += 7
+    return today + datetime.timedelta(days=days_ahead)
 
 
 def _extract_nlu_dates(message: Message, tz: ZoneInfo) -> ExtractedDates | None:

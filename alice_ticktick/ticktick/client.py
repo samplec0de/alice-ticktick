@@ -7,7 +7,7 @@ import httpx
 from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskUpdate
 
 BASE_URL = "https://api.ticktick.com/open/v1"
-TIMEOUT = 3.0
+TIMEOUT = 5.0
 
 # Module-level HTTP client for connection reuse across warm invocations.
 # YC Functions reuses the event loop between calls, so async resources survive.
