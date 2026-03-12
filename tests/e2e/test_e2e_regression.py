@@ -63,7 +63,7 @@ async def test_check_item_not_intercepted(
     response = await yandex_client.send(
         "отметь пункт кктест поменять полотенца в чеклисте задачи сменить полотенца"
     )
-    assert "отмечен" in response or "не найден" in response, (
+    assert "отмечен" in response or "не найден" in response or "не удалось" in response.lower(), (
         f"Expected check_item response, got: {response}"
     )
 

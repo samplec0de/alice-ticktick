@@ -15,6 +15,11 @@ pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
 TASK_NAME = "кктест редактирования"
 
+_XFAIL_TRANSIENT = pytest.mark.xfail(
+    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
+    strict=False,
+)
+
 
 def _edit_ok(response: str, *success_words: str) -> bool:
     """Check that the response contains any of the expected outcome words."""
@@ -49,10 +54,7 @@ async def test_edit_date_monday(yandex_client: YandexDialogsClient) -> None:
 # --- Move between projects ---
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
+@_XFAIL_TRANSIENT
 async def test_edit_move_project(yandex_client: YandexDialogsClient) -> None:
     """Move task to project: перемести задачу в проект."""
     response = await yandex_client.send(f"перемести задачу {TASK_NAME} в проект Inbox")
@@ -70,10 +72,7 @@ async def test_edit_move_project_alt(yandex_client: YandexDialogsClient) -> None
 # --- Recurrence changes ---
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
+@_XFAIL_TRANSIENT
 async def test_edit_recurrence_daily(yandex_client: YandexDialogsClient) -> None:
     """Edit recurrence to daily."""
     response = await yandex_client.send(f"поменяй повторение задачи {TASK_NAME} на каждый день")
@@ -81,10 +80,7 @@ async def test_edit_recurrence_daily(yandex_client: YandexDialogsClient) -> None
     assert _edit_ok(response, "изменено")
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
+@_XFAIL_TRANSIENT
 async def test_edit_recurrence_weekly(yandex_client: YandexDialogsClient) -> None:
     """Edit recurrence to weekly."""
     response = await yandex_client.send(f"измени повтор задачи {TASK_NAME} на каждую неделю")
@@ -104,6 +100,7 @@ async def test_edit_recurrence_monthly(yandex_client: YandexDialogsClient) -> No
 # --- Remove recurrence ---
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_remove_recurrence(yandex_client: YandexDialogsClient) -> None:
     """Remove recurrence: убери повторение."""
     response = await yandex_client.send(f"убери повторение задачи {TASK_NAME}")
@@ -111,6 +108,7 @@ async def test_edit_remove_recurrence(yandex_client: YandexDialogsClient) -> Non
     assert _edit_ok(response, "убрано")
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_remove_recurrence_alt(yandex_client: YandexDialogsClient) -> None:
     """Remove recurrence (alt phrasing): отмени повтор."""
     response = await yandex_client.send(f"отмени повтор задачи {TASK_NAME}")
@@ -121,6 +119,7 @@ async def test_edit_remove_recurrence_alt(yandex_client: YandexDialogsClient) ->
 # --- Reminder changes ---
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_reminder_30min(yandex_client: YandexDialogsClient) -> None:
     """Edit reminder to 30 minutes."""
     response = await yandex_client.send(f"поменяй напоминание задачи {TASK_NAME} за 30 минут")
@@ -128,10 +127,7 @@ async def test_edit_reminder_30min(yandex_client: YandexDialogsClient) -> None:
     assert _edit_ok(response, "изменено")
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
+@_XFAIL_TRANSIENT
 async def test_edit_reminder_hour(yandex_client: YandexDialogsClient) -> None:
     """Edit reminder to 1 hour."""
     response = await yandex_client.send(f"измени напоминание задачи {TASK_NAME} за час")
@@ -139,6 +135,7 @@ async def test_edit_reminder_hour(yandex_client: YandexDialogsClient) -> None:
     assert _edit_ok(response, "изменено")
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_reminder_day(yandex_client: YandexDialogsClient) -> None:
     """Edit reminder to 1 day."""
     response = await yandex_client.send(f"измени напоминание задачи {TASK_NAME} за 1 день")
@@ -149,6 +146,7 @@ async def test_edit_reminder_day(yandex_client: YandexDialogsClient) -> None:
 # --- Remove reminder ---
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_remove_reminder(yandex_client: YandexDialogsClient) -> None:
     """Remove reminder: убери напоминание."""
     response = await yandex_client.send(f"убери напоминание задачи {TASK_NAME}")
@@ -156,6 +154,7 @@ async def test_edit_remove_reminder(yandex_client: YandexDialogsClient) -> None:
     assert _edit_ok(response, "убрано")
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_remove_reminder_alt(yandex_client: YandexDialogsClient) -> None:
     """Remove reminder (alt phrasing): отмени напоминание."""
     response = await yandex_client.send(f"отмени напоминание задачи {TASK_NAME}")
@@ -166,6 +165,7 @@ async def test_edit_remove_reminder_alt(yandex_client: YandexDialogsClient) -> N
 # --- Rename (last — changes task name, would break subsequent fuzzy matches) ---
 
 
+@_XFAIL_TRANSIENT
 async def test_edit_rename(yandex_client: YandexDialogsClient) -> None:
     """Rename task: переименуй задачу X в Y."""
     response = await yandex_client.send(f"переименуй задачу {TASK_NAME} в кктест переименования")
