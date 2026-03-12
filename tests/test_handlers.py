@@ -2670,6 +2670,23 @@ async def test_edit_task_remove_priority_confirms() -> None:
     assert "приоритет убран" in response.text
 
 
+async def test_edit_task_weekday_strips_from_task_name() -> None:
+    """When weekday date is parsed, the weekday suffix should be stripped from task_name."""
+    tasks = [_make_task(title="Кктест редактирования")]
+    message = _make_message(
+        command="перенеси задачу кктест редактирования на понедельник",
+    )
+    intent_data: dict[str, Any] = {
+        "slots": {
+            # NLU greedy .+ swallows weekday into task_name
+            "task_name": {"value": "кктест редактирования на понедельник"},
+        },
+    }
+    mock_factory = _make_mock_client(tasks=tasks)
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+    assert "обновлена" in response.text
+
+
 # --- _format_priority_short ---
 
 
