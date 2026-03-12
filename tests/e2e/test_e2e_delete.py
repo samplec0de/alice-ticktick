@@ -17,8 +17,8 @@ TASK_NAME = "кктест удаления"
 
 
 @pytest.mark.xfail(
-    reason="Yandex Dialogs testing API does not persist FSM state for draft skills. "
-    "Confirmation flows require server-side state persistence. Tested on production.",
+    reason="Multi-turn confirmation is unreliable in the Yandex Dialogs testing API — "
+    "session_state round-trip may fail for draft skills. Verified working in production.",
     strict=False,
 )
 async def test_delete_confirm_yes(yandex_client: YandexDialogsClient) -> None:
@@ -29,13 +29,12 @@ async def test_delete_confirm_yes(yandex_client: YandexDialogsClient) -> None:
 
     if "да или нет" in response.lower():
         response2 = await yandex_client.send("да")
-        # FSM state is preserved via session_state
         assert "удалена" in response2.lower(), f"Unexpected response to 'да': {response2}"
 
 
 @pytest.mark.xfail(
-    reason="Yandex Dialogs testing API does not persist FSM state for draft skills. "
-    "Confirmation flows require server-side state persistence. Tested on production.",
+    reason="Multi-turn confirmation is unreliable in the Yandex Dialogs testing API — "
+    "session_state round-trip may fail for draft skills. Verified working in production.",
     strict=False,
 )
 async def test_delete_confirm_no(yandex_client: YandexDialogsClient) -> None:

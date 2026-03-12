@@ -100,7 +100,7 @@ def build_rrule(
         first_word = normalized.split()[0] if normalized else ""
         entry = _FREQ_MAP.get(first_word)
         if entry is not None:
-            logger.debug(
+            logger.warning(
                 "build_rrule first-word fallback: full=%r, using first_word=%r",
                 rec_freq,
                 first_word,

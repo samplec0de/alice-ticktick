@@ -69,7 +69,8 @@ logger = logging.getLogger(__name__)
 
 _INBOX_NAMES: Final[frozenset[str]] = frozenset({"inbox", "входящие", "инбокс"})
 
-# TickTick API Inbox project ID — used in move_task toProjectId
+# TickTick API Inbox pseudo-project ID
+# (empirically verified; used in move_task and /project/inbox/data)
 _INBOX_PROJECT_ID: Final[str] = "inbox"
 
 _PROJECT_FROM_UTTERANCE_RE = re.compile(
@@ -351,7 +352,8 @@ async def handle_create_task(
         async with factory(access_token) as client:
             if slots.project_name:
                 if slots.project_name.lower().strip() in _INBOX_NAMES:
-                    # Inbox is the default project — projectId=None means Inbox
+                    # Creating in Inbox: omit projectId
+                    # (TickTick API defaults to Inbox when absent)
                     project_name_display = "Inbox"
                 else:
                     projects = await _get_cached_projects(client, access_token)
@@ -1077,7 +1079,8 @@ async def handle_edit_task(
             new_reminders = [trigger]
 
     # Resolve target project if requested.
-    # move_to_inbox is a separate flag because target_project_id=None means "no change".
+    # move_to_inbox is a separate flag because target_project_id=None means "no move requested"
+    # (used in wants_move check and effective_target_project_id resolution below).
     target_project_id: str | None = None
     target_project_name: str | None = None
     same_project_name: str | None = None

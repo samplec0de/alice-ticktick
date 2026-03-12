@@ -17,11 +17,7 @@ TASK_NAME = "кктест редактирования"
 
 
 def _edit_ok(response: str, *success_words: str) -> bool:
-    """Check that the response indicates a recognized edit intent.
-
-    Accepts direct success words only. Task-not-found and confirmation prompts
-    should be handled with xfail on individual tests if flaky.
-    """
+    """Check that the response contains any of the expected outcome words."""
     r = response.lower()
     return any(w in r for w in success_words)
 
@@ -47,7 +43,7 @@ async def test_edit_date_monday(yandex_client: YandexDialogsClient) -> None:
     """Edit task date to Monday: перенеси задачу на понедельник."""
     response = await yandex_client.send(f"перенеси задачу {TASK_NAME} на понедельник")
     assert UNKNOWN not in response, f"Intent not recognized: {response}"
-    assert _edit_ok(response, "обновлена", "не удалось")
+    assert _edit_ok(response, "обновлена")
 
 
 # --- Rename ---

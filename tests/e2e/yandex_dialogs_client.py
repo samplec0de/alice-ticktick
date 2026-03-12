@@ -88,8 +88,11 @@ class YandexDialogsClient:
             if session.get("seq"):
                 self._session_seq = session["seq"]
 
-            # Capture session_state for FSM multi-turn flows
-            self._session_state = result.get("session_state") or result.get("sessionState")
+            # Capture session_state for FSM multi-turn flows — testing API does not
+            # auto-persist state, so we must echo it back in subsequent requests
+            self._session_state = result.get("session_state")
+            if self._session_state is None:
+                self._session_state = result.get("sessionState")
 
             result_text: str = result["text"]
 
