@@ -103,6 +103,11 @@ class TickTickClient:
         _raise_for_status(response)
         return Project.model_validate(response.json())
 
+    async def delete_project(self, project_id: str) -> None:
+        """Delete a project."""
+        response = await self._client.delete(f"/project/{project_id}")
+        _raise_for_status(response)
+
     # -- Inbox --
 
     async def get_inbox_tasks(self) -> list[Task]:
