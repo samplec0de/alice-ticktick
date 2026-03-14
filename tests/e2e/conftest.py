@@ -14,6 +14,10 @@ import json
 import os
 import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 import pytest
 from dotenv import dotenv_values
@@ -240,6 +244,42 @@ async def _cleanup_via_voice(yandex_client: YandexDialogsClient) -> None:
     print("=" * 60)
 
 
+async def _delete_with_retry(
+    items: list[tuple[str, ...]],
+    delete_fn: Callable[..., Coroutine[Any, Any, None]],
+    entity_type: str,
+) -> int:
+    """Delete items via TickTick API with rate-limit retry and 401 handling.
+
+    Returns the number of successfully deleted items.
+    """
+    deleted = 0
+    for item in items:
+        *args, name = item
+        try:
+            await delete_fn(*args)
+            deleted += 1
+            print(f"  Deleted {entity_type}: {name}")
+        except TickTickUnauthorizedError:
+            print(
+                "  ERROR: TickTick returned 401 Unauthorized. "
+                "Re-run with --setup-ticktick-auth to refresh tokens."
+            )
+            break
+        except TickTickRateLimitError:
+            print(f"  Rate limited on {entity_type} '{name}', retrying after 2s...")
+            await asyncio.sleep(2)
+            try:
+                await delete_fn(*args)
+                deleted += 1
+                print(f"  Deleted {entity_type} (retry): {name}")
+            except Exception as retry_exc:
+                print(f"  Retry also failed for {entity_type} '{name}': {retry_exc}")
+        except Exception as exc:
+            print(f"  Failed to delete {entity_type} '{name}': {exc}")
+    return deleted
+
+
 async def _cleanup_via_api(client: TickTickClient) -> None:
     """Delete all test tasks and projects directly via TickTick API (fast)."""
     print(f"\n{'=' * 60}")
@@ -279,65 +319,17 @@ async def _cleanup_via_api(client: TickTickClient) -> None:
         return
 
     # --- Delete tasks ---
+    print(f"  Found {len(all_tasks)} test task(s)")
     if all_tasks:
-        print(f"  Found {len(all_tasks)} test task(s)")
-
-    deleted = 0
-    for task_id, project_id, title in all_tasks:
-        try:
-            await client.delete_task(task_id, project_id)
-            deleted += 1
-            print(f"  Deleted task: {title}")
-        except TickTickUnauthorizedError:
-            print(
-                "  ERROR: TickTick returned 401 Unauthorized. "
-                "Re-run with --setup-ticktick-auth to refresh tokens."
-            )
-            break
-        except TickTickRateLimitError:
-            print(f"  Rate limited on '{title}', retrying after 2s...")
-            await asyncio.sleep(2)
-            try:
-                await client.delete_task(task_id, project_id)
-                deleted += 1
-                print(f"  Deleted task (retry): {title}")
-            except Exception as retry_exc:
-                print(f"  Retry also failed for '{title}': {retry_exc}")
-        except Exception as exc:
-            print(f"  Failed to delete task '{title}': {exc}")
-
-    if all_tasks:
+        deleted = await _delete_with_retry(all_tasks, client.delete_task, "task")
         print(f"  Tasks cleanup: {deleted}/{len(all_tasks)} deleted")
 
     # --- Delete test projects ---
+    print(f"  Found {len(test_projects)} test project(s)")
     if test_projects:
-        print(f"  Found {len(test_projects)} test project(s)")
-
-    deleted_projects = 0
-    for project_id, name in test_projects:
-        try:
-            await client.delete_project(project_id)
-            deleted_projects += 1
-            print(f"  Deleted project: {name}")
-        except TickTickUnauthorizedError:
-            print(
-                "  ERROR: TickTick returned 401 Unauthorized. "
-                "Re-run with --setup-ticktick-auth to refresh tokens."
-            )
-            break
-        except TickTickRateLimitError:
-            print(f"  Rate limited on project '{name}', retrying after 2s...")
-            await asyncio.sleep(2)
-            try:
-                await client.delete_project(project_id)
-                deleted_projects += 1
-                print(f"  Deleted project (retry): {name}")
-            except Exception as retry_exc:
-                print(f"  Retry also failed for project '{name}': {retry_exc}")
-        except Exception as exc:
-            print(f"  Failed to delete project '{name}': {exc}")
-
-    if test_projects:
+        deleted_projects = await _delete_with_retry(
+            test_projects, client.delete_project, "project"
+        )
         print(f"  Projects cleanup: {deleted_projects}/{len(test_projects)} deleted")
 
     print("Cleanup done.")
