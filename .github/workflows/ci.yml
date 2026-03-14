@@ -36,9 +36,26 @@ jobs:
         with:
           file: coverage.xml
 
-  deploy:
+  changes:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            deploy:
+              - 'alice_ticktick/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'
+    needs: [lint, typecheck, test, changes]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
