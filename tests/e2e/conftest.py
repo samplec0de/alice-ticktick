@@ -2,8 +2,9 @@
 
 IMPORTANT: E2E tests run against a REAL TickTick account (not a test/sandbox one),
 because a separate TickTick Premium subscription for testing would be wasteful.
-All test task names use the unique prefix "кктест" to avoid collisions with real
-tasks, and a cleanup fixture deletes them after the test session.
+All test task/project names contain the unique marker "кктест" (not necessarily as
+a prefix) to avoid collisions with real data, and a cleanup fixture deletes them
+after the test session.
 """
 
 from __future__ import annotations
@@ -174,10 +175,10 @@ async def _warmup_and_cleanup(
     yandex_client: YandexDialogsClient,
     ticktick_client: TickTickClient | None,
 ) -> None:
-    """Warm up before tests and clean up test tasks after.
+    """Warm up before tests and clean up test data after.
 
     Sends a help request to warm up Cloud Functions, then yields for tests.
-    After all tests, deletes tasks whose names start with TEST_TASK_PREFIX.
+    After all tests, deletes tasks and projects whose names contain TEST_TASK_PREFIX.
     """
     await yandex_client.send("помощь")
     yandex_client.reset_session()
@@ -195,9 +196,18 @@ async def _warmup_and_cleanup(
 
 
 async def _cleanup_via_voice(yandex_client: YandexDialogsClient) -> None:
-    """Delete test tasks via the voice interface (slow fallback)."""
+    """Delete test tasks via the voice interface (slow fallback).
+
+    NOTE: voice cleanup only finds tasks where "кктест" is at the start of the
+    name (it sends "удали задачу кктест").  Tasks with the marker in the middle
+    (e.g. "пить воду кктест") will NOT be cleaned up.  Use API cleanup (provide
+    TICKTICK_TEST_CLIENT_ID/SECRET) for reliable full cleanup.
+    """
     print(f"\n{'=' * 60}")
-    print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix (voice fallback)...")
+    print(
+        f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix (voice fallback)... "
+        "NOTE: tasks with marker in the middle of the name won't be found."
+    )
     deleted = 0
     MAX_CLEANUP = 50
     MAX_ITERATIONS = 200
@@ -231,17 +241,19 @@ async def _cleanup_via_voice(yandex_client: YandexDialogsClient) -> None:
 
 
 async def _cleanup_via_api(client: TickTickClient) -> None:
-    """Delete all test tasks directly via TickTick API (fast)."""
+    """Delete all test tasks and projects directly via TickTick API (fast)."""
     print(f"\n{'=' * 60}")
-    print(f"Cleaning up tasks with '{TEST_TASK_PREFIX}' prefix (API)...")
+    print(f"Cleaning up tasks/projects containing '{TEST_TASK_PREFIX}' (API)...")
 
     # Collect all tasks: inbox + all projects
     all_tasks: list[tuple[str, str, str]] = []  # (task_id, project_id, title)
+    # Track test projects for cleanup
+    test_projects: list[tuple[str, str]] = []  # (project_id, name)
 
     try:
         inbox_tasks = await client.get_inbox_tasks()
         for t in inbox_tasks:
-            if t.title.lower().startswith(TEST_TASK_PREFIX):
+            if TEST_TASK_PREFIX in t.title.lower():
                 all_tasks.append((t.id, t.project_id, t.title))
     except Exception as exc:
         print(f"  Error listing inbox tasks: {exc}")
@@ -249,29 +261,33 @@ async def _cleanup_via_api(client: TickTickClient) -> None:
     try:
         projects = await client.get_projects()
         for proj in projects:
+            if TEST_TASK_PREFIX in proj.name.lower():
+                test_projects.append((proj.id, proj.name))
             try:
                 proj_tasks = await client.get_tasks(proj.id)
                 for t in proj_tasks:
-                    if t.title.lower().startswith(TEST_TASK_PREFIX):
+                    if TEST_TASK_PREFIX in t.title.lower():
                         all_tasks.append((t.id, t.project_id, t.title))
             except Exception as exc:
                 print(f"  Warning: failed to list tasks in project '{proj.name}': {exc}")
     except Exception as exc:
         print(f"  Error listing projects: {exc}")
 
-    if not all_tasks:
-        print("  No test tasks found.")
+    if not all_tasks and not test_projects:
+        print("  No test tasks or projects found.")
         print("=" * 60)
         return
 
-    print(f"  Found {len(all_tasks)} test task(s)")
+    # --- Delete tasks ---
+    if all_tasks:
+        print(f"  Found {len(all_tasks)} test task(s)")
 
     deleted = 0
     for task_id, project_id, title in all_tasks:
         try:
             await client.delete_task(task_id, project_id)
             deleted += 1
-            print(f"  Deleted: {title}")
+            print(f"  Deleted task: {title}")
         except TickTickUnauthorizedError:
             print(
                 "  ERROR: TickTick returned 401 Unauthorized. "
@@ -284,13 +300,47 @@ async def _cleanup_via_api(client: TickTickClient) -> None:
             try:
                 await client.delete_task(task_id, project_id)
                 deleted += 1
-                print(f"  Deleted (retry): {title}")
+                print(f"  Deleted task (retry): {title}")
             except Exception as retry_exc:
                 print(f"  Retry also failed for '{title}': {retry_exc}")
         except Exception as exc:
-            print(f"  Failed to delete '{title}': {exc}")
+            print(f"  Failed to delete task '{title}': {exc}")
 
-    print(f"Cleanup done: {deleted}/{len(all_tasks)} tasks deleted")
+    if all_tasks:
+        print(f"  Tasks cleanup: {deleted}/{len(all_tasks)} deleted")
+
+    # --- Delete test projects ---
+    if test_projects:
+        print(f"  Found {len(test_projects)} test project(s)")
+
+    deleted_projects = 0
+    for project_id, name in test_projects:
+        try:
+            await client.delete_project(project_id)
+            deleted_projects += 1
+            print(f"  Deleted project: {name}")
+        except TickTickUnauthorizedError:
+            print(
+                "  ERROR: TickTick returned 401 Unauthorized. "
+                "Re-run with --setup-ticktick-auth to refresh tokens."
+            )
+            break
+        except TickTickRateLimitError:
+            print(f"  Rate limited on project '{name}', retrying after 2s...")
+            await asyncio.sleep(2)
+            try:
+                await client.delete_project(project_id)
+                deleted_projects += 1
+                print(f"  Deleted project (retry): {name}")
+            except Exception as retry_exc:
+                print(f"  Retry also failed for project '{name}': {retry_exc}")
+        except Exception as exc:
+            print(f"  Failed to delete project '{name}': {exc}")
+
+    if test_projects:
+        print(f"  Projects cleanup: {deleted_projects}/{len(test_projects)} deleted")
+
+    print("Cleanup done.")
     print("=" * 60)
 
 
