@@ -52,6 +52,7 @@ jobs:
               - 'scripts/**'
               - 'pyproject.toml'
               - 'uv.lock'
+              - '.python-version'
               - '.github/workflows/ci.yml'
 
   deploy:
