@@ -2423,6 +2423,25 @@ async def test_edit_recurrence_fallback_weekly() -> None:
     assert call_args.repeat_flag == "RRULE:FREQ=WEEKLY"
 
 
+async def test_edit_recurrence_fallback_task_name_with_na() -> None:
+    """Fallback correctly handles task names containing 'на' (greedy regex splits at last 'на')."""
+    tasks = [_make_task(title="Написать на бумаге")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "повтор задачи написать на бумаге на каждый день"},
+        },
+    }
+    message = _make_message(command="поменяй повтор задачи написать на бумаге на каждый день")
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+    assert "повторение" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == "RRULE:FREQ=DAILY"
+
+
 async def test_edit_remove_recurrence() -> None:
     task = _make_task(title="Зарядка")
     task.repeat_flag = "RRULE:FREQ=DAILY"

@@ -949,6 +949,12 @@ async def handle_edit_task(
             fallback_freq = _infer_rec_freq_from_tokens(None, raw_rec_tokens)
             if fallback_freq is not None:
                 clean_name = rec_match.group(1).strip()
+                logger.info(
+                    "Recurrence fallback: task_name %r -> %r, rec_freq=%r",
+                    slots.task_name,
+                    clean_name,
+                    fallback_freq,
+                )
                 slots = dataclasses.replace(
                     slots,
                     rec_freq=fallback_freq,

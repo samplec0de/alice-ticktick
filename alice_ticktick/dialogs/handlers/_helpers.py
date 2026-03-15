@@ -431,7 +431,7 @@ _WEEKDAY_RE = re.compile(
 # Fallback regex: "поменяй повторение задачи X на каждый день"
 # Used when NLU grammar line 4 matches instead of line 8 (greedy .+ conflict)
 _EDIT_RECURRENCE_FALLBACK_RE = re.compile(
-    r"(?:поменяй|измени)\s+(?:повторение|повтор)\s+(?:у|для|задачи?)?\s*(.+?)\s+на\s+(.+)",
+    r"(?:поменяй|измени)\s+(?:повторение|повтор)\s+(?:у|для|задачи?)?\s*(.+)\s+на\s+(.+)",
     re.IGNORECASE,
 )
 
