@@ -23,10 +23,6 @@ async def test_add_checklist_item(yandex_client: YandexDialogsClient) -> None:
     assert "добавлен" in response or "не найдена" in response
 
 
-@pytest.mark.xfail(
-    reason="NLU: add_subtask sometimes intercepts add_checklist_item phrases",
-    strict=False,
-)
 async def test_add_checklist_item_alt(
     yandex_client: YandexDialogsClient,
 ) -> None:
