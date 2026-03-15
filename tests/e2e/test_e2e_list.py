@@ -34,10 +34,6 @@ async def test_list_tomorrow(yandex_client: YandexDialogsClient) -> None:
     assert "завтра" in response.lower() or "задач" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
 async def test_list_monday(yandex_client: YandexDialogsClient) -> None:
     """Ask for Monday's tasks."""
     response = await yandex_client.send("что на понедельник")
@@ -45,10 +41,6 @@ async def test_list_monday(yandex_client: YandexDialogsClient) -> None:
     assert "понедельник" in response.lower() or "задач" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
 async def test_list_friday(yandex_client: YandexDialogsClient) -> None:
     """Ask for Friday's tasks."""
     response = await yandex_client.send("что на пятницу")
@@ -56,10 +48,6 @@ async def test_list_friday(yandex_client: YandexDialogsClient) -> None:
     assert "пятниц" in response.lower() or "задач" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
 async def test_list_this_week(yandex_client: YandexDialogsClient) -> None:
     """Ask for this week's tasks."""
     response = await yandex_client.send("что на эту неделю")
@@ -78,10 +66,6 @@ async def test_list_all_tasks(yandex_client: YandexDialogsClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
 async def test_filter_high_priority_this_week(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -91,10 +75,6 @@ async def test_filter_high_priority_this_week(
     assert "неделе" in response.lower() or "задач" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
 async def test_filter_urgent_tomorrow(yandex_client: YandexDialogsClient) -> None:
     """Filter urgent tasks for tomorrow."""
     response = await yandex_client.send("покажи срочные задачи на завтра")
@@ -102,10 +82,6 @@ async def test_filter_urgent_tomorrow(yandex_client: YandexDialogsClient) -> Non
     assert "завтра" in response.lower() or "задач" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit in _gather_all_tasks)",
-    strict=False,
-)
 async def test_filter_low_priority_next_week(
     yandex_client: YandexDialogsClient,
 ) -> None:
@@ -120,10 +96,6 @@ async def test_filter_low_priority_next_week(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit)",
-    strict=False,
-)
 async def test_overdue_prosrocheny(yandex_client: YandexDialogsClient) -> None:
     """Ask for overdue tasks using 'просрочены'."""
     response = await yandex_client.send("какие задачи просрочены")
@@ -131,7 +103,6 @@ async def test_overdue_prosrocheny(yandex_client: YandexDialogsClient) -> None:
     assert "росроченных" in response.lower() or "росрочен" in response.lower()
 
 
-@pytest.mark.xfail(reason="Transient TickTick API errors during e2e", strict=False)
 async def test_overdue_prosrochennye(yandex_client: YandexDialogsClient) -> None:
     """Ask for overdue tasks using 'просроченные'."""
     response = await yandex_client.send("покажи просроченные задачи")
@@ -139,7 +110,6 @@ async def test_overdue_prosrochennye(yandex_client: YandexDialogsClient) -> None
     assert "росроченных" in response.lower() or "росрочен" in response.lower()
 
 
-@pytest.mark.xfail(reason="Transient TickTick API errors during e2e", strict=False)
 async def test_overdue_missed(yandex_client: YandexDialogsClient) -> None:
     """Ask what tasks were missed."""
     response = await yandex_client.send("что я пропустил")
@@ -147,10 +117,6 @@ async def test_overdue_missed(yandex_client: YandexDialogsClient) -> None:
     assert "росроченных" in response.lower() or "росрочен" in response.lower()
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit)",
-    strict=False,
-)
 async def test_overdue_what_overdue(yandex_client: YandexDialogsClient) -> None:
     """Ask what tasks are overdue."""
     response = await yandex_client.send("что я просрочил")

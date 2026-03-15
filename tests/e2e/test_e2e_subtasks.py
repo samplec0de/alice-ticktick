@@ -49,10 +49,6 @@ async def test_list_subtasks(yandex_client: YandexDialogsClient) -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="Transient TickTick API error (timeout/rate limit)",
-    strict=False,
-)
 async def test_list_subtasks_alt(yandex_client: YandexDialogsClient) -> None:
     """List subtasks using alternative phrasing."""
     response = await yandex_client.send("какие подзадачи у задачи кктест подготовить презентацию")
