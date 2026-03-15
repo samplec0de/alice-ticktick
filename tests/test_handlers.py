@@ -2384,6 +2384,45 @@ async def test_edit_add_recurrence() -> None:
     assert call_args.repeat_flag == "RRULE:FREQ=DAILY"
 
 
+async def test_edit_recurrence_fallback_no_slots() -> None:
+    """When NLU misses recurrence slots (greedy .+ conflict), handler parses from utterance."""
+    tasks = [_make_task(title="Зарядка")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    # NLU fills only task_name (dirty — line 4 matched instead of line 8)
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "повторение задачи зарядка на каждый день"},
+        },
+    }
+    message = _make_message(command="поменяй повторение задачи зарядка на каждый день")
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+    assert "повторение" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == "RRULE:FREQ=DAILY"
+
+
+async def test_edit_recurrence_fallback_weekly() -> None:
+    """Fallback parses 'каждую неделю' from utterance when NLU misses slots."""
+    tasks = [_make_task(title="Уборка")]
+    mock_factory = _make_mock_client(projects=[], tasks=tasks)
+    client = mock_factory.return_value.__aenter__.return_value
+    client.get_inbox_tasks = AsyncMock(return_value=tasks)
+
+    intent_data: dict[str, Any] = {
+        "slots": {
+            "task_name": {"value": "повтор задачи уборка на каждую неделю"},
+        },
+    }
+    message = _make_message(command="измени повтор задачи уборка на каждую неделю")
+    response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
+    assert "повторение" in response.text.lower() or "обновлена" in response.text.lower()
+    call_args = client.update_task.call_args[0][0]
+    assert call_args.repeat_flag == "RRULE:FREQ=WEEKLY"
+
+
 async def test_edit_remove_recurrence() -> None:
     task = _make_task(title="Зарядка")
     task.repeat_flag = "RRULE:FREQ=DAILY"

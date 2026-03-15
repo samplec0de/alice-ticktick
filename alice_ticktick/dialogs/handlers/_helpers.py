@@ -428,6 +428,13 @@ _WEEKDAY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Fallback regex: "поменяй повторение задачи X на каждый день"
+# Used when NLU grammar line 4 matches instead of line 8 (greedy .+ conflict)
+_EDIT_RECURRENCE_FALLBACK_RE = re.compile(
+    r"(?:поменяй|измени)\s+(?:повторение|повтор)\s+(?:у|для|задачи?)?\s*(.+?)\s+на\s+(.+)",
+    re.IGNORECASE,
+)
+
 
 def _try_parse_weekday(raw: str, tz: ZoneInfo) -> datetime.date | None:
     """Try to extract a weekday from utterance and resolve to next occurrence."""
