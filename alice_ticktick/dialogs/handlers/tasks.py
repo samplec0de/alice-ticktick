@@ -1005,9 +1005,12 @@ async def handle_edit_task(
     # When NLU entities extracted a clean task name (date was removed), prefer it for search.
     # Grammar .+ may swallow date tokens, making the slot value dirty
     # (e.g. "купить хлеб на завтра").
+    # Skip this override when recurrence fallback already cleaned the task_name —
+    # NLU date extraction may return dirty name (e.g. "повторение задачи X").
     task_name: str = slots.task_name  # type: ignore[assignment]  # guaranteed by early return
     if (
-        nlu_dates is not None
+        not has_recurrence
+        and nlu_dates is not None
         and nlu_has_date
         and nlu_dates.task_name
         and not _is_only_stopwords(nlu_dates.task_name)
