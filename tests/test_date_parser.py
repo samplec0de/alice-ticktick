@@ -194,6 +194,14 @@ class TestDateRange:
         assert result.date_from == datetime.date(2026, 3, 2)
         assert result.date_to == datetime.date(2026, 3, 8)
 
+    def test_this_week_sunday(self) -> None:
+        # 2026-03-08 — воскресенье, неделя всё равно Пн–Вс
+        now = datetime.date(2026, 3, 8)
+        result = parse_date_range("this_week", now=now, tz=MSK)
+        assert result is not None
+        assert result.date_from == datetime.date(2026, 3, 2)
+        assert result.date_to == datetime.date(2026, 3, 8)
+
     def test_next_week(self) -> None:
         now = datetime.date(2026, 3, 4)
         result = parse_date_range("next_week", now=now, tz=MSK)
