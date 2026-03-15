@@ -89,7 +89,6 @@ async def test_goodbye_text_mode(
     )
 
 
-@pytest.mark.xfail(reason="Transient TickTick API errors during e2e", strict=False)
 async def test_search_transliteration(
     yandex_client: YandexDialogsClient,
 ) -> None:
