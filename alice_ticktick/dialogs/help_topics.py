@@ -8,7 +8,7 @@ import re
 
 
 def _normalize(text: str) -> str:
-    """Collapse hyphens and whitespace for robust stem matching."""
+    """Lowercase and collapse hyphens/whitespace for robust stem matching."""
     return re.sub(r"[\s-]+", "", text.lower())
 
 
@@ -21,14 +21,14 @@ _TOPIC_KEYWORDS: list[tuple[str, list[str]]] = [
     ("edit", ["измен", "перенес", "редактир"]),
     ("complete", ["заверш", "выполн", "удал"]),
     ("subtasks", ["подзадач", "чеклист", "чекист", "чеклис"]),
-    ("projects", ["проект", "списк"]),
+    ("projects", ["проект", "списк", "список"]),
     ("briefings", ["брифинг", "напоминан", "сводк"]),
 ]
 
-# --- Regex for on_unknown: "как удалить", "расскажи про проекты" ---
+# --- Regex for help-like questions in on_unknown fallback ---
 
 TOPIC_HELP_RE = re.compile(
-    r"(?:как|расскажи\s+(?:про|о)|что\s+такое|объясни|помощь\s+(?:с|по|про)?)\s+(.+)",
+    r"(?:как|расскажи\s+(?:про|о)|что\s+такое|объясни|помощь(?:\s+(?:с|по|про))?)\s+(.+)",
     re.IGNORECASE,
 )
 
@@ -135,16 +135,16 @@ def detect_help_topic(utterance: str) -> str | None:
 # Validate that _TOPIC_KEYWORDS and HELP_TOPICS have the same keys (fail-fast at import).
 _keyword_keys = frozenset(k for k, _ in _TOPIC_KEYWORDS)
 _topic_keys = frozenset(HELP_TOPICS)
-assert _keyword_keys == _topic_keys, (
-    f"Key mismatch: in keywords not in topics={_keyword_keys - _topic_keys}, "
-    f"in topics not in keywords={_topic_keys - _keyword_keys}"
-)
+if _keyword_keys != _topic_keys:
+    raise RuntimeError(
+        f"Key mismatch: in keywords not in topics={_keyword_keys - _topic_keys}, "
+        f"in topics not in keywords={_topic_keys - _keyword_keys}"
+    )
 
 
 def get_topic_help(topic_key: str) -> str:
     """Return help text for a given topic key.
 
     Raises KeyError if topic_key is not in HELP_TOPICS.
-    Callers should validate via detect_help_topic() first.
     """
     return HELP_TOPICS[topic_key]

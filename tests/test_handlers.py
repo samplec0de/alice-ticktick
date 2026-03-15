@@ -28,6 +28,7 @@ from alice_ticktick.dialogs.handlers import (
     handle_edit_task,
     handle_goodbye,
     handle_help,
+    handle_help_topic,
     handle_list_tasks,
     handle_overdue_tasks,
     handle_search_task,
@@ -180,6 +181,12 @@ async def test_handle_help_with_topic() -> None:
     response = await handle_help(message)
     assert "Создание задач" in response.text
     assert "Я умею" not in response.text
+
+
+async def test_handle_help_topic_invalid_key_fallback() -> None:
+    """handle_help_topic with an invalid key should return general help."""
+    response = await handle_help_topic("nonexistent_topic")
+    assert response.text == txt.HELP
 
 
 async def test_handle_goodbye() -> None:

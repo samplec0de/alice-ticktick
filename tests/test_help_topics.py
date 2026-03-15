@@ -55,6 +55,12 @@ def test_topic_keywords_match_help_topics() -> None:
     assert keyword_keys == set(HELP_TOPICS)
 
 
+def test_get_topic_help_raises_on_invalid_key() -> None:
+    """get_topic_help should raise KeyError for unknown topic keys."""
+    with pytest.raises(KeyError):
+        get_topic_help("nonexistent_topic")
+
+
 def test_no_match_for_irrelevant_phrases() -> None:
     """Phrases without topic stems should return None."""
     assert detect_help_topic("привет") is None
@@ -90,6 +96,7 @@ def test_topic_help_fits_alice_limit(topic_key: str) -> None:
         ("объясни подзадачи", "подзадачи"),
         ("помощь с созданием", "созданием"),
         ("помощь по удалению", "удалению"),
+        ("помощь удаление", "удаление"),
     ],
 )
 def test_topic_help_re_matches(utterance: str, expected_group: str) -> None:
@@ -97,3 +104,17 @@ def test_topic_help_re_matches(utterance: str, expected_group: str) -> None:
     m = TOPIC_HELP_RE.search(utterance)
     assert m is not None, f"TOPIC_HELP_RE did not match: {utterance}"
     assert m.group(1).strip() == expected_group
+
+
+@pytest.mark.parametrize(
+    "utterance",
+    [
+        "покажи задачи",
+        "создай задачу молоко",
+        "привет",
+        "расскажи анекдот",
+    ],
+)
+def test_topic_help_re_no_match(utterance: str) -> None:
+    """TOPIC_HELP_RE should NOT match regular commands or irrelevant phrases."""
+    assert TOPIC_HELP_RE.search(utterance) is None
