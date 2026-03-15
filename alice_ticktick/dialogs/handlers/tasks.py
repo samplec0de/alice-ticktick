@@ -35,6 +35,7 @@ from alice_ticktick.ticktick.client import TickTickClient, TickTickUnauthorizedE
 from alice_ticktick.ticktick.models import TaskCreate, TaskPriority, TaskUpdate
 
 from ._helpers import (
+    _EDIT_RECURRENCE_FALLBACK_RE,
     _FUZZY_CONFIRM_THRESHOLD,
     _REMINDER_SUFFIX_RE,
     _TASK_NAME_STOPWORDS,
@@ -935,6 +936,32 @@ async def handle_edit_task(
     has_name = slots.new_name is not None
     has_project = slots.new_project is not None
     has_recurrence = slots.rec_freq is not None or slots.rec_monthday is not None
+
+    # Fallback: NLU line 4 may swallow recurrence tokens when line 8 fails
+    # (greedy .+ can't backtrack for $Recurrence). Parse from raw utterance.
+    if not has_recurrence:
+        raw_utt = message.original_utterance or message.command or ""
+        rec_match = _EDIT_RECURRENCE_FALLBACK_RE.search(raw_utt)
+        if rec_match:
+            # Pass raw recurrence text as tokens so _infer_rec_freq_from_tokens
+            # can detect "каждый день" pattern (prefix + freq word).
+            raw_rec_tokens = rec_match.group(2).strip().lower().split()
+            fallback_freq = _infer_rec_freq_from_tokens(None, raw_rec_tokens)
+            if fallback_freq is not None:
+                clean_name = rec_match.group(1).strip()
+                logger.info(
+                    "Recurrence fallback: task_name %r -> %r, rec_freq=%r",
+                    slots.task_name,
+                    clean_name,
+                    fallback_freq,
+                )
+                slots = dataclasses.replace(
+                    slots,
+                    rec_freq=fallback_freq,
+                    task_name=clean_name,
+                )
+                has_recurrence = True
+
     has_reminder = slots.reminder_unit is not None
     has_remove_recurrence = slots.remove_recurrence
     has_remove_reminder = slots.remove_reminder
@@ -984,9 +1011,12 @@ async def handle_edit_task(
     # When NLU entities extracted a clean task name (date was removed), prefer it for search.
     # Grammar .+ may swallow date tokens, making the slot value dirty
     # (e.g. "купить хлеб на завтра").
+    # Skip this override when recurrence fallback already cleaned the task_name —
+    # NLU date extraction may return dirty name (e.g. "повторение задачи X").
     task_name: str = slots.task_name  # type: ignore[assignment]  # guaranteed by early return
     if (
-        nlu_dates is not None
+        not has_recurrence
+        and nlu_dates is not None
         and nlu_has_date
         and nlu_dates.task_name
         and not _is_only_stopwords(nlu_dates.task_name)

@@ -66,10 +66,6 @@ async def test_edit_move_project_alt(yandex_client: YandexDialogsClient) -> None
 # --- Recurrence changes ---
 
 
-@pytest.mark.xfail(
-    reason="Edit recurrence daily/weekly fails intermittently — needs investigation",
-    strict=False,
-)
 async def test_edit_recurrence_daily(yandex_client: YandexDialogsClient) -> None:
     """Edit recurrence to daily."""
     response = await yandex_client.send(f"поменяй повторение задачи {TASK_NAME} на каждый день")
@@ -77,10 +73,6 @@ async def test_edit_recurrence_daily(yandex_client: YandexDialogsClient) -> None
     assert _edit_ok(response, "изменено")
 
 
-@pytest.mark.xfail(
-    reason="Edit recurrence daily/weekly fails intermittently — needs investigation",
-    strict=False,
-)
 async def test_edit_recurrence_weekly(yandex_client: YandexDialogsClient) -> None:
     """Edit recurrence to weekly."""
     response = await yandex_client.send(f"измени повтор задачи {TASK_NAME} на каждую неделю")
