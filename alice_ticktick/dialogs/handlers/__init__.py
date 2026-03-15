@@ -34,7 +34,7 @@ from .checklists import (
     handle_delete_checklist_item,
     handle_show_checklist,
 )
-from .misc import handle_goodbye, handle_help, handle_unknown, handle_welcome
+from .misc import handle_goodbye, handle_help, handle_help_topic, handle_unknown, handle_welcome
 from .projects import handle_create_project, handle_list_projects, handle_project_tasks
 from .subtasks import handle_add_subtask, handle_list_subtasks
 from .tasks import (
@@ -100,6 +100,7 @@ __all__ = [
     "handle_evening_briefing",
     "handle_goodbye",
     "handle_help",
+    "handle_help_topic",
     "handle_list_projects",
     "handle_list_subtasks",
     "handle_list_tasks",

@@ -167,6 +167,21 @@ async def test_handle_help() -> None:
     assert response.text == txt.HELP
 
 
+async def test_handle_help_general_has_topic_hint() -> None:
+    """General help should mention topic help availability."""
+    message = _make_message(command="помощь")
+    response = await handle_help(message)
+    assert "помощь с" in response.text.lower()
+
+
+async def test_handle_help_with_topic() -> None:
+    """'помощь с созданием' should return topic-specific text, not general help."""
+    message = _make_message(command="помощь с созданием")
+    response = await handle_help(message)
+    assert "Создание задач" in response.text
+    assert "Я умею" not in response.text
+
+
 async def test_handle_goodbye() -> None:
     message = _make_message()
     response = await handle_goodbye(message)
@@ -3084,6 +3099,44 @@ async def test_unknown_handler_catches_goodbye_in_text_mode() -> None:
         response = await on_unknown(message)
         assert response.text == txt.GOODBYE, f"Failed for '{phrase}': {response.text}"
         assert response.end_session is True
+
+
+async def test_on_unknown_catches_topic_help() -> None:
+    """on_unknown should catch 'как удалить задачу' and return topic help."""
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="как удалить задачу")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["как", "удалить", "задачу"]
+    message.nlu.intents = {}
+    response = await on_unknown(message)
+    assert response.text != txt.UNKNOWN
+    assert "Завершение и удаление" in response.text
+
+
+async def test_on_unknown_catches_topic_help_raskazhi() -> None:
+    """on_unknown should catch 'расскажи про проекты' and return topic help."""
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="расскажи про проекты")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["расскажи", "про", "проекты"]
+    message.nlu.intents = {}
+    response = await on_unknown(message)
+    assert response.text != txt.UNKNOWN
+    assert "Проекты" in response.text
+
+
+async def test_on_unknown_no_topic_falls_through() -> None:
+    """on_unknown should return UNKNOWN for 'как дела' (no topic match)."""
+    from alice_ticktick.dialogs.router import on_unknown
+
+    message = _make_message(command="как дела")
+    message.nlu = MagicMock()
+    message.nlu.tokens = ["как", "дела"]
+    message.nlu.intents = {}
+    response = await on_unknown(message)
+    assert response.text == txt.UNKNOWN
 
 
 async def test_unknown_handler_still_returns_unknown_for_normal_input() -> None:

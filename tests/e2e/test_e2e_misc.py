@@ -38,6 +38,34 @@ async def test_help_alt(yandex_client: YandexDialogsClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# 3.16  Help — topic help (3 tests)
+# ---------------------------------------------------------------------------
+
+
+async def test_help_topic_create(yandex_client: YandexDialogsClient) -> None:
+    """'помощь с созданием' should return topic-specific help."""
+    response = await yandex_client.send("помощь с созданием")
+    r = response.lower()
+    assert "создан" in r or "создай" in r, f"Expected creation topic in: {response}"
+
+
+async def test_help_topic_via_question(
+    yandex_client: YandexDialogsClient,
+) -> None:
+    """'как удалить задачу' should return topic help, not fallback."""
+    response = await yandex_client.send("как удалить задачу")
+    assert "не распознана" not in response.lower(), f"Got fallback: {response}"
+
+
+async def test_help_general_has_topic_hint(
+    yandex_client: YandexDialogsClient,
+) -> None:
+    """'помощь' should mention topic help availability."""
+    response = await yandex_client.send("помощь")
+    assert "помощь с" in response.lower(), f"Expected topic hint in: {response}"
+
+
+# ---------------------------------------------------------------------------
 # 3.16  Goodbye (2 tests)
 # ---------------------------------------------------------------------------
 
