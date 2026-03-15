@@ -334,6 +334,7 @@ class TestErrorHandling:
                 await client.get_projects()
 
             assert exc_info.value.status_code == 401
+            assert mock.call_count == 1
 
     @pytest.mark.asyncio
     async def test_not_found(self) -> None:
@@ -348,6 +349,7 @@ class TestErrorHandling:
                 await client.get_task("no", "proj1")
 
             assert exc_info.value.status_code == 404
+            assert mock.call_count == 1
 
     @pytest.mark.asyncio
     async def test_rate_limit(self) -> None:
@@ -355,8 +357,10 @@ class TestErrorHandling:
 
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(status_code=429, text="Rate Limited"))
+            sleep_mock = AsyncMock()
             with (
                 patch.object(client._client, "request", mock),
+                patch("alice_ticktick.ticktick.client.asyncio.sleep", sleep_mock),
                 pytest.raises(TickTickRateLimitError) as exc_info,
             ):
                 await client.get_projects()
@@ -364,6 +368,9 @@ class TestErrorHandling:
             assert exc_info.value.status_code == 429
             # Should have retried _RATE_LIMIT_RETRIES times + 1 initial attempt
             assert mock.call_count == 3
+            assert sleep_mock.call_count == 2
+            sleep_mock.assert_any_call(1.0)
+            sleep_mock.assert_any_call(2.0)
 
     @pytest.mark.asyncio
     async def test_exceed_query_is_rate_limit(self) -> None:
@@ -373,14 +380,17 @@ class TestErrorHandling:
         body = '{"errorId":"abc@server-1","errorCode":"exceed_query"}'
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(status_code=500, text=body))
+            sleep_mock = AsyncMock()
             with (
                 patch.object(client._client, "request", mock),
+                patch("alice_ticktick.ticktick.client.asyncio.sleep", sleep_mock),
                 pytest.raises(TickTickRateLimitError) as exc_info,
             ):
                 await client.get_projects()
 
             assert exc_info.value.status_code == 500
             assert mock.call_count == 3  # retried
+            assert sleep_mock.call_count == 2
 
     @pytest.mark.asyncio
     async def test_server_error(self) -> None:
@@ -397,6 +407,7 @@ class TestErrorHandling:
                 await client.get_projects()
 
             assert exc_info.value.status_code == 500
+            assert mock.call_count == 1
 
     @pytest.mark.asyncio
     async def test_generic_error(self) -> None:
@@ -411,6 +422,7 @@ class TestErrorHandling:
                 await client.get_projects()
 
             assert exc_info.value.status_code == 418
+            assert mock.call_count == 1
 
     @pytest.mark.asyncio
     async def test_timeout(self) -> None:
@@ -432,11 +444,16 @@ class TestRetryOnRateLimit:
         ok_resp = _make_response(json_data=[SAMPLE_PROJECT])
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(side_effect=[rate_resp, ok_resp])
-            with patch.object(client._client, "request", mock):
+            sleep_mock = AsyncMock()
+            with (
+                patch.object(client._client, "request", mock),
+                patch("alice_ticktick.ticktick.client.asyncio.sleep", sleep_mock),
+            ):
                 projects = await client.get_projects()
 
             assert len(projects) == 1
             assert mock.call_count == 2
+            sleep_mock.assert_called_once_with(1.0)
 
     @pytest.mark.asyncio
     async def test_retry_exceed_query_succeeds(self) -> None:
@@ -445,11 +462,36 @@ class TestRetryOnRateLimit:
         ok_resp = _make_response(json_data=[SAMPLE_PROJECT])
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(side_effect=[rate_resp, ok_resp])
-            with patch.object(client._client, "request", mock):
+            sleep_mock = AsyncMock()
+            with (
+                patch.object(client._client, "request", mock),
+                patch("alice_ticktick.ticktick.client.asyncio.sleep", sleep_mock),
+            ):
                 projects = await client.get_projects()
 
             assert len(projects) == 1
             assert mock.call_count == 2
+            sleep_mock.assert_called_once_with(1.0)
+
+    @pytest.mark.asyncio
+    async def test_retry_succeeds_on_third_attempt(self) -> None:
+        """Success on the very last allowed attempt (3rd = final)."""
+        rate_resp = _make_response(status_code=429, text="Rate Limited")
+        ok_resp = _make_response(json_data=[SAMPLE_PROJECT])
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(side_effect=[rate_resp, rate_resp, ok_resp])
+            sleep_mock = AsyncMock()
+            with (
+                patch.object(client._client, "request", mock),
+                patch("alice_ticktick.ticktick.client.asyncio.sleep", sleep_mock),
+            ):
+                projects = await client.get_projects()
+
+            assert len(projects) == 1
+            assert mock.call_count == 3
+            assert sleep_mock.call_count == 2
+            sleep_mock.assert_any_call(1.0)
+            sleep_mock.assert_any_call(2.0)
 
 
 class TestContextManager:
