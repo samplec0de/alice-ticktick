@@ -12,7 +12,7 @@ def _normalize(text: str) -> str:
     return re.sub(r"[\s-]+", "", text.lower())
 
 
-# --- Topic keywords (ordered — more specific stems first) ---
+# --- Topic keywords (ordered by priority — first match wins) ---
 
 _TOPIC_KEYWORDS: list[tuple[str, list[str]]] = [
     ("create", ["созда", "повтор", "добавл"]),
@@ -32,7 +32,7 @@ TOPIC_HELP_RE = re.compile(
     re.IGNORECASE,
 )
 
-# --- Help texts per topic (each ≤ 1024 chars) ---
+# --- Help texts per topic (each ≤ 1024 chars — Alice response text limit) ---
 
 HELP_TOPICS: dict[str, str] = {
     "create": (
@@ -132,6 +132,19 @@ def detect_help_topic(utterance: str) -> str | None:
     return None
 
 
+# Validate that _TOPIC_KEYWORDS and HELP_TOPICS have the same keys (fail-fast at import).
+_keyword_keys = frozenset(k for k, _ in _TOPIC_KEYWORDS)
+_topic_keys = frozenset(HELP_TOPICS)
+assert _keyword_keys == _topic_keys, (
+    f"Key mismatch: in keywords not in topics={_keyword_keys - _topic_keys}, "
+    f"in topics not in keywords={_topic_keys - _keyword_keys}"
+)
+
+
 def get_topic_help(topic_key: str) -> str:
-    """Return help text for a given topic key."""
+    """Return help text for a given topic key.
+
+    Raises KeyError if topic_key is not in HELP_TOPICS.
+    Callers should validate via detect_help_topic() first.
+    """
     return HELP_TOPICS[topic_key]

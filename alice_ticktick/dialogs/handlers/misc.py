@@ -28,7 +28,7 @@ async def handle_help(message: Message) -> Response:
 
 
 async def handle_help_topic(topic_key: str) -> Response:
-    """Return detailed help for a specific topic (called from on_unknown)."""
+    """Return detailed help for a specific topic key."""
     return Response(text=get_topic_help(topic_key))
 
 
