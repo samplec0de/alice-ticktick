@@ -109,9 +109,9 @@ async def handle_morning_briefing(
             all_tasks = await _gather_all_tasks(client, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to fetch tasks for morning briefing")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     user_tz = _get_user_tz(event_update)
     today = datetime.datetime.now(tz=user_tz).date()
@@ -143,9 +143,9 @@ async def handle_evening_briefing(
             all_tasks = await _gather_all_tasks(client, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to fetch tasks for evening briefing")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     user_tz = _get_user_tz(event_update)
     now_date = datetime.datetime.now(tz=user_tz).date()

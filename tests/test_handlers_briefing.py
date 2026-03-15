@@ -217,7 +217,7 @@ async def test_morning_briefing_api_error() -> None:
     factory.return_value.__aenter__ = AsyncMock(side_effect=Exception("API down"))
     factory.return_value.__aexit__ = AsyncMock(return_value=None)
     response = await handle_morning_briefing(msg, ticktick_client_factory=factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 # --- handle_evening_briefing ---
@@ -321,4 +321,4 @@ async def test_evening_briefing_api_error() -> None:
     factory.return_value.__aenter__ = AsyncMock(side_effect=Exception("API down"))
     factory.return_value.__aexit__ = AsyncMock(return_value=None)
     response = await handle_evening_briefing(msg, ticktick_client_factory=factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text

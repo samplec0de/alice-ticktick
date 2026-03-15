@@ -116,9 +116,9 @@ async def handle_show_checklist(
             result = await _find_active_task(client, slots.task_name, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to fetch tasks for checklist")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     if isinstance(result, Response):
         return result

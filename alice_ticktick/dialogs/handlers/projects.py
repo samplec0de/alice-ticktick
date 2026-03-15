@@ -49,9 +49,9 @@ async def handle_list_projects(
             projects = await client.get_projects()
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to list projects")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     projects = [p for p in projects if not p.closed]
 
@@ -100,9 +100,9 @@ async def handle_project_tasks(
             tasks = await client.get_tasks(project.id)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to get project tasks")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     user_tz = _get_user_tz(event_update)
 

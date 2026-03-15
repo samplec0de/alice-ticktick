@@ -222,7 +222,17 @@ BRIEFING_MORE_TASKS = "…и ещё {count}."
 UNKNOWN = "Команда не распознана. Скажите «помощь», чтобы узнать, что я умею."
 
 # Errors
-API_ERROR = "Произошла ошибка при обращении к TickTick. Попробуйте позже."
+
+
+def api_error_detail(exc: Exception) -> str:
+    """API error message with safe class name (no raw response body leaked to user)."""
+    from alice_ticktick.ticktick.client import TickTickError as _TickTickError
+
+    cls = type(exc).__name__
+    suffix = f" ({cls}, код {exc.status_code})" if isinstance(exc, _TickTickError) else f" ({cls})"
+    return f"Произошла ошибка при обращении к TickTick{suffix}. Попробуйте позже."
+
+
 GOODBYE = "До встречи! Удачного дня!"
 
 

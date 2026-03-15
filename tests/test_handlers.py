@@ -549,7 +549,7 @@ async def test_list_tasks_api_error() -> None:
         side_effect=Exception("API error"),
     )
     response = await handle_list_tasks(message, intent_data, mock_factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 async def test_list_tasks_filter_by_priority() -> None:
@@ -682,7 +682,7 @@ async def test_overdue_tasks_api_error() -> None:
         side_effect=Exception("API error"),
     )
     response = await handle_overdue_tasks(message, ticktick_client_factory=mock_factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 # --- Complete task ---
@@ -1012,7 +1012,7 @@ async def test_search_task_api_error() -> None:
         side_effect=Exception("API error"),
     )
     response = await handle_search_task(message, intent_data, mock_factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 # --- Edit task ---
@@ -1191,7 +1191,7 @@ async def test_edit_task_fetch_api_error() -> None:
         side_effect=Exception("API error"),
     )
     response = await handle_edit_task(message, intent_data, _make_state(), mock_factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 async def test_edit_task_update_api_error() -> None:
@@ -1530,7 +1530,7 @@ async def test_delete_task_api_error() -> None:
     mock_factory = _make_mock_client()
     mock_factory.return_value.__aenter__ = AsyncMock(side_effect=Exception("API error"))
     response = await handle_delete_task(message, intent_data, state, mock_factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 async def test_delete_other_reprompts_before_max_retries() -> None:
