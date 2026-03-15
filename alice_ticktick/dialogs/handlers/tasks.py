@@ -521,9 +521,9 @@ async def handle_list_tasks(
             all_tasks = await _gather_all_tasks(client, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to list tasks")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     # Date range path (week/month) -- early return
     if slots.date_range:
@@ -709,9 +709,9 @@ async def handle_overdue_tasks(
             all_tasks = await _gather_all_tasks(client, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to get overdue tasks")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     candidates = [
         t
@@ -871,9 +871,9 @@ async def handle_search_task(
             all_tasks = await _gather_all_tasks(client, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to search tasks")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     active_tasks = [t for t in all_tasks if t.status == 0]
     if not active_tasks:
@@ -976,9 +976,9 @@ async def handle_edit_task(
             )
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to fetch tasks for edit")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     active_tasks = [t for t in all_tasks if t.status == 0]
     # When NLU entities extracted a clean task name (date was removed), prefer it for search.
@@ -1311,9 +1311,9 @@ async def handle_delete_task(
             result = await _find_active_task(client, slots.task_name, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to fetch tasks for deletion")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     if isinstance(result, Response):
         return result

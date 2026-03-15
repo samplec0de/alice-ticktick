@@ -56,19 +56,19 @@ class TestGetProjects:
     async def test_returns_projects(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=[SAMPLE_PROJECT]))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 projects = await client.get_projects()
 
             assert len(projects) == 1
             assert projects[0].id == "proj1"
             assert projects[0].name == "Inbox"
-            mock.assert_called_once_with("/project")
+            mock.assert_called_once_with("GET", "/project")
 
     @pytest.mark.asyncio
     async def test_returns_empty_list(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=[]))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 projects = await client.get_projects()
 
             assert projects == []
@@ -82,18 +82,18 @@ class TestGetInboxTasks:
         data = {"tasks": [SAMPLE_TASK]}
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=data))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 tasks = await client.get_inbox_tasks()
 
             assert len(tasks) == 1
             assert tasks[0].id == "task1"
-            mock.assert_called_once_with("/project/inbox/data")
+            mock.assert_called_once_with("GET", "/project/inbox/data")
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_inbox_tasks(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data={}))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 tasks = await client.get_inbox_tasks()
 
             assert tasks == []
@@ -107,19 +107,19 @@ class TestGetTasks:
         data = {"tasks": [SAMPLE_TASK]}
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=data))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 tasks = await client.get_tasks("proj1")
 
             assert len(tasks) == 1
             assert tasks[0].id == "task1"
             assert tasks[0].title == "Buy milk"
-            mock.assert_called_once_with("/project/proj1/data")
+            mock.assert_called_once_with("GET", "/project/proj1/data")
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_tasks(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data={}))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 tasks = await client.get_tasks("proj1")
 
             assert tasks == []
@@ -132,12 +132,12 @@ class TestGetTask:
     async def test_returns_task(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=SAMPLE_TASK))
-            with patch.object(client._client, "get", mock):
+            with patch.object(client._client, "request", mock):
                 task = await client.get_task("task1", "proj1")
 
             assert task.id == "task1"
             assert task.project_id == "proj1"
-            mock.assert_called_once_with("/project/proj1/task/task1")
+            mock.assert_called_once_with("GET", "/project/proj1/task/task1")
 
 
 class TestCreateTask:
@@ -156,12 +156,13 @@ class TestCreateTask:
         }
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 task = await client.create_task(payload)
 
             assert task.id == "new1"
             assert task.title == "New task"
             mock.assert_called_once_with(
+                "POST",
                 "/task",
                 json={"title": "New task", "projectId": "proj1", "content": "", "priority": 0},
             )
@@ -183,7 +184,7 @@ class TestCreateTask:
         }
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 task = await client.create_task(payload)
 
             assert task.priority == TaskPriority.HIGH
@@ -205,12 +206,13 @@ class TestUpdateTask:
         }
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 task = await client.update_task(payload)
 
             assert task.id == "task1"
             assert task.title == "Updated title"
             mock.assert_called_once_with(
+                "POST",
                 "/task/task1",
                 json={"id": "task1", "projectId": "proj1", "title": "Updated title"},
             )
@@ -232,11 +234,12 @@ class TestUpdateTask:
         }
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 task = await client.update_task(payload)
 
             assert task.priority == TaskPriority.HIGH
             mock.assert_called_once_with(
+                "POST",
                 "/task/task1",
                 json={"id": "task1", "projectId": "proj1", "priority": 5},
             )
@@ -250,12 +253,12 @@ class TestCreateProject:
         response_data = {"id": "proj-new", "name": "Travel"}
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=response_data))
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 project = await client.create_project("Travel")
 
             assert project.id == "proj-new"
             assert project.name == "Travel"
-            mock.assert_called_once_with("/project", json={"name": "Travel"})
+            mock.assert_called_once_with("POST", "/project", json={"name": "Travel"})
 
 
 class TestDeleteTask:
@@ -265,10 +268,10 @@ class TestDeleteTask:
     async def test_deletes_task(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=None, text=""))
-            with patch.object(client._client, "delete", mock):
+            with patch.object(client._client, "request", mock):
                 await client.delete_task("task1", "proj1")
 
-            mock.assert_called_once_with("/project/proj1/task/task1")
+            mock.assert_called_once_with("DELETE", "/project/proj1/task/task1")
 
 
 class TestMoveTask:
@@ -280,10 +283,11 @@ class TestMoveTask:
             mock = AsyncMock(
                 return_value=_make_response(json_data=[{"id": "task1", "etag": "abc"}], text="")
             )
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 await client.move_task("task1", "proj-from", "proj-to")
 
             mock.assert_called_once_with(
+                "POST",
                 "/task/move",
                 json=[{"taskId": "task1", "fromProjectId": "proj-from", "toProjectId": "proj-to"}],
             )
@@ -295,7 +299,7 @@ class TestMoveTask:
         async with TickTickClient(access_token="bad") as client:
             mock = AsyncMock(return_value=_make_response(status_code=401, text="Unauthorized"))
             with (
-                patch.object(client._client, "post", mock),
+                patch.object(client._client, "request", mock),
                 pytest.raises(TickTickUnauthorizedError),
             ):
                 await client.move_task("task1", "proj-from", "proj-to")
@@ -308,10 +312,10 @@ class TestCompleteTask:
     async def test_completes_task(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(json_data=None, text=""))
-            with patch.object(client._client, "post", mock):
+            with patch.object(client._client, "request", mock):
                 await client.complete_task("task1", "proj1")
 
-            mock.assert_called_once_with("/project/proj1/task/task1/complete")
+            mock.assert_called_once_with("POST", "/project/proj1/task/task1/complete")
 
 
 class TestErrorHandling:
@@ -324,7 +328,7 @@ class TestErrorHandling:
         async with TickTickClient(access_token="bad") as client:
             mock = AsyncMock(return_value=_make_response(status_code=401, text="Unauthorized"))
             with (
-                patch.object(client._client, "get", mock),
+                patch.object(client._client, "request", mock),
                 pytest.raises(TickTickUnauthorizedError) as exc_info,
             ):
                 await client.get_projects()
@@ -338,7 +342,7 @@ class TestErrorHandling:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(status_code=404, text="Not Found"))
             with (
-                patch.object(client._client, "get", mock),
+                patch.object(client._client, "request", mock),
                 pytest.raises(TickTickNotFoundError) as exc_info,
             ):
                 await client.get_task("no", "proj1")
@@ -352,12 +356,31 @@ class TestErrorHandling:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(status_code=429, text="Rate Limited"))
             with (
-                patch.object(client._client, "get", mock),
+                patch.object(client._client, "request", mock),
                 pytest.raises(TickTickRateLimitError) as exc_info,
             ):
                 await client.get_projects()
 
             assert exc_info.value.status_code == 429
+            # Should have retried _RATE_LIMIT_RETRIES times + 1 initial attempt
+            assert mock.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_exceed_query_is_rate_limit(self) -> None:
+        """500 with exceed_query should be treated as rate limit."""
+        from alice_ticktick.ticktick.client import TickTickRateLimitError
+
+        body = '{"errorId":"abc@server-1","errorCode":"exceed_query"}'
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(return_value=_make_response(status_code=500, text=body))
+            with (
+                patch.object(client._client, "request", mock),
+                pytest.raises(TickTickRateLimitError) as exc_info,
+            ):
+                await client.get_projects()
+
+            assert exc_info.value.status_code == 500
+            assert mock.call_count == 3  # retried
 
     @pytest.mark.asyncio
     async def test_server_error(self) -> None:
@@ -368,7 +391,7 @@ class TestErrorHandling:
                 return_value=_make_response(status_code=500, text="Internal Server Error")
             )
             with (
-                patch.object(client._client, "get", mock),
+                patch.object(client._client, "request", mock),
                 pytest.raises(TickTickServerError) as exc_info,
             ):
                 await client.get_projects()
@@ -382,7 +405,7 @@ class TestErrorHandling:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(return_value=_make_response(status_code=418, text="I'm a teapot"))
             with (
-                patch.object(client._client, "get", mock),
+                patch.object(client._client, "request", mock),
                 pytest.raises(TickTickError) as exc_info,
             ):
                 await client.get_projects()
@@ -393,8 +416,40 @@ class TestErrorHandling:
     async def test_timeout(self) -> None:
         async with TickTickClient(access_token="t") as client:
             mock = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
-            with patch.object(client._client, "get", mock), pytest.raises(httpx.TimeoutException):
+            with (
+                patch.object(client._client, "request", mock),
+                pytest.raises(httpx.TimeoutException),
+            ):
                 await client.get_projects()
+
+
+class TestRetryOnRateLimit:
+    """Test that rate-limited requests are retried with backoff."""
+
+    @pytest.mark.asyncio
+    async def test_retry_succeeds_on_second_attempt(self) -> None:
+        rate_resp = _make_response(status_code=429, text="Rate Limited")
+        ok_resp = _make_response(json_data=[SAMPLE_PROJECT])
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(side_effect=[rate_resp, ok_resp])
+            with patch.object(client._client, "request", mock):
+                projects = await client.get_projects()
+
+            assert len(projects) == 1
+            assert mock.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_exceed_query_succeeds(self) -> None:
+        body = '{"errorCode":"exceed_query"}'
+        rate_resp = _make_response(status_code=500, text=body)
+        ok_resp = _make_response(json_data=[SAMPLE_PROJECT])
+        async with TickTickClient(access_token="t") as client:
+            mock = AsyncMock(side_effect=[rate_resp, ok_resp])
+            with patch.object(client._client, "request", mock):
+                projects = await client.get_projects()
+
+            assert len(projects) == 1
+            assert mock.call_count == 2
 
 
 class TestContextManager:

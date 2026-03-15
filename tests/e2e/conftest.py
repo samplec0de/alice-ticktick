@@ -341,10 +341,10 @@ async def _reset_session(yandex_client: YandexDialogsClient) -> None:
     """Start a fresh session before each test.
 
     Sends a new-session message to clear any leftover FSM state (e.g. pending
-    confirmation from a previous delete/edit flow).  The 5-second sleep avoids
-    TickTick API rate limiting.
+    confirmation from a previous delete/edit flow).  The 8-second sleep avoids
+    TickTick API rate limiting (500 exceed_query).
     """
-    await asyncio.sleep(5)
+    await asyncio.sleep(8)
     response = await yandex_client.send_new_session()
     # If a previous test left FSM in a confirmation state, cancel it and restart
     if "да или нет" in response.lower():

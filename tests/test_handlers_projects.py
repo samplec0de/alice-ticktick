@@ -110,7 +110,7 @@ async def test_list_projects_api_error() -> None:
     )
     message = _make_message()
     response = await handle_list_projects(message, ticktick_client_factory=factory)
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 def _make_task(
@@ -214,7 +214,7 @@ async def test_project_tasks_api_error() -> None:
         _make_intent_data("X"),
         ticktick_client_factory=factory,
     )
-    assert response.text == txt.API_ERROR
+    assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 # --- handle_create_project ---

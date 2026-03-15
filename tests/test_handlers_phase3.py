@@ -251,7 +251,7 @@ class TestListSubtasks:
             side_effect=Exception("API error"),
         )
         response = await handle_list_subtasks(message, data, mock_factory)
-        assert response.text == txt.API_ERROR
+        assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 # =============================================================================
@@ -398,7 +398,7 @@ class TestShowChecklist:
             side_effect=Exception("API error"),
         )
         response = await handle_show_checklist(message, data, mock_factory)
-        assert response.text == txt.API_ERROR
+        assert "Произошла ошибка при обращении к TickTick" in response.text
 
 
 # =============================================================================

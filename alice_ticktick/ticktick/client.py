@@ -1,5 +1,7 @@
 """TickTick API v1 async client."""
 
+import asyncio
+import logging
 from typing import Any
 
 import httpx
@@ -8,6 +10,10 @@ from alice_ticktick.ticktick.models import Project, Task, TaskCreate, TaskUpdate
 
 BASE_URL = "https://api.ticktick.com/open/v1"
 TIMEOUT = 5.0
+_RATE_LIMIT_RETRIES = 2
+_RATE_LIMIT_BACKOFF = 1.0  # seconds, multiplied by attempt number
+
+logger = logging.getLogger(__name__)
 
 # Module-level HTTP client for connection reuse across warm invocations.
 # YC Functions reuses the event loop between calls, so async resources survive.
@@ -47,7 +53,7 @@ class TickTickNotFoundError(TickTickError):
 
 
 class TickTickRateLimitError(TickTickError):
-    """429 Too Many Requests."""
+    """429 Too Many Requests or 500 with exceed_query."""
 
 
 class TickTickServerError(TickTickError):
@@ -69,6 +75,9 @@ def _raise_for_status(response: httpx.Response) -> None:
     if code == 429:
         raise TickTickRateLimitError(code, text)
     if code >= 500:
+        # TickTick returns 500 with errorCode "exceed_query" for rate limiting
+        if "exceed_query" in text:
+            raise TickTickRateLimitError(code, text)
         raise TickTickServerError(code, text)
 
     raise TickTickError(code, text)
@@ -79,6 +88,32 @@ class TickTickClient:
 
     def __init__(self, access_token: str) -> None:
         self._client = _get_shared_http(access_token)
+
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Send HTTP request with retry on rate limit (exceed_query)."""
+        for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            response = await self._client.request(method, url, **kwargs)
+            try:
+                _raise_for_status(response)
+            except TickTickRateLimitError:
+                if attempt < _RATE_LIMIT_RETRIES:
+                    delay = _RATE_LIMIT_BACKOFF * (attempt + 1)
+                    logger.warning(
+                        "Rate limited (attempt %d/%d), retrying in %.1fs",
+                        attempt + 1,
+                        _RATE_LIMIT_RETRIES + 1,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+            return response
+        raise RuntimeError("unreachable")
 
     async def close(self) -> None:
         """No-op: shared client stays alive for connection reuse."""
@@ -93,27 +128,23 @@ class TickTickClient:
 
     async def get_projects(self) -> list[Project]:
         """Get all user projects."""
-        response = await self._client.get("/project")
-        _raise_for_status(response)
+        response = await self._request("GET", "/project")
         return [Project.model_validate(p) for p in response.json()]
 
     async def create_project(self, name: str) -> Project:
         """Create a new project."""
-        response = await self._client.post("/project", json={"name": name})
-        _raise_for_status(response)
+        response = await self._request("POST", "/project", json={"name": name})
         return Project.model_validate(response.json())
 
     async def delete_project(self, project_id: str) -> None:
         """Delete a project."""
-        response = await self._client.delete(f"/project/{project_id}")
-        _raise_for_status(response)
+        await self._request("DELETE", f"/project/{project_id}")
 
     # -- Inbox --
 
     async def get_inbox_tasks(self) -> list[Task]:
         """Get tasks from inbox (not included in get_projects)."""
-        response = await self._client.get("/project/inbox/data")
-        _raise_for_status(response)
+        response = await self._request("GET", "/project/inbox/data")
         data: dict[str, Any] = response.json()
         raw_tasks: list[dict[str, Any]] = data.get("tasks", [])
         return [Task.model_validate(t) for t in raw_tasks]
@@ -122,50 +153,42 @@ class TickTickClient:
 
     async def get_tasks(self, project_id: str) -> list[Task]:
         """Get all tasks in a project."""
-        response = await self._client.get(
-            f"/project/{project_id}/data",
-        )
-        _raise_for_status(response)
+        response = await self._request("GET", f"/project/{project_id}/data")
         data: dict[str, Any] = response.json()
         raw_tasks: list[dict[str, Any]] = data.get("tasks", [])
         return [Task.model_validate(t) for t in raw_tasks]
 
     async def get_task(self, task_id: str, project_id: str) -> Task:
         """Get a single task by id."""
-        response = await self._client.get(
-            f"/project/{project_id}/task/{task_id}",
-        )
-        _raise_for_status(response)
+        response = await self._request("GET", f"/project/{project_id}/task/{task_id}")
         return Task.model_validate(response.json())
 
     async def create_task(self, payload: TaskCreate) -> Task:
         """Create a new task."""
-        response = await self._client.post(
+        response = await self._request(
+            "POST",
             "/task",
             json=payload.model_dump(by_alias=True, exclude_none=True),
         )
-        _raise_for_status(response)
         return Task.model_validate(response.json())
 
     async def update_task(self, payload: TaskUpdate) -> Task:
         """Update an existing task."""
-        response = await self._client.post(
+        response = await self._request(
+            "POST",
             f"/task/{payload.id}",
             json=payload.model_dump(by_alias=True, exclude_none=True),
         )
-        _raise_for_status(response)
         return Task.model_validate(response.json())
 
     async def delete_task(self, task_id: str, project_id: str) -> None:
         """Delete a task."""
-        response = await self._client.delete(
-            f"/project/{project_id}/task/{task_id}",
-        )
-        _raise_for_status(response)
+        await self._request("DELETE", f"/project/{project_id}/task/{task_id}")
 
     async def move_task(self, task_id: str, from_project_id: str, to_project_id: str) -> None:
         """Move a task to a different project."""
-        response = await self._client.post(
+        await self._request(
+            "POST",
             "/task/move",
             json=[
                 {
@@ -175,11 +198,7 @@ class TickTickClient:
                 }
             ],
         )
-        _raise_for_status(response)
 
     async def complete_task(self, task_id: str, project_id: str) -> None:
         """Mark a task as completed."""
-        response = await self._client.post(
-            f"/project/{project_id}/task/{task_id}/complete",
-        )
-        _raise_for_status(response)
+        await self._request("POST", f"/project/{project_id}/task/{task_id}/complete")

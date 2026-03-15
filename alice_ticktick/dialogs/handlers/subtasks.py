@@ -94,9 +94,9 @@ async def handle_list_subtasks(
             all_tasks = await _gather_all_tasks(client, access_token)
     except TickTickUnauthorizedError:
         return _auth_required_response(event_update)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to fetch tasks for subtask listing")
-        return Response(text=txt.API_ERROR)
+        return Response(text=txt.api_error_detail(exc))
 
     active_tasks = [t for t in all_tasks if t.status == 0]
     if not active_tasks:

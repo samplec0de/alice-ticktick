@@ -223,6 +223,16 @@ UNKNOWN = "Команда не распознана. Скажите «помощ
 
 # Errors
 API_ERROR = "Произошла ошибка при обращении к TickTick. Попробуйте позже."
+
+
+def api_error_detail(exc: Exception) -> str:
+    """API error message with exception class name for diagnostics."""
+    cls = type(exc).__name__
+    detail = str(exc)[:80] if str(exc) else ""
+    suffix = f" ({cls}: {detail})" if detail else f" ({cls})"
+    return f"Произошла ошибка при обращении к TickTick{suffix}. Попробуйте позже."
+
+
 GOODBYE = "До встречи! Удачного дня!"
 
 
