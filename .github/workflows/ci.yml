@@ -57,9 +57,10 @@ jobs:
               - '.github/workflows/ci.yml'
 
   deploy:
+    # !failure() && !cancelled() needed because `changes` job is skipped
+    # on PRs and workflow_dispatch — default would skip deploy too
     if: >-
-      always() && !cancelled() &&
-      !contains(needs.*.result, 'failure') &&
+      !failure() && !cancelled() &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'))
     needs: [lint, typecheck, test, changes]
