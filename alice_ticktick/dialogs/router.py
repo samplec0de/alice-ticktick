@@ -32,6 +32,7 @@ from alice_ticktick.dialogs.handlers import (
     handle_evening_briefing,
     handle_goodbye,
     handle_help,
+    handle_help_topic,
     handle_list_projects,
     handle_list_subtasks,
     handle_list_tasks,
@@ -43,6 +44,7 @@ from alice_ticktick.dialogs.handlers import (
     handle_unknown,
     handle_welcome,
 )
+from alice_ticktick.dialogs.help_topics import TOPIC_HELP_RE, detect_help_topic
 from alice_ticktick.dialogs.intents import (
     ADD_CHECKLIST_ITEM,
     ADD_REMINDER,
@@ -621,6 +623,13 @@ async def on_unknown(
         return await handle_goodbye(message)
 
     raw = message.original_utterance or message.command or ""
+
+    # Topic help fallback: "как удалить задачу", "расскажи про проекты"
+    m = TOPIC_HELP_RE.search(raw)
+    if m:
+        topic = detect_help_topic(m.group(1).strip())
+        if topic is not None:
+            return await handle_help_topic(topic)
 
     # Search fallback: "поиск задачи X"
     m = _SEARCH_FALLBACK_RE.search(raw)

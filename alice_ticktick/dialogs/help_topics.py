@@ -1,0 +1,150 @@
+"""Topic-based help: detect topic from utterance and return detailed help text."""
+
+from __future__ import annotations
+
+import re
+
+# --- Normalization (ASR gives "чек-лист", "чек лист" etc.) ---
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and collapse hyphens/whitespace for robust stem matching."""
+    return re.sub(r"[\s-]+", "", text.lower())
+
+
+# --- Topic keywords (ordered by priority — first match wins) ---
+
+_TOPIC_KEYWORDS: list[tuple[str, list[str]]] = [
+    ("create", ["созда", "повтор", "добавл"]),
+    ("list", ["просмотр", "посмотр", "показ", "просроч"]),
+    ("search", ["поиск", "найти", "найд", "искать"]),
+    ("edit", ["измен", "перенес", "редактир"]),
+    ("complete", ["заверш", "выполн", "удал"]),
+    ("subtasks", ["подзадач", "чеклист", "чекист", "чеклис"]),
+    ("projects", ["проект", "списк", "список"]),
+    ("briefings", ["брифинг", "напоминан", "сводк"]),
+]
+
+# --- Regex for help-like questions in on_unknown fallback ---
+
+TOPIC_HELP_RE = re.compile(
+    r"(?:как|расскажи\s+(?:про|о)|что\s+такое|объясни|помощь(?:\s+(?:с|по|про))?)\s+(.+)",
+    re.IGNORECASE,
+)
+
+# --- Help texts per topic (each ≤ 1024 chars — Alice response text limit) ---
+
+HELP_TOPICS: dict[str, str] = {
+    "create": (
+        "Создание задач\n\n"
+        "Примеры:\n"
+        "- «Создай задачу купить молоко»\n"
+        "- «Создай задачу на завтра с высоким приоритетом»\n"
+        "- «Создай встречу на завтра с 10 до 12»\n"
+        "- «Создай задачу каждый понедельник»\n"
+        "- «Создай задачу с напоминанием за час»\n"
+        "- «Создай задачу в проекте Работа»\n\n"
+        "Можно комбинировать дату, приоритет, повторение, напоминание и проект.\n"
+        "Приоритеты: срочный, высокий, средний, низкий.\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "list": (
+        "Просмотр задач\n\n"
+        "Примеры:\n"
+        "- «Что на сегодня?»\n"
+        "- «Покажи задачи на завтра»\n"
+        "- «Покажи срочные задачи на эту неделю»\n"
+        "- «Что на этот месяц?»\n"
+        "- «Какие задачи просрочены?»\n\n"
+        "Можно фильтровать по дате, неделе, месяцу и приоритету.\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "search": (
+        "Поиск задач\n\n"
+        "Примеры:\n"
+        "- «Найди задачу про отчёт»\n"
+        "- «Поиск задачи молоко»\n\n"
+        "Поиск работает по нечёткому совпадению — не нужно помнить точное название.\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "edit": (
+        "Изменение задач\n\n"
+        "Примеры:\n"
+        "- «Перенеси задачу на завтра»\n"
+        "- «Поменяй приоритет задачи на высокий»\n"
+        "- «Переименуй задачу в новое название»\n"
+        "- «Перемести задачу в проект Работа»\n"
+        "- «Поменяй повторение задачи на каждый день»\n"
+        "- «Убери напоминание задачи»\n\n"
+        "Можно менять дату, приоритет, имя, проект, повторение и напоминание.\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "complete": (
+        "Завершение и удаление задач\n\n"
+        "Примеры:\n"
+        "- «Отметь задачу купить молоко»\n"
+        "- «Удали задачу купить молоко»\n\n"
+        "При удалении я попрошу подтверждение.\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "subtasks": (
+        "Подзадачи и чеклисты\n\n"
+        "Примеры:\n"
+        "- «Добавь подзадачу к задаче»\n"
+        "- «Покажи подзадачи задачи»\n"
+        "- «Добавь пункт в чеклист задачи»\n"
+        "- «Покажи чеклист задачи»\n"
+        "- «Отметь пункт в чеклисте задачи»\n"
+        "- «Удали пункт из чеклиста задачи»\n\n"
+        "Подзадачи — отдельные задачи внутри родительской. "
+        "Чеклист — список пунктов внутри задачи.\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "projects": (
+        "Проекты\n\n"
+        "Проекты — это списки в интерфейсе TickTick.\n\n"
+        "Примеры:\n"
+        "- «Какие у меня проекты?»\n"
+        "- «Задачи проекта Работа»\n"
+        "- «Создай проект»\n"
+        "- «Перемести задачу в проект Работа»\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+    "briefings": (
+        "Брифинги и напоминания\n\n"
+        "Примеры:\n"
+        "- «Доброе утро» — утренний брифинг (задачи на сегодня + просроченные)\n"
+        "- «Подведи итоги дня» — вечерний брифинг (задачи на завтра)\n"
+        "- «Напомни о задаче за 30 минут»\n"
+        "- «Напомни о задаче за час»\n\n"
+        "Скажите «помощь» для списка всех команд."
+    ),
+}
+
+
+def detect_help_topic(utterance: str) -> str | None:
+    """Detect topic key from utterance using stem matching. Returns None if no match."""
+    normalized = _normalize(utterance)
+    for topic_key, stems in _TOPIC_KEYWORDS:
+        for stem in stems:
+            if stem in normalized:
+                return topic_key
+    return None
+
+
+# Validate that _TOPIC_KEYWORDS and HELP_TOPICS have the same keys (fail-fast at import).
+_keyword_keys = frozenset(k for k, _ in _TOPIC_KEYWORDS)
+_topic_keys = frozenset(HELP_TOPICS)
+if _keyword_keys != _topic_keys:
+    raise RuntimeError(
+        f"Key mismatch: in keywords not in topics={_keyword_keys - _topic_keys}, "
+        f"in topics not in keywords={_topic_keys - _keyword_keys}"
+    )
+
+
+def get_topic_help(topic_key: str) -> str:
+    """Return help text for a given topic key.
+
+    Raises KeyError if topic_key is not in HELP_TOPICS.
+    """
+    return HELP_TOPICS[topic_key]
